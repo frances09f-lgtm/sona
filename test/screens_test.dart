@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gold_paper_trading/main.dart';
+import 'package:sona/main.dart';
 
 Future<void> loadFonts() async {
   final roboto = FontLoader('Roboto')

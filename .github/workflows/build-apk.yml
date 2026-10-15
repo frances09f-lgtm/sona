@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Sona APK
 on:
   workflow_dispatch:
   push:
@@ -20,5 +20,5 @@ jobs:
       - run: flutter build apk --debug --target-platform android-arm64 -v
       - uses: actions/upload-artifact@v4
         with:
-          name: gold-paper-trading-debug-apk
+          name: sona-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk

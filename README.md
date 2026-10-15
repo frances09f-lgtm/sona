@@ -1,4 +1,8 @@
-# gold_paper_trading
+# Sona
+
+Gold paper trading and trade journaling for Android.
+
+Repository: https://github.com/frances09f-lgtm/sona
 
 A new Flutter project.
 
