@@ -24,6 +24,9 @@ Future<void> loadFonts() async {
   await Future.wait([roboto.load(), icons.load()]);
 }
 
+// Golden fixtures use local wall-clock times so timestamps render identically
+// in UTC developer machines and Asia/Kolkata release CI. Production still
+// converts actual server UTC timestamps to the device timezone.
 AppState demoState() {
   final app = AppState();
   app.unlocked = true;
@@ -45,7 +48,7 @@ AppState demoState() {
       'pnl': null,
       'exit': null,
       'status': 'open',
-      'opened_at': '2026-10-06T14:18:07+00:00',
+      'opened_at': '2026-10-06T14:18:07',
       'closed_at': null,
       'reason': null,
     },
@@ -59,7 +62,7 @@ AppState demoState() {
       'pnl': null,
       'exit': null,
       'status': 'open',
-      'opened_at': '2026-10-06T14:17:29+00:00',
+      'opened_at': '2026-10-06T14:17:29',
       'closed_at': null,
       'reason': null,
     },
@@ -73,7 +76,7 @@ AppState demoState() {
       'pnl': null,
       'exit': null,
       'status': 'open',
-      'opened_at': '2026-10-06T13:02:11+00:00',
+      'opened_at': '2026-10-06T13:02:11',
       'closed_at': null,
       'reason': null,
     },
@@ -87,8 +90,8 @@ AppState demoState() {
       'sl': null,
       'pnl': 1.0,
       'status': 'closed',
-      'opened_at': '2026-10-06T13:24:00+00:00',
-      'closed_at': '2026-10-06T13:26:07+00:00',
+      'opened_at': '2026-10-06T13:24:00',
+      'closed_at': '2026-10-06T13:26:07',
       'reason': 'Manual close',
     },
   ];
@@ -103,7 +106,7 @@ AppState demoState() {
       'tp': null,
       'sl': null,
       'note': '',
-      'traded_at': '2026-10-06T13:25:00+00:00',
+      'traded_at': '2026-10-06T13:25:00',
     },
   ];
   return app;
