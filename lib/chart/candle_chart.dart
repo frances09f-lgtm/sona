@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../analysis.dart';
 import '../market_data/models.dart';
 import 'indicators.dart';
+import 'chart_tools.dart';
 
 /// Real candle chart (stage b). Renders ONLY candles that came from a
 /// historical candle service - never synthetic or placeholder bars.
@@ -70,6 +71,9 @@ class CandleChartPanel extends StatefulWidget {
   /// of the fixed in-page height.
   final bool expand;
   final bool rangeMode;
+  final Map<String, dynamic>? initialLayout;
+  final Listenable? marketUpdates;
+  final ChartMarketSnapshot Function()? marketSnapshot;
 
   const CandleChartPanel({
     super.key,
@@ -78,6 +82,9 @@ class CandleChartPanel extends StatefulWidget {
     this.livePrice,
     this.expand = false,
     this.rangeMode = false,
+    this.initialLayout,
+    this.marketUpdates,
+    this.marketSnapshot,
   });
 
   @override
@@ -86,6 +93,21 @@ class CandleChartPanel extends StatefulWidget {
 
 class CandleChartPanelState extends State<CandleChartPanel> {
   bool usingRange = false;
+  ChartStyle chartStyle = ChartStyle.candles;
+  int emaPeriod = 50,
+      rsiPeriod = 14,
+      macdFast = 12,
+      macdSlow = 26,
+      macdSignalPeriod = 9;
+  ChartMarketSnapshot get market =>
+      widget.marketSnapshot?.call() ??
+      ChartMarketSnapshot(price: widget.livePrice);
+  double? get chartPrice =>
+      market.fresh && (market.price?.isFinite ?? false) && market.price! > 0
+      ? market.price
+      : null;
+  double get _rsiHeight => rsiOn && candles.length > rsiPeriod ? 64 : 0;
+  double get _macdHeight => macdOn && candles.length >= macdSlow ? 64 : 0;
   int _loadGeneration = 0;
   ChartInterval interval = intervals[1]; // 15m default
   List<Candle> candles = [];
@@ -120,6 +142,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   int? visibleOverride;
   double _scaleStartVC = 0;
   double _panStartScroll = 0;
+  double _panStartX = 0;
   static const double rightPad = 52.0;
 
   int get _vc {
@@ -153,9 +176,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
         lo = lo < c.low ? lo : c.low;
       }
     }
-    if (widget.livePrice != null) {
-      hi = hi > widget.livePrice! ? hi : widget.livePrice!;
-      lo = lo < widget.livePrice! ? lo : widget.livePrice!;
+    if (chartPrice != null) {
+      hi = hi > chartPrice! ? hi : chartPrice!;
+      lo = lo < chartPrice! ? lo : chartPrice!;
     }
     return (hi, lo);
   }
@@ -163,8 +186,10 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   @override
   void initState() {
     super.initState();
-    usingRange = widget.rangeMode;
+    usingRange =
+        widget.initialLayout?['rangeMode'] as bool? ?? widget.rangeMode;
     if (usingRange) interval = tradeRanges[1];
+    if (widget.initialLayout != null) _restoreTools(widget.initialLayout!);
     _loadLines();
     _load();
     _armTimer();
@@ -172,6 +197,12 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 
   static const presetKey = 'sona_chart_presets';
   Map<String, dynamic> layoutSnapshot() => {
+    'chartStyle': chartStyle.name,
+    'emaPeriod': emaPeriod,
+    'rsiPeriod': rsiPeriod,
+    'macdFast': macdFast,
+    'macdSlow': macdSlow,
+    'macdSignalPeriod': macdSignalPeriod,
     'rangeMode': usingRange,
     'interval': interval.code,
     'sma20': smaOn,
@@ -182,7 +213,67 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     'bollinger': bollingerOn,
     'extraEmas': extraEmas.toList(),
     'visibleCount': visibleOverride,
+    'scrollCandles': scrollCandles,
   };
+  void _restoreTools(Map<String, dynamic> data) {
+    chartStyle =
+        ChartStyle.values
+            .where((v) => v.name == data['chartStyle'])
+            .firstOrNull ??
+        ChartStyle.candles;
+    int period(String key, int fallback) =>
+        data[key] is int && (data[key] as int) >= 2 && (data[key] as int) <= 200
+        ? data[key] as int
+        : fallback;
+    emaPeriod = period('emaPeriod', 50);
+    rsiPeriod = period('rsiPeriod', 14);
+    macdFast = period('macdFast', 12);
+    macdSlow = period('macdSlow', 26);
+    macdSignalPeriod = period('macdSignalPeriod', 9);
+    if (macdFast >= macdSlow) {
+      macdFast = 12;
+      macdSlow = 26;
+    }
+    smaOn = data['sma20'] == true;
+    emaOn = data['ema50'] == true;
+    sma200On = data['sma200'] == true;
+    rsiOn = data['rsi'] == true;
+    macdOn = data['macd'] == true;
+    bollingerOn = data['bollinger'] == true;
+    extraEmas
+      ..clear()
+      ..addAll(
+        (data['extraEmas'] as List? ?? []).whereType<int>().where(
+          (p) => [9, 21, 200].contains(p),
+        ),
+      );
+    final opts = usingRange ? tradeRanges : intervals;
+    interval =
+        opts.where((iv) => iv.code == data['interval']).firstOrNull ?? interval;
+    visibleOverride = (data['visibleCount'] as int?)?.clamp(15, 500);
+    final savedScroll = data['scrollCandles'];
+    scrollCandles = savedScroll is num && savedScroll.isFinite
+        ? math.max(0.0, savedScroll.toDouble())
+        : 0;
+  }
+
+  Future<void> configureIndicators() async {
+    final values = await showDialog<List<int>>(
+      context: context,
+      builder: (_) => IndicatorSettingsDialog(
+        values: [emaPeriod, rsiPeriod, macdFast, macdSlow, macdSignalPeriod],
+      ),
+    );
+    if (!mounted || values == null) return;
+    setState(() {
+      emaPeriod = values[0];
+      rsiPeriod = values[1];
+      macdFast = values[2];
+      macdSlow = values[3];
+      macdSignalPeriod = values[4];
+    });
+  }
+
   Future<Map<String, dynamic>> readPresets() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(presetKey);
@@ -230,6 +321,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
         .toSet();
     final count = (data['visibleCount'] as num?)?.toInt();
     setState(() {
+      final previous = interval;
+      _restoreTools(data);
+      interval = previous;
       smaOn = data['sma20'] == true;
       emaOn = data['ema50'] == true;
       sma200On = data['sma200'] == true;
@@ -240,7 +334,6 @@ class CandleChartPanelState extends State<CandleChartPanel> {
         ..clear()
         ..addAll(extras);
       visibleOverride = count == null ? null : count.clamp(15, 500);
-      scrollCandles = 0;
       selected = null;
       alertMode = drawMode = trendMode = fibMode = false;
       pendingTrend = null;
@@ -511,8 +604,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   Future<void> _editLineAt(Offset pos, Size size) async {
     if (hLines.isEmpty || candles.isEmpty) return;
     const bottomPad = 16.0;
-    final rsiH = (rsiOn && candles.length > 14) ? 64.0 : 0.0;
-    final macdH = (macdOn && candles.length > 33) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (pos.dy < 0 || pos.dy > plotH) return;
     var (hi, lo) = _visiblePriceRange();
@@ -654,7 +748,14 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     try {
       final requested = interval.code;
       final raw = await loader(requested);
-      final data = usingRange ? trimTradeRange(raw, requested) : raw;
+      if (raw.any((c) => !validChartCandle(c)))
+        throw StateError(
+          'Candle feed returned invalid prices. Last valid history retained.',
+        );
+      final sorted = {
+        ...{for (final c in raw) c.time.toUtc().millisecondsSinceEpoch: c},
+      }.values.toList()..sort((a, b) => a.time.compareTo(b.time));
+      final data = usingRange ? trimTradeRange(sorted, requested) : sorted;
       if (!mounted ||
           generation != _loadGeneration ||
           interval.code != requested)
@@ -728,45 +829,82 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                           ),
                         ),
                       ),
+                      PopupMenuButton<ChartStyle>(
+                        tooltip: 'Chart style',
+                        initialValue: chartStyle,
+                        onSelected: (v) => setState(() => chartStyle = v),
+                        itemBuilder: (_) => [
+                          for (final v in ChartStyle.values)
+                            CheckedPopupMenuItem(
+                              value: v,
+                              checked: v == chartStyle,
+                              child: Text(v.label),
+                            ),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            chartStyle.label,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                       PopupMenuButton<String>(
                         tooltip: 'Indicators',
-                        onSelected: (v) => setState(() {
-                          switch (v) {
-                            case 'SMA20':
-                              smaOn = !smaOn;
-                              break;
-                            case 'SMA200':
-                              sma200On = !sma200On;
-                              break;
-                            case 'EMA50':
-                              emaOn = !emaOn;
-                              break;
-                            case 'RSI14':
-                              rsiOn = !rsiOn;
-                              break;
-                            case 'MACD':
-                              macdOn = !macdOn;
-                              break;
-                            case 'BB20':
-                              bollingerOn = !bollingerOn;
-                              break;
-                            default:
-                              final n = int.parse(v.substring(3));
-                              extraEmas.contains(n)
-                                  ? extraEmas.remove(n)
-                                  : extraEmas.add(n);
+                        onSelected: (v) {
+                          if (v == 'configure') {
+                            configureIndicators();
+                            return;
                           }
-                        }),
+                          setState(() {
+                            switch (v) {
+                              case 'SMA20':
+                                smaOn = !smaOn;
+                                break;
+                              case 'SMA200':
+                                sma200On = !sma200On;
+                                break;
+                              case 'EMA50':
+                                emaOn = !emaOn;
+                                break;
+                              case 'RSI14':
+                                rsiOn = !rsiOn;
+                                break;
+                              case 'MACD':
+                                macdOn = !macdOn;
+                                break;
+                              case 'BB20':
+                                bollingerOn = !bollingerOn;
+                                break;
+                              default:
+                                final n = int.parse(v.substring(3));
+                                extraEmas.contains(n)
+                                    ? extraEmas.remove(n)
+                                    : extraEmas.add(n);
+                            }
+                          });
+                        },
                         itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'configure',
+                            child: Text('Indicator settings…'),
+                          ),
                           for (final item in <(String, String, bool)>[
                             ('SMA20', 'SMA 20', smaOn),
                             ('SMA200', 'SMA 200', sma200On),
                             ('EMA9', 'EMA 9', extraEmas.contains(9)),
                             ('EMA21', 'EMA 21', extraEmas.contains(21)),
-                            ('EMA50', 'EMA 50', emaOn),
+                            ('EMA50', 'EMA $emaPeriod', emaOn),
                             ('EMA200', 'EMA 200', extraEmas.contains(200)),
-                            ('RSI14', 'RSI 14', rsiOn),
-                            ('MACD', 'MACD 12/26/9', macdOn),
+                            ('RSI14', 'RSI $rsiPeriod', rsiOn),
+                            (
+                              'MACD',
+                              'MACD $macdFast/$macdSlow/$macdSignalPeriod',
+                              macdOn,
+                            ),
                             ('BB20', 'Bollinger 20 / 2', bollingerOn),
                           ])
                             CheckedPopupMenuItem(
@@ -884,16 +1022,26 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               if (!widget.expand) ...[
                 const SizedBox(width: 6),
                 InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => FullscreenChartPage(
-                        loader: widget.loader,
-                        livePrice: widget.livePrice,
-                        rangeMode: usingRange,
-                        onAlertPrice: widget.onAlertPrice,
-                      ),
-                    ),
-                  ),
+                  onTap: () async {
+                    final layout = await Navigator.of(context)
+                        .push<Map<String, dynamic>>(
+                          MaterialPageRoute(
+                            builder: (_) => FullscreenChartPage(
+                              loader: widget.loader,
+                              livePrice: chartPrice,
+                              rangeMode: usingRange,
+                              onAlertPrice: widget.onAlertPrice,
+                              initialLayout: layoutSnapshot(),
+                              marketUpdates: widget.marketUpdates,
+                              marketSnapshot: widget.marketSnapshot,
+                            ),
+                          ),
+                        );
+                    if (mounted && layout != null) {
+                      setState(() => usingRange = layout['rangeMode'] == true);
+                      applyPreset(layout);
+                    }
+                  },
                   child: const Padding(
                     padding: EdgeInsets.all(2),
                     child: Icon(
@@ -958,17 +1106,26 @@ class CandleChartPanelState extends State<CandleChartPanel> {
           ],
           const SizedBox(height: 6),
           _legend(dim),
+          if (market.positions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                market.summary,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF8A93A6)),
+              ),
+            ),
+          if ((rsiOn && candles.length <= rsiPeriod) ||
+              (emaOn && candles.length < emaPeriod) ||
+              (macdOn && candles.length < macdSlow + macdSignalPeriod - 1))
+            const Text(
+              'More candle history needed for selected indicators.',
+              style: TextStyle(fontSize: 10, color: Color(0xFF8A93A6)),
+            ),
           const SizedBox(height: 4),
           if (widget.expand)
             Expanded(child: _body())
           else
-            SizedBox(
-              height:
-                  220 +
-                  ((rsiOn && candles.length > 14) ? 60 : 0) +
-                  ((macdOn && candles.length > 33) ? 60 : 0),
-              child: _body(),
-            ),
+            SizedBox(height: 220 + _rsiHeight + _macdHeight, child: _body()),
           if (usingRange) ...[
             const SizedBox(height: 10),
             Row(
@@ -1018,7 +1175,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                 style: const TextStyle(color: Color(0xFF8A93A6), fontSize: 10),
               ),
           ],
-          if (candles.length >= 50) _biasStrip(),
+          if (!widget.expand && candles.length >= 50) _biasStrip(),
         ],
       ),
     );
@@ -1219,6 +1376,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               ? null
               : (d) {
                   _panStartScroll = scrollCandles;
+                  _panStartX = d.localFocalPoint.dx;
                   _scaleStartVC = _vc.toDouble();
                 },
           onScaleUpdate: drawMode
@@ -1240,10 +1398,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                           ? (n - _vc).toDouble()
                           : 0.0;
                       scrollCandles =
-                          (_panStartScroll - d.focalPointDelta.dx / step).clamp(
-                            0.0,
-                            maxScroll,
-                          );
+                          (_panStartScroll +
+                                  (d.localFocalPoint.dx - _panStartX) / step)
+                              .clamp(0.0, maxScroll);
                     });
                   }
                 },
@@ -1284,7 +1441,11 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               candles: candles,
               firstVisible: _fv,
               visibleCount: _vc,
-              livePrice: widget.livePrice,
+              livePrice: chartPrice,
+              chartStyle: chartStyle,
+              positions: market.positions,
+              macdSlow: macdSlow,
+              macdSignalPeriod: macdSignalPeriod,
               selected: selected,
               hLines: hLines,
               trendLines: trendLines,
@@ -1296,13 +1457,34 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               sma: smaOn ? sma(candles, 20) : null,
               sma200: sma200On ? sma(candles, 200) : null,
               smaPeriod: 20,
-              ema: emaOn ? ema(candles, 50) : null,
-              emaPeriod: 50,
-              rsi: rsiOn ? rsi(candles, 14) : null,
-              macdLine: macdOn ? macd(candles).$1 : null,
-              macdSignal: macdOn ? macd(candles).$2 : null,
-              macdHist: macdOn ? macd(candles).$3 : null,
-              rsiPeriod: 14,
+              ema: emaOn ? ema(candles, emaPeriod) : null,
+              emaPeriod: emaPeriod,
+              rsi: rsiOn ? rsi(candles, rsiPeriod) : null,
+              macdLine: macdOn
+                  ? macd(
+                      candles,
+                      fast: macdFast,
+                      slow: macdSlow,
+                      signalPeriod: macdSignalPeriod,
+                    ).$1
+                  : null,
+              macdSignal: macdOn
+                  ? macd(
+                      candles,
+                      fast: macdFast,
+                      slow: macdSlow,
+                      signalPeriod: macdSignalPeriod,
+                    ).$2
+                  : null,
+              macdHist: macdOn
+                  ? macd(
+                      candles,
+                      fast: macdFast,
+                      slow: macdSlow,
+                      signalPeriod: macdSignalPeriod,
+                    ).$3
+                  : null,
+              rsiPeriod: rsiPeriod,
             ),
           ),
         );
@@ -1353,8 +1535,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   void _trendAt(Offset pos, Size size) {
     if (candles.isEmpty) return;
     const bottomPad = 16.0;
-    final rsiH = (rsiOn && candles.length > 14) ? 64.0 : 0.0;
-    final macdH = (macdOn && candles.length > 33) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
     final plotW = size.width - rightPad;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (pos.dy < 0 || pos.dy > plotH || pos.dx < 0 || pos.dx > plotW) return;
@@ -1402,8 +1585,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   void _fibAt(Offset pos, Size size) {
     if (candles.isEmpty) return;
     const bottomPad = 16.0;
-    final rsiH = (rsiOn && candles.length > 14) ? 64.0 : 0.0;
-    final macdH = (macdOn && candles.length > 33) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
     final plotW = size.width - rightPad;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (pos.dy < 0 || pos.dy > plotH || pos.dx < 0 || pos.dx > plotW) return;
@@ -1434,8 +1618,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   double? _priceAtY(double dy, Size size) {
     if (candles.isEmpty) return null;
     const bottomPad = 16.0;
-    final rsiH = (rsiOn && candles.length > 14) ? 64.0 : 0.0;
-    final macdH = (macdOn && candles.length > 33) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (dy < 0 || dy > plotH) return null;
     var (hi, lo) = _visiblePriceRange();
@@ -1481,8 +1666,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   void _drawAt(Offset pos, Size size) {
     if (candles.isEmpty) return;
     const bottomPad = 16.0;
-    final rsiH = (rsiOn && candles.length > 14) ? 64.0 : 0.0;
-    final macdH = (macdOn && candles.length > 33) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (pos.dy < 0 || pos.dy > plotH) return;
     var (hi, lo) = _visiblePriceRange();
@@ -1527,11 +1713,18 @@ class CandlePainter extends CustomPainter {
   final TrendLine? pendingFib;
   final Map<int, List<double>> extraEmas;
   final (List<double>, List<double>, List<double>)? bands;
+  final ChartStyle chartStyle;
+  final List<ChartPosition> positions;
+  final int macdSlow, macdSignalPeriod;
   final int firstVisible;
   final int visibleCount;
 
   CandlePainter({
     required this.candles,
+    this.chartStyle = ChartStyle.candles,
+    this.positions = const [],
+    this.macdSlow = 26,
+    this.macdSignalPeriod = 9,
     this.firstVisible = 0,
     this.visibleCount = 0,
     this.livePrice,
@@ -1565,8 +1758,13 @@ class CandlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const rightPad = 52.0;
     const bottomPad = 16.0;
-    final rsiH = (rsi != null && rsi!.isNotEmpty) ? 64.0 : 0.0;
-    final macdH = (macdLine != null && macdLine!.isNotEmpty) ? 64.0 : 0.0;
+    final paneH = chartPaneHeight(
+      size.height,
+      rsi != null && rsi!.isNotEmpty,
+      macdLine != null && macdLine!.isNotEmpty,
+    );
+    final rsiH = rsi != null && rsi!.isNotEmpty ? paneH : 0.0;
+    final macdH = macdLine != null && macdLine!.isNotEmpty ? paneH : 0.0;
     final plotW = size.width - rightPad;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (candles.isEmpty || plotW <= 0 || plotH <= 0) return;
@@ -1616,35 +1814,47 @@ class CandlePainter extends CustomPainter {
       );
     }
 
-    // candles. The last bar is the FORMING candle: its close tracks the
-    // real live quote (and its wick extends) so the chart feels live.
-    // No synthetic data - livePrice is always a real feed quote.
-    final eff = List<Candle>.of(candles);
-    if (livePrice != null && eff.isNotEmpty) {
-      final l = eff.last;
-      eff[eff.length - 1] = Candle(
-        time: l.time,
-        open: l.open,
-        high: math.max(l.high, livePrice!),
-        low: math.min(l.low, livePrice!),
-        close: livePrice!,
-        volume: l.volume,
-      );
-    }
+    // Candle OHLC is immutable provider history. The separate quote marker
+    // must never rewrite old candles after a market/data gap.
+    final eff = candles;
     final n = eff.length;
     final step = plotW / vc0;
     final bodyW = math.max(step * 0.65, 1.5);
     final iEnd = fv0 + vc0 < n ? fv0 + vc0 : n;
+    final closePath = Path();
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
     for (int i = fv0; i < iEnd; i++) {
       final c = eff[i];
       final up = c.close >= c.open;
       final paint = Paint()..color = up ? bull : bear;
       final cx = step * (i - fv0 + 0.5);
+      if (chartStyle == ChartStyle.line) {
+        if (i == fv0) {
+          closePath.moveTo(cx, y(c.close));
+        } else {
+          closePath.lineTo(cx, y(c.close));
+        }
+        continue;
+      }
       canvas.drawLine(
         Offset(cx, y(c.high)),
         Offset(cx, y(c.low)),
         paint..strokeWidth = 1,
       );
+      if (chartStyle == ChartStyle.bars) {
+        canvas.drawLine(
+          Offset(cx - bodyW / 2, y(c.open)),
+          Offset(cx, y(c.open)),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(cx, y(c.close)),
+          Offset(cx + bodyW / 2, y(c.close)),
+          paint,
+        );
+        continue;
+      }
       final top = y(math.max(c.open, c.close));
       final bot = y(math.min(c.open, c.close));
       canvas.drawRect(
@@ -1656,6 +1866,64 @@ class CandlePainter extends CustomPainter {
         ),
         paint,
       );
+    }
+
+    if (chartStyle == ChartStyle.line)
+      canvas.drawPath(
+        closePath,
+        Paint()
+          ..color = gold
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6,
+      );
+    canvas.restore();
+    // Display-only paper trade levels. Off-screen levels get explicit edge labels;
+    // they never expand the range or masquerade as a price within the view.
+    final used = <double>[];
+    for (var i = 0; i < positions.length; i++) {
+      final p = positions[i];
+      for (final level in [
+        (
+          p.entry,
+          '${i + 1} ${p.buy ? 'BUY' : 'SELL'} entry',
+          const Color(0xFF4EA1FF),
+        ),
+        (p.stop, '${i + 1} SL', bear),
+        (p.target, '${i + 1} TP', bull),
+      ]) {
+        final price = level.$1;
+        if (price == null || !price.isFinite || price <= 0) continue;
+        final yy = y(price);
+        final inside = yy >= 0 && yy <= plotH;
+        if (inside)
+          for (double x = 0; x < plotW; x += 8)
+            canvas.drawLine(
+              Offset(x, yy),
+              Offset(math.min(x + 4, plotW), yy),
+              Paint()..color = level.$3.withValues(alpha: 0.7),
+            );
+        final labelY = overlayLabelY(yy, plotH, used);
+        if (labelY == null) continue;
+        used.add(labelY);
+        final label = TextPainter(
+          text: TextSpan(
+            text:
+                '${inside
+                    ? ''
+                    : yy < 0
+                    ? 'Above: '
+                    : 'Below: '}${level.$2} ${price.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: level.$3,
+              fontFamily: 'Roboto',
+              fontSize: 9,
+              backgroundColor: const Color(0xFF0E1116),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: plotW);
+        label.paint(canvas, Offset(3, labelY));
+      }
     }
 
     // indicator overlays (aligned: value[i] pairs with candle[period-1+i])
@@ -1678,7 +1946,10 @@ class CandlePainter extends CustomPainter {
           path.lineTo(x, yy);
         }
       }
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
       canvas.drawPath(path, paint);
+      canvas.restore();
     }
 
     if (sma != null) drawLine(sma!, smaPeriod, const Color(0xFF4EA1FF));
@@ -1871,6 +2142,8 @@ class CandlePainter extends CustomPainter {
 
     // RSI sub-pane
     if (rsiH > 0 && rsi != null) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, plotH + 8, plotW, rsiH));
       final top = plotH + 8;
       final h = rsiH - 8;
       final rp = Paint()..color = grid;
@@ -1911,6 +2184,7 @@ class CandlePainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       lbl.paint(canvas, Offset(4, top + 2));
+      canvas.restore();
     }
 
     // time labels
@@ -1937,6 +2211,8 @@ class CandlePainter extends CustomPainter {
 
     // MACD sub-pane (histogram + line/signal, real closes only)
     if (macdH > 0) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, plotH + 8 + rsiH, plotW, macdH));
       final top = plotH + 8 + rsiH;
       final h = macdH - 8;
       canvas.drawRect(
@@ -1965,7 +2241,7 @@ class CandlePainter extends CustomPainter {
       final stepI = plotW / vc0;
       if (macdHist != null) {
         for (int i = 0; i < macdHist!.length; i++) {
-          final idx = 33 + i;
+          final idx = macdSlow + macdSignalPeriod - 2 + i;
           if (idx >= n) break;
           final x = stepI * (idx - fv0 + 0.5);
           final v = macdHist![i];
@@ -2000,9 +2276,13 @@ class CandlePainter extends CustomPainter {
         canvas.drawPath(path, paint);
       }
 
-      mline(macdLine!, 25, const Color(0xFF4EA1FF));
+      mline(macdLine!, macdSlow - 1, const Color(0xFF4EA1FF));
       if (macdSignal != null && macdSignal!.isNotEmpty) {
-        mline(macdSignal!, 33, const Color(0xFFFF9F43));
+        mline(
+          macdSignal!,
+          macdSlow + macdSignalPeriod - 2,
+          const Color(0xFFFF9F43),
+        );
       }
       final label = TextPainter(
         text: TextSpan(
@@ -2016,11 +2296,21 @@ class CandlePainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       label.paint(canvas, Offset(4, top + 2));
+      canvas.restore();
     }
   }
 
   @override
   bool shouldRepaint(CandlePainter old) =>
+      old.chartStyle != chartStyle ||
+      old.positions != positions ||
+      old.macdSlow != macdSlow ||
+      old.macdSignalPeriod != macdSignalPeriod ||
+      old.firstVisible != firstVisible ||
+      old.visibleCount != visibleCount ||
+      old.macdLine != macdLine ||
+      old.macdSignal != macdSignal ||
+      old.macdHist != macdHist ||
       old.candles != candles ||
       old.livePrice != livePrice ||
       old.selected != selected ||
@@ -2043,12 +2333,18 @@ class FullscreenChartPage extends StatefulWidget {
   final ValueChanged<double>? onAlertPrice;
   final double? livePrice;
   final bool rangeMode;
+  final Map<String, dynamic>? initialLayout;
+  final Listenable? marketUpdates;
+  final ChartMarketSnapshot Function()? marketSnapshot;
   const FullscreenChartPage({
     super.key,
     this.loader,
     this.onAlertPrice,
     this.livePrice,
     this.rangeMode = false,
+    this.initialLayout,
+    this.marketUpdates,
+    this.marketSnapshot,
   });
 
   @override
@@ -2056,6 +2352,7 @@ class FullscreenChartPage extends StatefulWidget {
 }
 
 class _FullscreenChartPageState extends State<FullscreenChartPage> {
+  final chartKey = GlobalKey<CandleChartPanelState>();
   @override
   void initState() {
     super.initState();
@@ -2073,43 +2370,60 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0E1116),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: CandleChartPanel(
-                  loader: widget.loader,
-                  onAlertPrice: widget.onAlertPrice,
-                  livePrice: widget.livePrice,
-                  expand: true,
-                  rangeMode: widget.rangeMode,
-                ),
-              ),
-            ),
-            Positioned(
-              top: 14,
-              right: 14,
-              child: InkWell(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF232A35),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.fullscreen_exit,
-                    size: 20,
-                    color: Colors.white,
+    return PopScope<Map<String, dynamic>>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop)
+          Navigator.of(context).pop(chartKey.currentState?.layoutSnapshot());
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0E1116),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: AnimatedBuilder(
+                    animation:
+                        widget.marketUpdates ?? const AlwaysStoppedAnimation(0),
+                    builder: (_, __) => CandleChartPanel(
+                      key: chartKey,
+                      initialLayout: widget.initialLayout,
+                      marketUpdates: widget.marketUpdates,
+                      marketSnapshot: widget.marketSnapshot,
+                      loader: widget.loader,
+                      onAlertPrice: widget.onAlertPrice,
+                      livePrice: widget.livePrice,
+                      expand: true,
+                      rangeMode: widget.rangeMode,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 14,
+                right: 14,
+                child: InkWell(
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pop(chartKey.currentState?.layoutSnapshot()),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF232A35),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.fullscreen_exit,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

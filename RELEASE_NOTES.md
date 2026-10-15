@@ -1,18 +1,13 @@
-# Sona 1.0.79
+# Sona 1.0.80
 
-- Open positions now start as compact History-style cards showing instrument, amount, direction and live P/L. Tap the card or chevron to reveal Close Trade, the full risk breakdown, position details and TP/SL controls.
-- Closing a trade still requires confirmation. No trading logic, account data or backend behavior changed in this layout update.
+- Switch between candlestick, line and OHLC bar charts. Keep the existing market timeframes/ranges, pinch to zoom, drag to pan and open a landscape full-screen view. Full-screen reflects live paper positions and returns indicator/style changes to the original chart.
+- Configure EMA and RSI periods and MACD fast/slow/signal periods from Indicators → Indicator settings. Existing indicator toggles and saved chart presets remain available. Short histories show only warmed-up values; invalid candles are not invented or filled in.
+- See display-only paper entry, stop-loss and take-profit levels on the chart, with buy/sell size and current estimated P/L. Stale/unavailable quotes show P/L unavailable. These overlays do not place orders or change protection limits.
+- Historical candles retain the provider's OHLC instead of having their last close replaced by an unrelated current quote.
 
-## Included from 1.0.78
+Existing compact position cards, risk sizing, journal data and Android package/signing compatibility are retained. Existing drawing tools are unchanged; this release does not introduce draggable stops or chart-based order execution.
 
-- Risk-based paper-trade sizing: choose USD or a percentage of paper balance and a stop distance; review estimated loss, gain and reward/risk. Buy/sell protection levels are validated consistently.
-- Accurate manual journal: quantity, total costs and setup tags; versioned note metadata preserves existing backend schema and historical records. Legacy unknown sizes are not invented and recorded PnL remains intact.
-- Separate simulated/manual performance, date filters, setup breakdown and chronological drawdown.
-- Safer device auto-exits: timestamp/freshness checks, cross-isolate durable close claims and conservative handling of uncertain results. Existing Android identity, production signing and data compatibility retained.
+## Important limitations
+Always-on server-side TP/SL is NOT deployed. Device-local checks remain best effort and can be delayed/stopped; chart overlays do not guarantee unattended exits. The existing Supabase schema/RPC source and authenticated deployment route are still required for reliable app-independent execution.
 
-## Important limitation
-Always-on server-side TP/SL is NOT deployed. Android device checks are best effort, can be delayed/stopped, and limits remain device-local. Do not rely on this app for guaranteed unattended exits. Enabling reliable app-independent paper execution requires the existing Supabase schema/RPC source and an authenticated deployment route; this repository contains an isolated backend proposal, not an installed scheduler. No live account data or backend schema was changed.
-
-Journal persistence uses the existing note field; live authenticated account round-trip has not been tested. Risk estimates exclude fees/swap and gaps/slippage can exceed the stop estimate.
-
-Automated Flutter/widget tests and synthetic phone-width rendering are covered. Physical Android device behavior is not yet tested. Release workflow verifies package, version and the existing production signing certificate before publishing.
+Existing market-data sources/authentication remain unchanged; this release adds no paid feed, fabricated candles or external chart service. Actual history and supported interval availability depend on the configured feed. Automated tests and synthetic Flutter render checks are covered; physical-phone orientation/gesture behavior and authenticated account round-trips remain untested.

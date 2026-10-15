@@ -23,6 +23,7 @@ import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
+import 'chart/chart_tools.dart';
 import 'analytics.dart';
 import 'trade_card.dart';
 import 'ai_brain.dart';
@@ -1562,6 +1563,23 @@ class _TradeTabState extends State<TradeTab> {
                               );
                               return trimTradeRange(data, iv);
                             }),
+                  marketUpdates: app,
+                  marketSnapshot: () => ChartMarketSnapshot(
+                    price: app.price,
+                    fresh: app.priceFresh,
+                    positions: [
+                      for (final record in app.positions)
+                        if (ChartPosition.fromRecord(
+                              record,
+                              mark: app.exitSidePrice(
+                                record['direction'] == 'buy' ? 'buy' : 'sell',
+                              ),
+                              fresh: app.priceFresh,
+                            )
+                            case final ChartPosition position)
+                          position,
+                    ],
+                  ),
                   livePrice: app.price,
                 ),
                 if (app.pendingOrders != null) ...[
