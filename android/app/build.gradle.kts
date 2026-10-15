@@ -4,14 +4,32 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Persistent release signing (user request: in-place updates). CI writes
+// these properties from repo secrets; without them (local dev) the release
+// build falls back to the debug key as before.
+val oroKeystoreFile = providers.gradleProperty("ORO_KEYSTORE_FILE").orNull
+
 android {
     namespace = "com.ambi.gold_paper_trading"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    signingConfigs {
+        if (oroKeystoreFile != null) {
+            create("release") {
+                storeFile = file(oroKeystoreFile)
+                storePassword = providers.gradleProperty("ORO_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.gradleProperty("ORO_KEY_ALIAS").orNull
+                keyPassword = providers.gradleProperty("ORO_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications uses java.time APIs
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -31,9 +49,14 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (oroKeystoreFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                // Local builds without the keystore: debug key.
+                signingConfigs.getByName("debug")
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
 }
@@ -42,6 +65,10 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 flutter {
