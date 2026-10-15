@@ -45,7 +45,10 @@ jobs:
           SIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)"
           "$SIGNER" verify --verbose --print-certs "$APK" | tee /tmp/certificate.txt
-          grep -F 'Signer #1 certificate SHA-256 digest: 54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/certificate.txt
+          # apksigner 36+ labels v2 certificates as 'V2 Signer', not 'Signer #1'.
+          grep -Fx 'Number of signers: 1' /tmp/certificate.txt
+          CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
+          test "$CERT_SHA" = '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -F "package: name='com.ambi.gold_paper_trading' versionCode='78' versionName='1.0.78'" /tmp/badging.txt
           grep -F "application-label:'Sona'" /tmp/badging.txt
