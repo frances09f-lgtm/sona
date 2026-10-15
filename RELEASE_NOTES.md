@@ -1,4 +1,9 @@
-# Sona 1.0.78
+# Sona 1.0.79
+
+- Open positions now start as compact History-style cards showing instrument, amount, direction and live P/L. Tap the card or chevron to reveal Close Trade, the full risk breakdown, position details and TP/SL controls.
+- Closing a trade still requires confirmation. No trading logic, account data or backend behavior changed in this layout update.
+
+## Included from 1.0.78
 
 - Risk-based paper-trade sizing: choose USD or a percentage of paper balance and a stop distance; review estimated loss, gain and reward/risk. Buy/sell protection levels are validated consistently.
 - Accurate manual journal: quantity, total costs and setup tags; versioned note metadata preserves existing backend schema and historical records. Legacy unknown sizes are not invented and recorded PnL remains intact.

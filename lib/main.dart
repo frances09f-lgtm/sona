@@ -2480,6 +2480,7 @@ class _PositionsTabState extends State<PositionsTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           InkWell(
+            key: ValueKey('open-position-$id'),
             onTap: () => setState(() {
               isExpanded ? app.expanded.remove(id) : app.expanded.add(id);
             }),
@@ -2532,35 +2533,35 @@ class _PositionsTabState extends State<PositionsTab> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: cRed,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            onPressed: (!app.priceFresh || isClosing)
-                ? null
-                : () => _confirmClose(t),
-            child: Text(
-              isClosing
-                  ? 'Closing...'
-                  : 'Close Trade: ${money(live, sign: true)}',
-            ),
-          ),
-          const SizedBox(height: 10),
-          TradeExplanationCard(
-            data: TradeExplanation(
-              entry: (t['entry'] as num).toDouble(),
-              qty: qty,
-              buy: buy,
-              stop: sl,
-              target: tp,
-              spread: app.spread,
-            ),
-            fresh: app.priceFresh,
-          ),
           if (isExpanded) ...[
+            const SizedBox(height: 10),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: cRed,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: (!app.priceFresh || isClosing)
+                  ? null
+                  : () => _confirmClose(t),
+              child: Text(
+                isClosing
+                    ? 'Closing...'
+                    : 'Close Trade: ${money(live, sign: true)}',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TradeExplanationCard(
+              data: TradeExplanation(
+                entry: (t['entry'] as num).toDouble(),
+                qty: qty,
+                buy: buy,
+                stop: sl,
+                target: tp,
+                spread: app.spread,
+              ),
+              fresh: app.priceFresh,
+            ),
             const Divider(color: cBorder, height: 24),
             _row('Order ID', id),
             _row('Instrument', 'GOLD'),
