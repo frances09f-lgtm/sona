@@ -2449,7 +2449,9 @@ Duration tradeRangeDuration(String code) => switch (code) {
   _ => const Duration(days: 1),
 };
 List<Candle> trimTradeRange(List<Candle> data, String code) {
-  if (data.isEmpty) return data;
+  // Candle intervals describe bar spacing, not a history window. Preserve the
+  // provider's full history for indicator warmup; only explicit ranges trim.
+  if (!code.startsWith('range:') || data.isEmpty) return data;
   final from = data.last.time.subtract(tradeRangeDuration(code));
   return data.where((c) => !c.time.isBefore(from)).toList();
 }
