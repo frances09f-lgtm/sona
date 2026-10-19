@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'market_data/market_data_config.dart';
+import 'update/app_update.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'market_data/swissquote_provider.dart';
@@ -134,6 +135,7 @@ class AppState extends ChangeNotifier {
   }
 
   double? get spread => (bid != null && ask != null) ? ask! - bid! : null;
+
   /// Single price basis for everything drawn on the chart: the live line,
   /// its price tag, the forming candle's close and the big header number.
   /// MetaTrader/XM OTC charts are based on bid, so we use bid too (mid as
@@ -517,8 +519,7 @@ class AppState extends ChangeNotifier {
   /// forming bar from these - the same stream that drives the live line -
   /// so the last candle and the line share one source.
   final TickBuffer _tickBuffer = TickBuffer();
-  List<(int, double)> get liveTicks =>
-      List.unmodifiable(_tickBuffer.ticks);
+  List<(int, double)> get liveTicks => List.unmodifiable(_tickBuffer.ticks);
 
   Future<void> fetchPrice() async {
     if (_fetching) return; // 1s cadence: never stack overlapping fetches
@@ -1009,7 +1010,14 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.testApp == null) app.init();
+    if (widget.testApp == null) {
+      app.init();
+      // In-app self-update: check the latest GitHub release once per few
+      // hours and prompt with release notes + in-app APK download.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) maybePromptUpdate(context);
+      });
+    }
   }
 
   @override
@@ -1169,6 +1177,13 @@ class SonaSettingsScreen extends StatelessWidget {
     appBar: AppBar(title: const Text('Settings')),
     body: ListView(
       children: [
+        ListTile(
+          leading: const Icon(Icons.system_update_alt),
+          title: const Text('Check for updates'),
+          subtitle: const Text('Download and install the latest Sona release'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => checkUpdateManually(context),
+        ),
         ListTile(
           leading: const Icon(Icons.key_outlined),
           title: const Text('API settings'),
@@ -2211,8 +2226,9 @@ class _TradeTabState extends State<TradeTab> {
           ),
           if (suggested != null)
             GestureDetector(
-              onTap: () =>
-                  setState(() => qtyCtrl.text = (suggested / 100).toStringAsFixed(2)),
+              onTap: () => setState(
+                () => qtyCtrl.text = (suggested / 100).toStringAsFixed(2),
+              ),
               child: Text(
                 '1% size: ${lotsStr(suggested)}',
                 style: const TextStyle(
@@ -3268,7 +3284,9 @@ class _AddTabState extends State<AddTab> {
 
   void editTrade(Map<String, dynamic> t) {
     setState(() {
-      journalQty.text = t['qty'] == null ? '' : ((t['qty'] as num) / 100).toString(); // show lots
+      journalQty.text = t['qty'] == null
+          ? ''
+          : ((t['qty'] as num) / 100).toString(); // show lots
       costsCtrl.text = t['costs']?.toString() ?? '0';
       setupCtrl.text = t['setup']?.toString() ?? '';
       legacySizeUnknown = t['qty'] == null;
@@ -5005,7 +5023,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
     final lotsIn = parseNum(quantity.text);
     final q = lotsIn == null ? null : lotsIn * 100; // input is lots
     if (q == null || !q.isFinite || q <= 0) {
-      setState(() => error = 'Enter a positive quantity in lots (min 0.01 = 1 oz).');
+      setState(
+        () => error = 'Enter a positive quantity in lots (min 0.01 = 1 oz).',
+      );
       return;
     }
     final take = tpsl ? parseNum(tp.text) : null,
