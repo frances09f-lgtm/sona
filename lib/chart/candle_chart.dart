@@ -799,24 +799,26 @@ class CandleChartPanelState extends State<CandleChartPanel> {
         border: Border.all(color: const Color(0xFF232A35)),
       ),
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'XAU/USD',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+      child: LayoutBuilder(
+        builder: (context, layout) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'XAU/USD',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Wrap(
+                    spacing: 2,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       InkWell(
                         onTap: presetDialog,
@@ -995,188 +997,213 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                     ],
                   ),
                 ),
-              ),
-              if (loading)
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFFF5C242),
-                  ),
-                ),
-              if (_hasDrawings) ...[
-                const SizedBox(width: 6),
-                InkWell(
-                  onTap: _confirmClearAll,
-                  child: const Padding(
-                    padding: EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.delete_sweep,
-                      size: 18,
-                      color: Color(0xFFF27EA9),
+                if (loading)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFF5C242),
                     ),
                   ),
-                ),
-              ],
-              if (!widget.expand) ...[
-                const SizedBox(width: 6),
-                InkWell(
-                  onTap: () async {
-                    final layout = await Navigator.of(context)
-                        .push<Map<String, dynamic>>(
-                          MaterialPageRoute(
-                            builder: (_) => FullscreenChartPage(
-                              loader: widget.loader,
-                              livePrice: chartPrice,
-                              rangeMode: usingRange,
-                              onAlertPrice: widget.onAlertPrice,
-                              initialLayout: layoutSnapshot(),
-                              marketUpdates: widget.marketUpdates,
-                              marketSnapshot: widget.marketSnapshot,
+                if (_hasDrawings) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: _confirmClearAll,
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.delete_sweep,
+                        size: 18,
+                        color: Color(0xFFF27EA9),
+                      ),
+                    ),
+                  ),
+                ],
+                if (!widget.expand) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () async {
+                      final layout = await Navigator.of(context)
+                          .push<Map<String, dynamic>>(
+                            MaterialPageRoute(
+                              builder: (_) => FullscreenChartPage(
+                                loader: widget.loader,
+                                livePrice: chartPrice,
+                                rangeMode: usingRange,
+                                onAlertPrice: widget.onAlertPrice,
+                                initialLayout: layoutSnapshot(),
+                                marketUpdates: widget.marketUpdates,
+                                marketSnapshot: widget.marketSnapshot,
+                              ),
                             ),
-                          ),
+                          );
+                      if (mounted && layout != null) {
+                        setState(
+                          () => usingRange = layout['rangeMode'] == true,
                         );
-                    if (mounted && layout != null) {
-                      setState(() => usingRange = layout['rangeMode'] == true);
-                      applyPreset(layout);
-                    }
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.fullscreen,
-                      size: 18,
-                      color: Color(0xFF8A93A6),
+                        applyPreset(layout);
+                      }
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.fullscreen,
+                        size: 18,
+                        color: Color(0xFF8A93A6),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (widget.rangeMode)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  usingRange = !usingRange;
-                  _setInterval(usingRange ? tradeRanges[1] : intervals[0]);
-                },
-                child: Text(usingRange ? 'Candle intervals' : 'History ranges'),
-              ),
-            ),
-          if (!usingRange) ...[
-            Row(
-              children: [
-                ...(usingRange ? tradeRanges : intervals).map((iv) {
-                  final on = iv.code == interval.code;
-                  return GestureDetector(
-                    onTap: () => _setInterval(iv),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: on
-                            ? const Color(0xFFF5C242)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: on
-                              ? const Color(0xFFF5C242)
-                              : const Color(0xFF2A3140),
-                        ),
-                      ),
-                      child: Text(
-                        iv.label,
-                        style: TextStyle(
-                          color: on ? Colors.black : const Color(0xFF8A93A6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ],
-          const SizedBox(height: 6),
-          _legend(dim),
-          if (market.positions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                market.summary,
-                style: const TextStyle(fontSize: 10, color: Color(0xFF8A93A6)),
-              ),
-            ),
-          if ((rsiOn && candles.length <= rsiPeriod) ||
-              (emaOn && candles.length < emaPeriod) ||
-              (macdOn && candles.length < macdSlow + macdSignalPeriod - 1))
-            const Text(
-              'More candle history needed for selected indicators.',
-              style: TextStyle(fontSize: 10, color: Color(0xFF8A93A6)),
-            ),
-          const SizedBox(height: 4),
-          if (widget.expand)
-            Expanded(child: _body())
-          else
-            SizedBox(height: 220 + _rsiHeight + _macdHeight, child: _body()),
-          if (usingRange) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                ...(usingRange ? tradeRanges : intervals).map((iv) {
-                  final on = iv.code == interval.code;
-                  return GestureDetector(
-                    onTap: () => _setInterval(iv),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: on
-                            ? const Color(0xFFF5C242)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: on
-                              ? const Color(0xFFF5C242)
-                              : const Color(0xFF2A3140),
-                        ),
-                      ),
-                      child: Text(
-                        iv.label,
-                        style: TextStyle(
-                          color: on ? Colors.black : const Color(0xFF8A93A6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+                ],
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              '${tradeRangeDuration(interval.code).inHours < 24 ? "1-hour" : "${tradeRangeDuration(interval.code).inDays}-day"} window ending at latest returned candle · ${tradeRangeSpec(interval.code).$1} bars',
-              style: const TextStyle(color: Color(0xFF8A93A6), fontSize: 10),
-            ),
-            if (candles.length >= 2 && candles.first.close != 0)
+            if (widget.rangeMode)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    minimumSize: const Size(0, 24),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    usingRange = !usingRange;
+                    _setInterval(usingRange ? tradeRanges[1] : intervals[0]);
+                  },
+                  child: Text(
+                    usingRange ? 'Candle intervals' : 'History ranges',
+                  ),
+                ),
+              ),
+            if (!usingRange) ...[
+              Row(
+                children: [
+                  ...(usingRange ? tradeRanges : intervals).map((iv) {
+                    final on = iv.code == interval.code;
+                    return GestureDetector(
+                      onTap: () => _setInterval(iv),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: on
+                              ? const Color(0xFFF5C242)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: on
+                                ? const Color(0xFFF5C242)
+                                : const Color(0xFF2A3140),
+                          ),
+                        ),
+                        child: Text(
+                          iv.label,
+                          style: TextStyle(
+                            color: on ? Colors.black : const Color(0xFF8A93A6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            _legend(dim),
+            if (market.positions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  market.summary,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF8A93A6),
+                  ),
+                ),
+              ),
+            if ((rsiOn && candles.length <= rsiPeriod) ||
+                (emaOn && candles.length < emaPeriod) ||
+                (macdOn && candles.length < macdSlow + macdSignalPeriod - 1))
+              const Text(
+                'More candle history needed for selected indicators.',
+                style: TextStyle(fontSize: 10, color: Color(0xFF8A93A6)),
+              ),
+            const SizedBox(height: 4),
+            if (widget.expand)
+              Expanded(child: _body())
+            else if (layout.hasBoundedHeight)
+              Flexible(
+                child: SizedBox(
+                  height: 220 + _rsiHeight + _macdHeight,
+                  child: _body(),
+                ),
+              )
+            else
+              SizedBox(height: 220 + _rsiHeight + _macdHeight, child: _body()),
+            if (usingRange) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ...(usingRange ? tradeRanges : intervals).map((iv) {
+                    final on = iv.code == interval.code;
+                    return GestureDetector(
+                      onTap: () => _setInterval(iv),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: on
+                              ? const Color(0xFFF5C242)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: on
+                                ? const Color(0xFFF5C242)
+                                : const Color(0xFF2A3140),
+                          ),
+                        ),
+                        child: Text(
+                          iv.label,
+                          style: TextStyle(
+                            color: on ? Colors.black : const Color(0xFF8A93A6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 6),
               Text(
-                '${interval.label} selected · available change ${(candles.last.close - candles.first.close) >= 0 ? '+' : ''}${(candles.last.close - candles.first.close).toStringAsFixed(2)} (${((candles.last.close - candles.first.close) / candles.first.close * 100).toStringAsFixed(2)}%) over ${candles.length} available candles',
+                '${tradeRangeDuration(interval.code).inHours < 24 ? "1-hour" : "${tradeRangeDuration(interval.code).inDays}-day"} window ending at latest returned candle · ${tradeRangeSpec(interval.code).$1} bars',
                 style: const TextStyle(color: Color(0xFF8A93A6), fontSize: 10),
               ),
+              if (candles.length >= 2 && candles.first.close != 0)
+                Text(
+                  '${interval.label} selected · available change ${(candles.last.close - candles.first.close) >= 0 ? '+' : ''}${(candles.last.close - candles.first.close).toStringAsFixed(2)} (${((candles.last.close - candles.first.close) / candles.first.close * 100).toStringAsFixed(2)}%) over ${candles.length} available candles',
+                  style: const TextStyle(
+                    color: Color(0xFF8A93A6),
+                    fontSize: 10,
+                  ),
+                ),
+            ],
+            if (!widget.expand && candles.length >= 50) _biasStrip(),
           ],
-          if (!widget.expand && candles.length >= 50) _biasStrip(),
-        ],
+        ),
       ),
     );
   }
@@ -1789,6 +1816,32 @@ class CandlePainter extends CustomPainter {
     lo -= pad;
     double y(double v) => plotH * (1 - (v - lo) / (hi - lo));
 
+    // Price marker and ticks share the axis lane. Keep a tick only when
+    // its text box does not collide with the marker (grid lines stay intact).
+    final lp = livePrice ?? candles.last.close;
+    final lpy = y(lp);
+    final tagTp = TextPainter(
+      text: TextSpan(
+        text: lp.toStringAsFixed(2),
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: 9,
+          fontFamily: 'Roboto',
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final tagY = (lpy - tagTp.height / 2)
+        .clamp(2.0, math.max(2.0, plotH - tagTp.height - 2))
+        .toDouble();
+    final marker = Rect.fromLTWH(
+      plotW + 2,
+      tagY - 2,
+      tagTp.width + 8,
+      tagTp.height + 4,
+    );
+
     // grid + price labels
     final gridPaint = Paint()..color = grid;
     final labelStyle = TextStyle(
@@ -1805,13 +1858,17 @@ class CandlePainter extends CustomPainter {
         text: TextSpan(text: v.toStringAsFixed(2), style: labelStyle),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(
-        canvas,
-        Offset(
-          plotW + 4,
-          (yy - tp.height / 2).clamp(0.0, size.height - tp.height),
-        ),
-      );
+      final labelY = (yy - tp.height / 2)
+          .clamp(0.0, math.max(0.0, plotH - tp.height))
+          .toDouble();
+      if (!priceAxisLabelCollides(
+        labelY,
+        tp.height,
+        marker.top,
+        marker.height,
+      )) {
+        tp.paint(canvas, Offset(plotW + 4, labelY));
+      }
     }
 
     // Candle OHLC is immutable provider history. The separate quote marker
@@ -1969,6 +2026,10 @@ class CandlePainter extends CustomPainter {
       drawLine(bands!.$3, 20, const Color(0xFF52B788));
     }
 
+    // A selection may remain outside the viewport after a pan/zoom.
+    // Keep its lines inside the price pane, never across the axis or RSI/MACD.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
     // crosshair
     if (selected != null && selected! < n) {
       final c = candles[selected!];
@@ -1982,8 +2043,6 @@ class CandlePainter extends CustomPainter {
     }
 
     // last price line + tag
-    final lp = livePrice ?? candles.last.close;
-    final lpy = y(lp);
     final dashPaint = Paint()
       ..color = gold
       ..strokeWidth = 1;
@@ -1997,29 +2056,15 @@ class CandlePainter extends CustomPainter {
       );
       x += dashW + gapW;
     }
-    final tagTp = TextPainter(
-      text: TextSpan(
-        text: lp.toStringAsFixed(2),
-        style: const TextStyle(
-          color: Colors.black,
-          fontSize: 9,
-          fontFamily: 'Roboto',
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final tagY = (lpy - tagTp.height / 2).clamp(
-      0.0,
-      size.height - tagTp.height,
-    );
-    final rr = RRect.fromRectAndRadius(
-      Rect.fromLTWH(plotW + 2, tagY - 2, tagTp.width + 8, tagTp.height + 4),
-      const Radius.circular(3),
-    );
+    canvas.restore();
+    final rr = RRect.fromRectAndRadius(marker, const Radius.circular(3));
     canvas.drawRRect(rr, Paint()..color = gold);
     tagTp.paint(canvas, Offset(plotW + 6, tagY));
 
+    // Drawings must not escape into the legend, price axis or indicator panes
+    // when trend anchors/Fibonacci left anchors are off-screen after pan/zoom.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
     // user-drawn horizontal lines
     final hlPaint = Paint()
       ..color = const Color(0xFF5EE0A0)
@@ -2139,6 +2184,8 @@ class CandlePainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y(p.p1)), 3, fibPaint);
       }
     }
+
+    canvas.restore();
 
     // RSI sub-pane
     if (rsiH > 0 && rsi != null) {
@@ -2455,3 +2502,11 @@ List<Candle> trimTradeRange(List<Candle> data, String code) {
   final from = data.last.time.subtract(tradeRangeDuration(code));
   return data.where((c) => !c.time.isBefore(from)).toList();
 }
+
+/// Text-box collision in the shared right price axis, with two pixels of air.
+bool priceAxisLabelCollides(
+  double top,
+  double height,
+  double markerTop,
+  double markerHeight,
+) => top < markerTop + markerHeight + 2 && top + height > markerTop - 2;

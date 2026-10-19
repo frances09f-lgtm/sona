@@ -1,5 +1,12 @@
-Sona 1.0.83
+# Sona 1.0.84 — Optional full-cash AI sizing and chart layout repair
 
-- AI auto-trades now use a 0.01 oz minimum: computed sizes below 0.01 oz are raised to 0.01 oz instead of opening dust positions that displayed as "0.00 oz".
-- Trades are capped by the estimated free paper margin (1:500 client-side estimate), and a cycle is skipped with a clear AI-log entry and notification if the balance cannot cover the 0.01 oz minimum.
-- Carries over the 1.0.82 fix: sub-0.01 values in sizes and P/L now display with 4 decimals instead of rounding to 0.00.
+- Added an explicit, saved **Use 100% of available paper balance** option for AI auto-trade and sure advice. It is off by default and does not turn on AI or place any order just by changing it. The saved default percentage and TP/SL controls are retained.
+- Full-cash mode budgets available paper cash as notional, with the live spread and configured slippage cushion inside that budget. It does not mean 100% loss at the stop or multiply exposure by leverage. It keeps exact fractional ounces instead of raising them to the default mode’s 0.01 oz client policy. High allocation can leave little or no cash unallocated.
+- Rechecks paper balance, positions, quote and safety rails after an AI model call. An already-open position, invalid balance, stale quote, disabled AI or invalid protection blocks an order. Explicit backend rejection never causes a larger replacement order. An uncertain full-mode order pauses auto-trading until the account is checked.
+- The released 1.0.83 default-mode minimum-size and margin-cap calculation is preserved in isolation. The 0.01 oz change was documented as a client dust-size policy. The deployed RPC source/minimum is not available to this repository; no backend minimum has been removed or bypassed. If the backend rejects a budgeted fractional size at its minimum, the app reports that the allocation cannot cover it and does not increase the size. Backend acceptance of fractional sizes is untested.
+- Fixed the narrow chart toolbar so Draw, Trend, Fib and fullscreen remain reachable. Tightened the screenshot-matched range header, prevented current-price badges from obscuring overlapping axis text, and clipped drawing/crosshair overlays to the price plot instead of leaking into axes or oscillator panes. Candles, line/OHLC styles, indicators and history values are preserved.
+- Fractional position sizes and signed sub-cent P/L no longer round to zero; invalid records show unknown rather than fabricated sizes or P/L, and cannot be closed with invented values. No account records are rewritten.
+
+Verification: synthetic widget/painter, sizing and mocked execution tests; inspected before/after chart renders. Release APK identity, production certificate, tests and public download are verified by the release pipeline and follow-up checks.
+
+Limits: no real account/order, backend deployment or physical-phone test was performed. Always-on exits while the app is closed remain unfinished; Android checks are still best effort. Existing analyzer diagnostics are not waived as new fixes.

@@ -1,3 +1,5 @@
+import 'position_precision.dart';
+
 /// Local estimate only, not server/broker margin or liquidation accounting.
 class PaperMargin {
   static const leverage = 500.0;
@@ -15,8 +17,7 @@ class PaperMargin {
       return null;
     var equity = balance, used = 0.0;
     for (final p in positions.where((p) => p['status'] == 'open')) {
-      final qty = (p['qty'] as num?)?.toDouble(),
-          entry = (p['entry'] as num?)?.toDouble();
+      final qty = paperPositive(p['qty']), entry = paperPositive(p['entry']);
       final side = p['direction'];
       if (qty == null ||
           entry == null ||

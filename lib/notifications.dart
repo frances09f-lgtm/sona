@@ -1,3 +1,4 @@
+import 'position_precision.dart';
 import 'execution_ledger.dart';
 import 'trade_safety.dart';
 import 'market_data/swissquote_provider.dart';
@@ -293,6 +294,8 @@ Future<void> _bgCheck() async {
     for (final p in positions.where((p) => p['status'] == 'open')) {
       final buy = p['direction'] == 'buy';
       final mark = buy ? quote.bid : quote.ask;
+      // Never auto-close a record whose size/entry cannot be validated.
+      if (paperPositionPnl(p, mark) == null) continue;
       final tp = effLimit(p, 'tp');
       final sl = effLimit(p, 'sl');
       String? why;
@@ -322,7 +325,7 @@ Future<void> _bgCheck() async {
       if (notifiedHas(prefs, closeKey)) continue; // app already told him
       final pnl = (res['pnl'] as num?)?.toDouble();
       final pnlTxt = pnl != null
-          ? ' · P/L ${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}'
+          ? ' · P/L ${formatPaperMoney(pnl, sign: true)}'
           : '';
       pending.add((
         closeKey,
@@ -461,5 +464,6 @@ Future<void> _bgCheck() async {
   } catch (_) {}
 }
 
-String _qty(Map<String, dynamic> p) =>
-    'x${(p['qty'] as num?)?.toStringAsFixed(2) ?? '?'}';
+String _qty(Map<String, dynamic> p) => paperPositive(p['qty']) == null
+    ? 'Unknown size'
+    : '${formatOz(p['qty'])} oz';

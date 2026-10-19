@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'position_precision.dart';
+
 /// Read-only paper-position explanation. All distances are entry-based USD/oz.
 class TradeExplanation {
-  final double entry, qty;
+  final double? entry, qty;
   final bool buy;
   final double? stop, target, spread;
   const TradeExplanation({
@@ -15,14 +17,20 @@ class TradeExplanation {
     this.target,
     this.spread,
   });
-  double? get stopDistance => stop == null ? null : (entry - stop!).abs();
-  double? get targetDistance => target == null ? null : (target! - entry).abs();
-  double? get stopOutcome =>
-      stop == null ? null : (stop! - entry) * (buy ? 1 : -1) * qty;
+  bool get sizeKnown => paperPositive(qty) != null;
+  bool get entryKnown => paperPositive(entry) != null;
+  double? get stopDistance =>
+      stop == null || !entryKnown ? null : (entry! - stop!).abs();
+  double? get targetDistance =>
+      target == null || !entryKnown ? null : (target! - entry!).abs();
+  double? get stopOutcome => stop == null || !entryKnown || !sizeKnown
+      ? null
+      : (stop! - entry!) * (buy ? 1 : -1) * qty!;
   double? get risk => stopOutcome == null ? null : math.max(0, -stopOutcome!);
   bool get stopProtects => stopOutcome != null && stopOutcome! < 0;
-  double? get reward =>
-      target == null ? null : (target! - entry) * (buy ? 1 : -1) * qty;
+  double? get reward => target == null || !entryKnown || !sizeKnown
+      ? null
+      : (target! - entry!) * (buy ? 1 : -1) * qty!;
 }
 
 class TradeExplanationCard extends StatelessWidget {
@@ -51,22 +59,26 @@ class TradeExplanationCard extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        Text('Entry: \$${f(data.entry)} · ${f(data.qty)} oz'),
+        Text(
+          'Entry: ${data.entryKnown ? '\$${f(data.entry)}' : 'unknown'} · ${data.sizeKnown ? '${formatOz(data.qty)} oz' : 'Unknown size'}',
+        ),
         Text(
           'SL distance: ${f(data.stopDistance)} USD/oz · TP distance: ${f(data.targetDistance)} USD/oz',
         ),
         Text(
-          data.stop == null
+          !data.sizeKnown || !data.entryKnown
+              ? 'Risk unavailable: size or entry unknown'
+              : data.stop == null
               ? 'Risk: unprotected (no stop loss)'
               : data.stopProtects
-              ? 'Risk at SL: \$${f(data.risk)}'
+              ? 'Risk at SL: ${formatPaperMoney(data.risk)}'
               : 'SL locks a gain or break-even; loss at SL: \$0.00',
         ),
         if (data.reward != null)
           Text(
             data.reward! >= 0
-                ? 'Outcome at TP: +\$${f(data.reward)}'
-                : 'TP is on the loss side: -\$${f(data.reward!.abs())}',
+                ? 'Outcome at TP: ${formatPaperMoney(data.reward, sign: true)}'
+                : 'TP is on the loss side: ${formatPaperMoney(data.reward)}',
           ),
         Text(
           data.spread == null

@@ -9,6 +9,12 @@ import 'user_api_keys.dart';
 
 import 'package:http/http.dart' as http;
 
+import 'position_precision.dart';
+import 'ai_paper_allocation.dart';
+import 'paper_margin.dart';
+import 'trade_safety.dart';
+import 'slippage.dart';
+
 import 'usage_reporter.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,16 +24,7 @@ import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'notifications.dart';
-import 'paper_margin.dart';
-
 import 'sessions.dart';
-
-/// Adaptive oz precision: tiny AI sizes must not display as 0.00.
-String fmtOz(num n) {
-  final a = n.abs();
-  return (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
-}
-
 
 class AiLogEntry {
   final DateTime at;
@@ -81,6 +78,7 @@ class AiLog {
 class AutoTradeStatus {
   final bool enabled;
   final double sizePct;
+  final bool useFullBalance;
   final int tradesToday;
   final int consecutiveLosses;
   final String? pausedReason;
@@ -90,6 +88,7 @@ class AutoTradeStatus {
   const AutoTradeStatus({
     required this.enabled,
     required this.sizePct,
+    this.useFullBalance = false,
     required this.tradesToday,
     required this.consecutiveLosses,
     required this.pausedReason,
@@ -101,6 +100,16 @@ class AutoTradeStatus {
 class AutoTrade {
   static const _enabledKey = 'tj_ai_enabled';
   static const _sizeKey = 'tj_ai_size_pct';
+  static const fullBalanceKey = 'tj_ai_full_balance';
+
+  static bool usesFullBalance(SharedPreferences prefs) =>
+      prefs.getBool(fullBalanceKey) ?? false;
+
+  static Future<void> setFullBalance(SharedPreferences prefs, bool on) async {
+    await prefs.setBool(fullBalanceKey, on);
+    // Only changes sizing. Never enables auto-trade or places an order.
+  }
+
   static const _countDateKey = 'tj_ai_count_date';
   static const _countKey = 'tj_ai_count';
   static const _lossesKey = 'tj_ai_losses';
@@ -125,6 +134,7 @@ class AutoTrade {
     return AutoTradeStatus(
       enabled: prefs.getBool(_enabledKey) ?? false,
       sizePct: prefs.getDouble(_sizeKey) ?? 10,
+      useFullBalance: usesFullBalance(prefs),
       tradesToday: prefs.getInt(_countKey) ?? 0,
       consecutiveLosses: prefs.getInt(_lossesKey) ?? 0,
       pausedReason: prefs.getString(_pauseKey),
@@ -368,43 +378,107 @@ class AutoTrade {
     if (!d.isTrade) return 'Brain says ${d.action.toUpperCase()} - no trade';
 
     // --- execute within the rails ---
-    final ref = d.action == 'buy' ? quote.$2 : quote.$1;
-    final sizePct = prefs.getDouble(_sizeKey) ?? d.sizePct;
-    // Minimum trade size: 0.01 oz. Anything smaller was real but
-    // displayed as 0.00 and is not worth a ticket. If free margin can't
-    // cover the minimum, skip honestly instead of trading dust.
-    const minQtyOz = 0.01;
-    var qty = ((balance * sizePct / 100) / ref);
-    if (qty < minQtyOz) qty = minQtyOz;
-    final free = PaperMargin.estimate(
-      balance: balance,
-      bid: quote.$1,
-      ask: quote.$2,
-      positions: positions,
-    );
-    final maxQty = (free == null || free <= 0)
-        ? 0.0
-        : free * PaperMargin.leverage / ref;
-    if (maxQty < minQtyOz) {
-      final msg =
-          'Skipped: balance cannot cover the 0.01 oz minimum trade size (free margin \$${free?.toStringAsFixed(2) ?? 'unknown'})';
-      await AiLog.add('error', msg);
-      UsageReporter.report('auto_skip', {'why': 'min_size_margin'});
-      await showForegroundNotification('Sona AI skipped a trade', msg);
-      return msg;
+    // The model call may take time: re-read account/quote before sizing.
+    // No cached balance, additional position or changed setting may be ignored.
+    await prefs.reload();
+    if (!(prefs.getBool(_enabledKey) ?? false)) return 'Auto-trade is off';
+    if (prefs.getString(_pauseKey) != null ||
+        (prefs.getInt(_countKey) ?? 0) >= maxTradesPerDay ||
+        (prefs.getInt(_lossesKey) ?? 0) >= maxConsecutiveLosses) {
+      return 'AI safety limits changed - no order submitted';
     }
-    if (qty > maxQty) qty = maxQty;
-    final opened = await _paperOpen(pin, d.action, ref, qty, d.tp, d.sl);
+    final latestQuote = await _fetchQuote();
+    final (latestState, _) = await _paperState(pin);
+    if (latestQuote == null || latestState == null) {
+      return 'Could not refresh paper account/quote - no order submitted';
+    }
+    final latestBalance = paperPositive(latestState['balance']);
+    final latestPositions = List<Map<String, dynamic>>.from(
+      latestState['positions'] as List? ?? [],
+    );
+    if (latestBalance == null ||
+        latestPositions.any((p) => p['status'] == 'open')) {
+      return 'Paper balance unavailable or position already open - no order submitted';
+    }
+    if (dayBal > 0 && latestBalance - dayBal <= -dailyDrawdownPct * dayBal) {
+      return 'Daily drawdown limit - no order submitted';
+    }
+    final ref = d.action == 'buy' ? latestQuote.$2 : latestQuote.$1;
+    final full = usesFullBalance(prefs);
+    final sizePct = prefs.getDouble(_sizeKey) ?? d.sizePct;
+    final allocation = full
+        ? sizeAiPaperTrade(
+            balance: latestBalance,
+            bid: latestQuote.$1,
+            ask: latestQuote.$2,
+            entryPrice: ref,
+            percent: 100,
+            positions: latestPositions,
+            extraCostPerOz:
+                Slippage(
+                  prefs.getString('tj_slippage_mode') ?? 'off',
+                  prefs.getDouble('tj_slippage_custom') ?? 0,
+                ).amount *
+                2,
+          )
+        : null;
+    var qty = full
+        ? allocation?.quantity
+        : (latestBalance * sizePct / 100) / ref;
+    final free = PaperMargin.estimate(
+      balance: latestBalance,
+      bid: latestQuote.$1,
+      ask: latestQuote.$2,
+      positions: latestPositions,
+    );
+    // Retain v1.0.83's minimum-size behavior only for the existing mode.
+    // Full cash allocation must never round up beyond its notional budget.
+    if (!full && qty != null) {
+      const minQtyOz = 0.01;
+      if (qty < minQtyOz) qty = minQtyOz;
+      final maxQty = (free == null || free <= 0)
+          ? 0.0
+          : free * PaperMargin.leverage / ref;
+      if (maxQty < minQtyOz) {
+        const msg =
+            'Skipped: balance cannot cover the 0.01 oz minimum trade size';
+        await AiLog.add('error', msg);
+        UsageReporter.report('auto_skip', {'why': 'min_size_margin'});
+        await showForegroundNotification('Sona AI skipped a trade', msg);
+        return msg;
+      }
+      if (qty > maxQty) qty = maxQty;
+    }
+    if (qty == null ||
+        PaperMargin.guard(free: free, price: ref, qty: qty) != null ||
+        validateProtection(d.action, ref, d.tp, d.sl) != null) {
+      return 'Paper allocation or protection invalid - no order submitted';
+    }
+    final result = await _paperOpen(pin, d.action, ref, qty, d.tp, d.sl);
+    final opened = result.id;
     if (opened == null) {
-      await AiLog.add('error', 'Order rejected by the paper backend');
+      final message = full
+          ? (fullBalanceMinimumRejection(result.error ?? '') ??
+                result.error ??
+                'Order rejected by the paper backend')
+          : (result.error ?? 'Order rejected by the paper backend');
+      await AiLog.add('error', message);
       UsageReporter.report('auto_skip', {'why': 'order_rejected'});
-      return 'Order rejected';
+      if (full && result.uncertain) {
+        // A lost response is not a rejection. Do not automatically submit
+        // another full-budget order while the first outcome is unknown.
+        await _pause(
+          prefs,
+          'Paper order outcome unknown - refresh account before resuming',
+        );
+      }
+      return message;
     }
     await prefs.setInt(_countKey, (prefs.getInt(_countKey) ?? 0) + 1);
     await prefs.setString(_openIdKey, opened);
-    await prefs.setDouble(_openEquityKey, balance);
+    await prefs.setDouble(_openEquityKey, latestBalance);
     final msg =
-        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${fmtOz(qty)} oz @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
+        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${formatOz(qty)} oz @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     return msg;
@@ -484,8 +558,8 @@ class AutoTrade {
   }
 
   /// Opens a paper position through the same RPC as manual trades.
-  /// Returns the new trade id, or null on failure.
-  static Future<String?> _paperOpen(
+  /// Reports explicit rejections separately from an uncertain submission.
+  static Future<({String? id, String? error, bool uncertain})> _paperOpen(
     String pin,
     String dir,
     double price,
@@ -508,7 +582,22 @@ class AutoTrade {
             }),
           )
           .timeout(const Duration(seconds: 20));
-      if (r.statusCode >= 400) return null;
+      if (r.statusCode >= 400 && r.statusCode < 500) {
+        // Preserve server constraints; never round up or retry another size.
+        final minimum = fullBalanceMinimumRejection(r.body);
+        return (
+          id: null,
+          error: minimum ?? 'Order rejected by the paper backend',
+          uncertain: false,
+        );
+      }
+      if (r.statusCode >= 500) {
+        return (
+          id: null,
+          error: 'Paper order outcome unknown - refresh the account before trying again',
+          uncertain: true,
+        );
+      }
       final (state, _) = await _paperState(pin);
       final positions = List<Map<String, dynamic>>.from(
         state?['positions'] as List? ?? [],
@@ -516,12 +605,22 @@ class AutoTrade {
       // paper_state returns full history, newest first (opened_at DESC);
       // only an OPEN position can be ours.
       final open = positions.where((p) => p['status'] == 'open').toList();
-      if (open.isEmpty) return null;
+      if (open.isEmpty) {
+        return (
+          id: null,
+          error: 'Paper order outcome unknown - refresh the account before trying again',
+          uncertain: true,
+        );
+      }
       UsageReporter.report('trade_opened', {'src': 'auto'});
       // First = newest = ours (we only open when none exist).
-      return '${open.first['id']}';
+      return (id: '${open.first['id']}', error: null, uncertain: false);
     } catch (_) {
-      return null;
+      return (
+        id: null,
+        error: 'Paper order outcome unknown - refresh the account before trying again',
+        uncertain: true,
+      );
     }
   }
 }

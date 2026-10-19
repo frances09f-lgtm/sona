@@ -1,3 +1,4 @@
+import 'position_precision.dart';
 import 'execution_ledger.dart';
 import 'trade_safety.dart';
 import 'journal_record.dart';
@@ -8,6 +9,7 @@ import 'dart:async';
 import 'user_api_keys.dart';
 import 'pending_orders.dart';
 import 'paper_margin.dart';
+import 'ai_paper_allocation.dart';
 import 'chart_explanation.dart';
 import 'learn_screen.dart';
 
@@ -49,7 +51,6 @@ const cRed = Color(0xFFFF5A5F);
 
 String fmt(num? n, {bool sign = false}) {
   if (n == null) return '-';
-  // Adaptive precision: tiny values (e.g. 0.0024 oz) must not round to 0.00.
   final a = n.abs();
   final s = (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
   return (sign && n > 0 ? '+' : '') + s;
@@ -70,11 +71,7 @@ Color cls(num? n) =>
 /// and on open-position cards.
 double? pnlAtLevel(Map<String, dynamic> t, double? level) {
   if (level == null) return null;
-  final entry = (t['entry'] as num?)?.toDouble();
-  final qty = (t['qty'] as num?)?.toDouble();
-  if (entry == null || qty == null) return null;
-  final dir = t['direction'] == 'buy' ? 1.0 : -1.0;
-  return (level - entry) * dir * qty;
+  return paperPositionPnl(t, level);
 }
 
 double? quickProtectionLevel(
@@ -648,20 +645,14 @@ class AppState extends ChangeNotifier {
 
   double? livePnl(Map<String, dynamic> t) {
     if (!priceOk || price == null) return null;
-    final entry = (t['entry'] as num).toDouble();
-    final qty = (t['qty'] as num).toDouble();
-    final dirStr = t['direction'] == 'buy' ? 'buy' : 'sell';
-    final dir = t['direction'] == 'buy' ? 1.0 : -1.0;
-    final mark = exitSidePrice(
-      dirStr,
-    ); // a buy is sold at bid, a sell bought back at ask
-    if (mark == null) return null;
-    return (mark - entry) * dir * qty;
+    // Buy exits at bid, sell at ask. Missing/invalid quantity is not zero P/L.
+    return paperPositionPnl(t, exitSidePrice(t['direction'].toString()));
   }
 
   double? movePct(Map<String, dynamic> t) {
     if (!priceOk || price == null) return null;
-    final entry = (t['entry'] as num).toDouble();
+    final entry = paperPositive(t['entry']);
+    if (entry == null || !['buy', 'sell'].contains(t['direction'])) return null;
     final dirStr = t['direction'] == 'buy' ? 'buy' : 'sell';
     final dir = t['direction'] == 'buy' ? 1.0 : -1.0;
     final mark = exitSidePrice(dirStr);
@@ -669,20 +660,46 @@ class AppState extends ChangeNotifier {
     return (mark - entry) / entry * 100 * dir;
   }
 
-  double floatPnl() {
+  double? floatPnl() {
     double sum = 0;
     for (final t in positions.where((t) => t['status'] == 'open')) {
-      sum += livePnl(t) ?? 0;
+      final pnl = livePnl(t);
+      if (pnl == null) return null;
+      sum += pnl;
     }
     return sum;
   }
 
-  Future<String?> openPaper(
+  Future<String?> openPaper(String dir, double qty, double? tp, double? sl) =>
+      _openPaper(dir, qty, tp, sl);
+
+  /// Full-balance advice orders are sized only AFTER the account refresh,
+  /// inside the same opening lock as manual orders. No stale cached budget.
+  Future<({String? error, double? quantity})> openAiFullBalance(
     String dir,
-    double qty,
     double? tp,
     double? sl,
   ) async {
+    double? quantity;
+    final error = await _openPaper(
+      dir,
+      1,
+      tp,
+      sl,
+      aiFullBalance: true,
+      onSized: (q) => quantity = q,
+    );
+    return (error: error, quantity: error == null ? quantity : null);
+  }
+
+  Future<String?> _openPaper(
+    String dir,
+    double qty,
+    double? tp,
+    double? sl, {
+    bool aiFullBalance = false,
+    void Function(double)? onSized,
+  }) async {
     if (!unlocked)
       return 'Paper account not connected. Open the account button to connect.';
     if (!priceFresh) {
@@ -706,6 +723,23 @@ class AppState extends ChangeNotifier {
       final px = entrySidePrice(dir);
       if (px == null || !priceFresh)
         return 'No fresh live bid/ask - cannot open right now.';
+      if (aiFullBalance) {
+        final allocation = bid == null || ask == null
+            ? null
+            : sizeAiPaperTrade(
+                balance: balance,
+                bid: bid!,
+                ask: ask!,
+                entryPrice: px,
+                percent: 100,
+                positions: positions,
+                extraCostPerOz: slippage.amount * 2,
+              );
+        if (allocation == null) {
+          return 'Available paper balance cannot be allocated, or a position is already open. No order submitted.';
+        }
+        qty = allocation.quantity;
+      }
       final marginError = PaperMargin.guard(
         free: estimatedFreeMargin,
         price: px,
@@ -722,11 +756,14 @@ class AppState extends ChangeNotifier {
         'target': tp,
         'stop': sl,
       });
+      onSized?.call(qty);
       UsageReporter.report('trade_opened', {'src': 'manual'});
       await paperRefresh();
       return null;
     } on RpcException catch (e) {
-      return e.message;
+      return aiFullBalance
+          ? (fullBalanceMinimumRejection(e.message) ?? e.message)
+          : e.message;
     } catch (_) {
       return 'Could not open trade';
     } finally {
@@ -736,6 +773,9 @@ class AppState extends ChangeNotifier {
 
   Future<String?> closePaper(Map<String, dynamic> t, {String? reason}) async {
     if (!unlocked) return 'Paper account not connected.';
+    if (paperPositionPnl(t, paperPositive(t['entry'])) == null) {
+      return 'Position size or entry unavailable. No close submitted.';
+    }
     final id = t['id'].toString();
     if (closing.contains(id)) return null;
     if (!priceFresh) {
@@ -787,14 +827,18 @@ class AppState extends ChangeNotifier {
       // path never reports them either. Post a system notification.
       if (reason == 'TP hit' || reason == 'SL hit') {
         final dirLabel = t['direction'] == 'buy' ? 'Buy' : 'Sell';
-        final q = (t['qty'] as num?)?.toDouble();
-        final pnlTxt = pnl != null ? ' · P/L ${money(pnl, sign: true)}' : '';
+        final q = paperPositive(t['qty']);
+        final pnlTxt = pnl != null
+            ? ' · P/L ${formatPaperMoney(pnl, sign: true)}'
+            : '';
         showForegroundNotification(
           reason == 'TP hit' ? 'Take Profit' : 'Stop Loss Hit',
-          '$dirLabel XAU/USD x${q?.toStringAsFixed(2) ?? '?'} closed at ${px.toStringAsFixed(2)}$pnlTxt',
+          '$dirLabel XAU/USD x${formatOz(q)} closed at ${px.toStringAsFixed(2)}$pnlTxt',
         );
       }
-      return pnl != null ? 'closed:${money(pnl, sign: true)}' : 'closed';
+      return pnl != null
+          ? 'closed:${formatPaperMoney(pnl, sign: true)}'
+          : 'closed';
     } catch (e) {
       closing.remove(id);
       notifyListeners();
@@ -2175,10 +2219,9 @@ class _TradeTabState extends State<TradeTab> {
           ),
           if (suggested != null)
             GestureDetector(
-              onTap: () =>
-                  setState(() => qtyCtrl.text = suggested.toStringAsFixed(2)),
+              onTap: () => setState(() => qtyCtrl.text = formatOz(suggested)),
               child: Text(
-                '1% size: ${suggested.toStringAsFixed(2)} oz',
+                '1% size: ${formatOz(suggested)} oz',
                 style: const TextStyle(
                   color: Color(0xFFF5C242),
                   fontSize: 12,
@@ -2489,7 +2532,7 @@ class _PositionsTabState extends State<PositionsTab> {
   Widget _positionCard(Map<String, dynamic> t) {
     final id = t['id'].toString();
     final buy = t['direction'] == 'buy';
-    final qty = (t['qty'] as num).toDouble();
+    final qty = paperPositive(t['qty']);
     final live = app.livePnl(t);
     final isExpanded = app.expanded.contains(id);
     final tp = app.effectiveLimit(t, 'tp');
@@ -2527,7 +2570,7 @@ class _PositionsTabState extends State<PositionsTab> {
                           ),
                           const SizedBox(width: 3),
                           Text(
-                            '${fmt(qty)} oz  ${buy ? 'BUY' : 'SELL'}',
+                            '${qty == null ? 'Unknown size' : '${formatOz(qty)} oz'}  ${buy ? 'BUY' : 'SELL'}',
                             style: TextStyle(
                               color: buy ? cGreen : cRed,
                               fontSize: 12,
@@ -2539,7 +2582,7 @@ class _PositionsTabState extends State<PositionsTab> {
                   ),
                 ),
                 Text(
-                  money(live, sign: true),
+                  formatPaperMoney(live, sign: true),
                   style: TextStyle(
                     color: cls(live),
                     fontWeight: FontWeight.w700,
@@ -2561,19 +2604,24 @@ class _PositionsTabState extends State<PositionsTab> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              onPressed: (!app.priceFresh || isClosing)
+              onPressed: (!app.priceFresh || isClosing || live == null)
                   ? null
                   : () => _confirmClose(t),
               child: Text(
                 isClosing
                     ? 'Closing...'
-                    : 'Close Trade: ${money(live, sign: true)}',
+                    : 'Close Trade: ${formatPaperMoney(live, sign: true)}',
               ),
             ),
             const SizedBox(height: 10),
+            if (qty == null)
+              const Text(
+                'Size unavailable or invalid in this record. P/L and risk cannot be calculated; no size has been assumed.',
+                style: TextStyle(color: cDim, fontSize: 12),
+              ),
             TradeExplanationCard(
               data: TradeExplanation(
-                entry: (t['entry'] as num).toDouble(),
+                entry: paperPositive(t['entry']),
                 qty: qty,
                 buy: buy,
                 stop: sl,
@@ -2585,11 +2633,16 @@ class _PositionsTabState extends State<PositionsTab> {
             const Divider(color: cBorder, height: 24),
             _row('Order ID', id),
             _row('Instrument', 'GOLD'),
-            _row('Amount', '${fmt(qty)} Troy Ounce${qty == 1 ? '' : 's'}'),
+            _row(
+              'Amount',
+              qty == null
+                  ? 'Unknown size'
+                  : '${formatOz(qty)} Troy Ounce${qty == 1 ? '' : 's'}',
+            ),
             _row('Direction', buy ? 'BUY' : 'SELL'),
-            _row('Open Price', fmt((t['entry'] as num).toDouble())),
+            _row('Open Price', fmt(paperPositive(t['entry']))),
             _row('Current Price', app.priceOk ? fmt(app.price) : 'Unavailable'),
-            _row('PnL', money(live, sign: true), color: cls(live)),
+            _row('PnL', formatPaperMoney(live, sign: true), color: cls(live)),
             _row('Price Move (%)', () {
               final m = app.movePct(t);
               return m == null
@@ -2637,7 +2690,7 @@ class _PositionsTabState extends State<PositionsTab> {
                   Text(label, style: const TextStyle(fontSize: 14)),
                   Text(
                     on
-                        ? '${fmt(v)}  ${money(pnlAtLevel(t, v), sign: true)}'
+                        ? '${fmt(v)}  ${formatPaperMoney(pnlAtLevel(t, v), sign: true)}'
                         : 'Off',
                     style: TextStyle(
                       color: on ? cls(pnlAtLevel(t, v)) : cDim,
@@ -2678,7 +2731,7 @@ class _PositionsTabState extends State<PositionsTab> {
         ? fmt((existing as num).toDouble())
         : (app.price != null ? fmt(app.price!) : '');
     final ctrl = TextEditingController(text: start);
-    final open = (t['entry'] as num?)?.toDouble();
+    final open = paperPositive(t['entry']);
     String? error;
     final val = await showDialog<double>(
       context: context,
@@ -2698,7 +2751,7 @@ class _PositionsTabState extends State<PositionsTab> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Entry: ${fmt(open)} · Size: ${fmt((t['qty'] as num?)?.toDouble())} oz',
+                      'Entry: ${fmt(open)} · Size: ${formatOz(t['qty'])}${paperPositive(t['qty']) == null ? '' : ' oz'}',
                       style: const TextStyle(color: cDim, fontSize: 12),
                     ),
                   ),
@@ -2744,7 +2797,7 @@ class _PositionsTabState extends State<PositionsTab> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Projected P/L at $label: ${money(pnl, sign: true)}',
+                        'Projected P/L at $label: ${formatPaperMoney(pnl, sign: true)}',
                         style: TextStyle(
                           color: cls(pnl),
                           fontSize: 13,
@@ -3025,7 +3078,9 @@ class _PositionsTabState extends State<PositionsTab> {
                               const SizedBox(width: 5),
                               Flexible(
                                 child: Text(
-                                  '${fmt((t['qty'] as num).toDouble())} Troy Ounce(s)',
+                                  paperPositive(t['qty']) == null
+                                      ? 'Unknown size'
+                                      : '${formatOz(t['qty'])} Troy Ounce(s)',
                                   style: const TextStyle(
                                     color: cDim,
                                     fontSize: 14,
@@ -3039,7 +3094,7 @@ class _PositionsTabState extends State<PositionsTab> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      money(pnl, sign: true),
+                      formatPaperMoney(pnl, sign: true),
                       style: TextStyle(
                         color: cls(pnl),
                         fontSize: 18,
@@ -3057,8 +3112,8 @@ class _PositionsTabState extends State<PositionsTab> {
                 const SizedBox(height: 8),
                 TradeExplanationCard(
                   data: TradeExplanation(
-                    entry: (t['entry'] as num).toDouble(),
-                    qty: (t['qty'] as num).toDouble(),
+                    entry: paperPositive(t['entry']),
+                    qty: paperPositive(t['qty']),
                     buy: buy,
                     stop: (t['sl'] as num?)?.toDouble(),
                     target: (t['tp'] as num?)?.toDouble(),
@@ -3791,13 +3846,19 @@ class _StatsTabState extends State<StatsTab> {
     final unprotected = open
         .where((t) => app.effectiveLimit(t, 'sl') == null)
         .length;
+    final unknownRisk = open.any(
+      (t) =>
+          paperPositive(t['entry']) == null ||
+          paperPositive(t['qty']) == null ||
+          !['buy', 'sell'].contains(t['direction']),
+    );
     final risk = open.fold<double>(
       0,
       (sum, t) =>
           sum +
           (TradeExplanation(
-                entry: (t['entry'] as num).toDouble(),
-                qty: (t['qty'] as num).toDouble(),
+                entry: paperPositive(t['entry']),
+                qty: paperPositive(t['qty']),
                 buy: t['direction'] == 'buy',
                 stop: app.effectiveLimit(t, 'sl'),
               ).risk ??
@@ -3934,7 +3995,9 @@ class _StatsTabState extends State<StatsTab> {
                 ),
                 _stat(
                   'Open PnL',
-                  app.priceOk ? money(app.floatPnl(), sign: true) : '-',
+                  app.priceOk
+                      ? formatPaperMoney(app.floatPnl(), sign: true)
+                      : '-',
                   cls(app.floatPnl()),
                 ),
               ],
@@ -4011,9 +4074,11 @@ class _StatsTabState extends State<StatsTab> {
               if (source == 'paper')
                 _stat(
                   'Open risk at stops',
-                  unprotected > 0
+                  unknownRisk
+                      ? 'Unavailable · unknown position data'
+                      : unprotected > 0
                       ? 'Uncapped · $unprotected no stop'
-                      : '-\$${fmt(risk)}',
+                      : formatPaperMoney(-risk),
                   unprotected > 0 || risk > 0 ? Colors.amber : cDim,
                 ),
             ],
@@ -4410,14 +4475,23 @@ class _AiTabState extends State<AiTab> {
     if (px == null || px <= 0) {
       return 'AI is sure, but there is no fresh live price - not entered.';
     }
-    final qty = (app.balance * r.sizePct / 100) / px;
-    final err = await app.openPaper(dir, qty, r.tp, r.sl);
+    final prefs = await SharedPreferences.getInstance();
+    final full = AutoTrade.usesFullBalance(prefs);
+    double qty = (app.balance * r.sizePct / 100) / px;
+    String? err;
+    if (full) {
+      final result = await app.openAiFullBalance(dir, r.tp, r.sl);
+      err = result.error;
+      if (result.quantity != null) qty = result.quantity!;
+    } else {
+      err = await app.openPaper(dir, qty, r.tp, r.sl);
+    }
     if (err != null) {
       await AiLog.add('error', 'Advice trade not entered: $err');
       return 'AI is sure, but the trade was not entered: $err';
     }
     final msg =
-        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${fmt(qty)} oz @ ${fmt(px)} - TP ${fmt(r.tp)}, SL ${fmt(r.sl)}';
+        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${formatOz(qty)} oz @ ${px.toStringAsFixed(2)} - TP ${r.tp!.toStringAsFixed(2)}, SL ${r.sl!.toStringAsFixed(2)}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     UsageReporter.report('trade_opened', {'src': 'advice'});
@@ -4691,6 +4765,32 @@ class _AiTabState extends State<AiTab> {
                   style: const TextStyle(color: cDim, fontSize: 12),
                 ),
                 const SizedBox(height: 10),
+                SwitchListTile(
+                  key: const ValueKey('ai-full-balance'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Use 100% of available paper balance',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  subtitle: const Text(
+                    'Applies to AI auto-trade and sure advice. Cash-notional allocation, not 100% loss at the stop. Uses exact fractional oz without the default 0.01 oz client minimum. Backend limits still apply. Does not enable AI.',
+                    style: TextStyle(fontSize: 11, color: cDim),
+                  ),
+                  value: st.useFullBalance,
+                  onChanged: (v) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await AutoTrade.setFullBalance(prefs, v);
+                    _refresh();
+                  },
+                ),
+                if (st.useFullBalance)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'High allocation: nearly all available paper balance is budgeted for one trade, including a spread/fill-cost cushion. Little or no balance remains unallocated. No extra leverage; TP/SL and safety limits still apply.',
+                      style: TextStyle(fontSize: 11, color: cRed),
+                    ),
+                  ),
                 Row(
                   children: [
                     const Text(
@@ -4723,12 +4823,15 @@ class _AiTabState extends State<AiTab> {
                           child: Text('25% of balance'),
                         ),
                       ],
-                      onChanged: (v) async {
-                        if (v == null) return;
-                        final prefs = await SharedPreferences.getInstance();
-                        await AutoTrade.setSizePct(prefs, v);
-                        _refresh();
-                      },
+                      onChanged: st.useFullBalance
+                          ? null
+                          : (v) async {
+                              if (v == null) return;
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await AutoTrade.setSizePct(prefs, v);
+                              _refresh();
+                            },
                     ),
                   ],
                 ),
