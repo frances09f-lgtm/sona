@@ -49,7 +49,9 @@ const cRed = Color(0xFFFF5A5F);
 
 String fmt(num? n, {bool sign = false}) {
   if (n == null) return '-';
-  final s = n.toStringAsFixed(2);
+  // Adaptive precision: tiny values (e.g. 0.0024 oz) must not round to 0.00.
+  final a = n.abs();
+  final s = (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
   return (sign && n > 0 ? '+' : '') + s;
 }
 
@@ -4415,7 +4417,7 @@ class _AiTabState extends State<AiTab> {
       return 'AI is sure, but the trade was not entered: $err';
     }
     final msg =
-        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${qty.toStringAsFixed(2)} oz @ ${px.toStringAsFixed(2)} - TP ${r.tp!.toStringAsFixed(2)}, SL ${r.sl!.toStringAsFixed(2)}';
+        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${fmt(qty)} oz @ ${fmt(px)} - TP ${fmt(r.tp)}, SL ${fmt(r.sl)}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     UsageReporter.report('trade_opened', {'src': 'advice'});

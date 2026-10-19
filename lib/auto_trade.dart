@@ -18,6 +18,12 @@ import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'notifications.dart';
+
+/// Adaptive oz precision: tiny AI sizes must not display as 0.00.
+String fmtOz(num n) {
+  final a = n.abs();
+  return (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
+}
 import 'sessions.dart';
 
 class AiLogEntry {
@@ -372,7 +378,7 @@ class AutoTrade {
     await prefs.setString(_openIdKey, opened);
     await prefs.setDouble(_openEquityKey, balance);
     final msg =
-        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${qty.toStringAsFixed(2)} oz @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
+        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${fmtOz(qty)} oz @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     return msg;
