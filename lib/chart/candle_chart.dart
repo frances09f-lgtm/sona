@@ -41,12 +41,39 @@ class ChartInterval {
   const ChartInterval(this.code, this.label, this.refresh);
 }
 
+// MT5/XM timeframe set (user request: behave like XM360).
+/// MetaTrader Heikin Ashi transform: Close=(O+H+L+C)/4,
+/// Open=(prevHAOpen+prevHAClose)/2, High=max(H,HAO,HAC), Low=min(L,HAO,HAC).
+List<Candle> _heikinAshi(List<Candle> cs) {
+  if (cs.isEmpty) return cs;
+  final out = <Candle>[];
+  var haOpen = (cs.first.open + cs.first.close) / 2;
+  for (final c in cs) {
+    final haClose = (c.open + c.high + c.low + c.close) / 4;
+    out.add(
+      Candle(
+        time: c.time,
+        open: haOpen,
+        high: math.max(c.high, math.max(haOpen, haClose)),
+        low: math.min(c.low, math.min(haOpen, haClose)),
+        close: haClose,
+        volume: c.volume,
+      ),
+    );
+    haOpen = (haOpen + haClose) / 2;
+  }
+  return out;
+}
+
 const intervals = [
-  ChartInterval('1min', '1m', Duration(seconds: 15)),
-  ChartInterval('15min', '15m', Duration(minutes: 5)),
-  ChartInterval('1h', '1H', Duration(minutes: 15)),
-  ChartInterval('4h', '4H', Duration(minutes: 30)),
-  ChartInterval('1day', '1D', Duration(hours: 1)),
+  ChartInterval('1min', 'M1', Duration(seconds: 15)),
+  ChartInterval('5min', 'M5', Duration(seconds: 60)),
+  ChartInterval('15min', 'M15', Duration(minutes: 5)),
+  ChartInterval('30min', 'M30', Duration(minutes: 5)),
+  ChartInterval('1h', 'H1', Duration(minutes: 15)),
+  ChartInterval('4h', 'H4', Duration(minutes: 30)),
+  ChartInterval('1day', 'D1', Duration(hours: 1)),
+  ChartInterval('1week', 'W1', Duration(hours: 6)),
 ];
 
 const tradeRanges = [
@@ -190,10 +217,13 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     final c = code.startsWith('range:') ? tradeRangeSpec(code).$1 : code;
     return switch (c) {
       '1min' => const Duration(minutes: 1),
+      '5min' => const Duration(minutes: 5),
       '15min' => const Duration(minutes: 15),
+      '30min' => const Duration(minutes: 30),
       '1h' => const Duration(hours: 1),
       '4h' => const Duration(hours: 4),
       '1day' => const Duration(days: 1),
+      '1week' => const Duration(days: 7),
       _ => null,
     };
   }
@@ -201,12 +231,18 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   double get _rsiHeight => rsiOn && candles.length > rsiPeriod ? 64 : 0;
   double get _macdHeight => macdOn && candles.length >= macdSlow ? 64 : 0;
   int _loadGeneration = 0;
-  ChartInterval interval = intervals[1]; // 15m default
+  ChartInterval interval = intervals[2]; // M15 default
   List<Candle> candles = [];
   int loadedAt = 0;
   bool loading = false;
   String? error;
   int? selected; // crosshair candle index
+
+  // MT5-style crosshair mode: toggled from the toolbar; while on, a
+  // one-finger drag moves the crosshair freely (price on the right axis,
+  // date/time on the bottom axis, OHLC caption at the touched bar).
+  bool crosshairMode = false;
+  Offset? crosshairPos;
   Timer? _timer;
   bool biasExpanded = false;
   bool smaOn = true;
@@ -918,6 +954,26 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                   child: Row(
                     children: [
                       InkWell(
+                        onTap: () => setState(() {
+                          crosshairMode = !crosshairMode;
+                          crosshairPos = null;
+                        }),
+                        child: Tooltip(
+                          message: 'Crosshair',
+                          child: SizedBox(
+                            width: 28,
+                            height: 24,
+                            child: Icon(
+                              Icons.add,
+                              size: 18,
+                              color: crosshairMode
+                                  ? const Color(0xFFFFD166)
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      InkWell(
                         onTap: presetDialog,
                         child: const Tooltip(
                           message: 'Chart layouts',
@@ -1455,9 +1511,10 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     }
     return LayoutBuilder(
       builder: (context, cons) {
-        return GestureDetector(
+        final chartGesture = GestureDetector(
           // Draw mode keeps pan for drag-moving levels; outside Draw, a
-          // one-finger drag scrolls the chart and pinch zooms it.
+          // one-finger drag scrolls the chart and pinch zooms it. Crosshair
+          // mode (MT5) owns the drag: it moves the crosshair instead.
           onPanDown: drawMode
               ? (d) => _dragLineStart(
                   d.localPosition,
@@ -1483,6 +1540,11 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               : (d) {
                   final n = _drawn.length;
                   if (n == 0) return;
+                  if (crosshairMode && d.pointerCount == 1) {
+                    // MT5 crosshair mode: the drag moves the crosshair.
+                    setState(() => crosshairPos = d.localFocalPoint);
+                    return;
+                  }
                   if (d.pointerCount >= 2) {
                     setState(() {
                       final v = (_scaleStartVC / d.scale).round();
@@ -1504,6 +1566,10 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                   }
                 },
           onTapDown: (d) {
+            if (crosshairMode) {
+              setState(() => crosshairPos = d.localPosition);
+              return;
+            }
             if (trendMode) {
               _trendAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
             } else if (fibMode) {
@@ -1541,6 +1607,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
+              bid: market.bid,
+              ask: market.ask,
+              crosshair: crosshairMode ? crosshairPos : null,
               chartStyle: chartStyle,
               positions: market.positions,
               macdSlow: macdSlow,
@@ -1586,6 +1655,40 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               rsiPeriod: rsiPeriod,
             ),
           ),
+        );
+        // MT5 "Go to..." chip: appears when the chart is scrolled back;
+        // tapping returns to the newest bar and re-pins auto-scroll.
+        return Stack(
+          children: [
+            Positioned.fill(child: chartGesture),
+            if (scrollCandles > 0.5)
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: InkWell(
+                  onTap: () => setState(() => scrollCandles = 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF232A35),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFFD166)),
+                    ),
+                    child: const Text(
+                      'Go to \u25B6|',
+                      style: TextStyle(
+                        color: Color(0xFFFFD166),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -1794,7 +1897,10 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 class CandlePainter extends CustomPainter {
   final List<Candle> candles;
   final double? livePrice;
+  final double? bid;
+  final double? ask;
   final int? selected;
+  final Offset? crosshair;
   final List<double>? sma;
   final int smaPeriod;
   final List<double>? sma200;
@@ -1827,7 +1933,10 @@ class CandlePainter extends CustomPainter {
     this.firstVisible = 0,
     this.visibleCount = 0,
     this.livePrice,
+    this.bid,
+    this.ask,
     this.selected,
+    this.crosshair,
     this.hLines = const [],
     this.trendLines = const [],
     this.pendingTrend,
@@ -1915,7 +2024,8 @@ class CandlePainter extends CustomPainter {
 
     // Candle OHLC is immutable provider history. The separate quote marker
     // must never rewrite old candles after a market/data gap.
-    final eff = candles;
+    final eff =
+        chartStyle == ChartStyle.heikinAshi ? _heikinAshi(candles) : candles;
     final n = eff.length;
     final step = plotW / vc0;
     final bodyW = math.max(step * 0.65, 1.5);
@@ -2068,6 +2178,68 @@ class CandlePainter extends CustomPainter {
       drawLine(bands!.$3, 20, const Color(0xFF52B788));
     }
 
+    // MT5 free crosshair: vertical+horizontal lines at the finger, price
+    // tag on the right axis, bar date/time tag on the bottom axis.
+    final ch = crosshair;
+    if (ch != null) {
+      final dash = Paint()
+        ..color = Colors.white.withOpacity(0.85)
+        ..strokeWidth = 0.7;
+      canvas.drawLine(Offset(ch.dx, 0), Offset(ch.dx, plotH), dash);
+      canvas.drawLine(Offset(0, ch.dy), Offset(plotW, ch.dy), dash);
+      final chPrice = lo + (plotH - ch.dy) / plotH * (hi - lo);
+      if (ch.dy >= 0 && ch.dy <= plotH) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: chPrice.toStringAsFixed(2),
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 9,
+              fontFamily: 'Roboto',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final ty = (ch.dy - tp.height / 2).clamp(0.0, size.height - tp.height);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(plotW + 2, ty - 2, tp.width + 8, tp.height + 4),
+            const Radius.circular(3),
+          ),
+          Paint()..color = const Color(0xFFB0BEC5),
+        );
+        tp.paint(canvas, Offset(plotW + 6, ty));
+      }
+      final bi = fv0 + (ch.dx / step).floor();
+      if (bi >= fv0 && bi < iEnd) {
+        final t = eff[bi].time.toLocal();
+        String two(int v) => v.toString().padLeft(2, '0');
+        final label = '${t.year}-${two(t.month)}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
+        final tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 9,
+              fontFamily: 'Roboto',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final tx = (ch.dx - tp.width / 2).clamp(0.0, plotW - tp.width - 8);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(tx - 4, plotH + 2, tp.width + 8, tp.height + 4),
+            const Radius.circular(3),
+          ),
+          Paint()..color = const Color(0xFFB0BEC5),
+        );
+        tp.paint(canvas, Offset(tx, plotH + 4));
+      }
+    }
+
     // crosshair
     if (selected != null && selected! < n) {
       final c = candles[selected!];
@@ -2118,6 +2290,53 @@ class CandlePainter extends CustomPainter {
     );
     canvas.drawRRect(rr, Paint()..color = gold);
     tagTp.paint(canvas, Offset(plotW + 6, tagY));
+
+    // MetaTrader-style bid/ask lines: bid is the chart's price basis (drawn
+    // above); ask gets its own line + right-axis tag when the BBO feed has it.
+    void priceTag(double price, Color bg, Color fg) {
+      final py = y(price);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: price.toStringAsFixed(2),
+          style: TextStyle(
+            color: fg,
+            fontSize: 9,
+            fontFamily: 'Roboto',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final ty = (py - tp.height / 2).clamp(0.0, size.height - tp.height);
+      final r = RRect.fromRectAndRadius(
+        Rect.fromLTWH(plotW + 2, ty - 2, tp.width + 8, tp.height + 4),
+        const Radius.circular(3),
+      );
+      canvas.drawRRect(r, Paint()..color = bg);
+      tp.paint(canvas, Offset(plotW + 6, ty));
+    }
+
+    void dashedH(double py, Color color) {
+      final p = Paint()
+        ..color = color
+        ..strokeWidth = 1;
+      double dx = 0;
+      while (dx < plotW) {
+        canvas.drawLine(
+          Offset(dx, py),
+          Offset(math.min(dx + dashW, plotW), py),
+          p,
+        );
+        dx += dashW + gapW;
+      }
+    }
+
+    final askP = ask;
+    if (askP != null && askP.isFinite && askP > lo && askP < hi) {
+      const askColor = Color(0xFFFF8A80);
+      dashedH(y(askP), askColor);
+      priceTag(askP, askColor, Colors.black);
+    }
 
     // user-drawn horizontal lines
     final hlPaint = Paint()

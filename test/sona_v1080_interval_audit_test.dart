@@ -131,7 +131,7 @@ void main() {
       expect(key.currentState!.candles, hasLength(97));
       await t.tap(find.text('Candle intervals'));
       await t.pumpAndSettle();
-      for (final label in ['1H', '4H', '1D']) {
+      for (final label in ['H1', 'H4', 'D1']) {
         await t.tap(find.text(label));
         await t.pumpAndSettle();
         expect(key.currentState!.candles, hasLength(120));

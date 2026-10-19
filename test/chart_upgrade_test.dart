@@ -72,7 +72,7 @@ void main() {
     expect(full.interval.code, 'range:1M');
     await t.tap(find.text('Candle intervals').last);
     await t.pumpAndSettle();
-    await t.tap(find.text('4H').last);
+    await t.tap(find.text('H4').last);
     await t.pumpAndSettle();
     await t.tap(find.byIcon(Icons.fullscreen_exit));
     await t.pumpAndSettle();

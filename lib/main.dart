@@ -1618,6 +1618,8 @@ class _TradeTabState extends State<TradeTab> {
                   marketSnapshot: () => ChartMarketSnapshot(
                     price: app.chartBasis,
                     fresh: app.priceFresh,
+                    bid: app.bid,
+                    ask: app.ask,
                     liveTicks: app.liveTicks,
                     positions: [
                       for (final record in app.positions)

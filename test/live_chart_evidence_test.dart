@@ -144,7 +144,7 @@ void main() {
         );
         await t.pump();
         // Start on the 1H view like the user.
-        await t.tap(find.text('1H').first);
+        await t.tap(find.text('H1').first);
         await t.pump();
 
         final log = <String>[];
@@ -203,11 +203,11 @@ void main() {
           }
         }
         // Timeframe switch 1H -> 1D -> 1H via the real chips.
-        await t.tap(find.text('1D').first);
+        await t.tap(find.text('D1').first);
         await t.pump();
         await Future<void>.delayed(const Duration(seconds: 3));
         await sample('range1D', shot: true);
-        await t.tap(find.text('1H').first);
+        await t.tap(find.text('H1').first);
         await t.pump();
         await Future<void>.delayed(const Duration(seconds: 3));
         final b1 = await realBid();

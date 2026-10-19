@@ -48,11 +48,11 @@ void main() {
       await t.tap(find.text('1M'));
       await t.pumpAndSettle();
       expect(calls.last, 'range:1M');
-      expect(find.text('1m'), findsNothing);
+      expect(find.text('M1'), findsNothing);
       await t.tap(find.text('Candle intervals'));
       await t.pumpAndSettle();
       expect(calls.last, '1min');
-      expect(find.text('1m'), findsOneWidget);
+      expect(find.text('M1'), findsOneWidget);
       expect(t.takeException(), isNull);
     },
   );

@@ -7,7 +7,8 @@ import '../market_data/models.dart';
 enum ChartStyle {
   candles('Candles'),
   line('Line'),
-  bars('Bars');
+  bars('Bars'),
+  heikinAshi('Heikin Ashi');
 
   final String label;
   const ChartStyle(this.label);
@@ -97,6 +98,11 @@ class TickBuffer {
 class ChartMarketSnapshot {
   final double? price;
   final bool fresh;
+
+  /// Real bid/ask from the BBO feed, when available. MetaTrader draws both
+  /// lines on the chart; Sona does the same (bid = main chart basis).
+  final double? bid;
+  final double? ask;
   final List<ChartPosition> positions;
 
   /// Recent live ticks (same stream that sets [price]); used to build the
@@ -105,6 +111,8 @@ class ChartMarketSnapshot {
   const ChartMarketSnapshot({
     this.price,
     this.fresh = true,
+    this.bid,
+    this.ask,
     this.positions = const [],
     this.liveTicks,
   });

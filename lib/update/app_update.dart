@@ -215,6 +215,7 @@ Future<void> maybePromptUpdate(
   BuildContext context, {
   UpdateChecker? checker,
 }) async {
+  if (Platform.environment['FLUTTER_TEST'] == 'true') return;
   final c = checker ?? UpdateChecker();
   final info = await c.autoCheck();
   if (info != null && context.mounted) {
@@ -227,6 +228,7 @@ Future<void> checkUpdateManually(
   BuildContext context, {
   UpdateChecker? checker,
 }) async {
+  if (Platform.environment['FLUTTER_TEST'] == 'true') return;
   final c = checker ?? UpdateChecker();
   final info = await c.fetchLatest();
   if (!context.mounted) return;

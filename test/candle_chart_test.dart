@@ -146,7 +146,7 @@ void main() {
       final state = t.state<CandleChartPanelState>(
         find.byType(CandleChartPanel),
       );
-      await t.tap(find.text('1m'));
+      await t.tap(find.text('M1'));
       await t.pumpAndSettle();
       await t.tap(find.text('Indicators'));
       await t.pumpAndSettle();
@@ -317,7 +317,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('1H'));
+    await tester.tap(find.text('H1'));
     await tester.pumpAndSettle();
     expect(calls, containsAll(['15min', '1h']));
   });
