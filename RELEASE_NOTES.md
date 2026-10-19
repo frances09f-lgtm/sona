@@ -1,5 +1,5 @@
-Sona 1.0.85
+Sona 1.0.86
 
-- XM-style lots everywhere: 1 lot = 100 oz, minimum and step 0.01 lot (= 1 oz), mirroring XM MT5 gold (contract size 100). Sizes display as lots with oz in brackets; order tickets, quick-trade, journal and AI logs all use lots.
-- AI auto-trade minimum is now 0.01 lot (1 oz) like XM, and the AI size-per-trade cap is raised to 100% of balance (new 50/75/100% options; default 100%).
-- The chart's yellow last-price line and the latest candle now agree: the live quote is folded into the still-forming bar (history is never rewritten, and a stale feed is left untouched).
+- The live price now updates every second. Sona polled the Swissquote feed every 3s while the feed itself ticks about every 1.5s in liquid hours, so over half of the ticks never showed; at 1s polling the quote, last-price line and forming candle track the market closely.
+- A hung quote request can no longer freeze the price: the feed timeout is cut from 10s to 4s.
+- When the Swissquote feed is unreachable, the backup price sources are retried every 10s instead of on every tick, so an outage no longer hammers the free fallback endpoints.

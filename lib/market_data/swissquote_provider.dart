@@ -25,7 +25,9 @@ class SwissquoteQuoteProvider implements MarketDataProvider {
   @override
   Future<Quote> fetchQuote(Instrument instrument) async {
     final uri = Uri.parse('$_base${instrument.providerPath}');
-    final res = await client.get(uri).timeout(const Duration(seconds: 10));
+    // 4s, not the usual 10s: with 1s polling a hung request would
+    // otherwise freeze the live price for the whole timeout.
+    final res = await client.get(uri).timeout(const Duration(seconds: 4));
     if (res.statusCode != 200) {
       throw MarketDataException('HTTP ${res.statusCode} from $name');
     }

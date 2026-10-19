@@ -330,9 +330,11 @@ class AppState extends ChangeNotifier {
     }
     fetchPrice();
     // Live chart (user request): poll the free Swissquote BBO feed every
-    // 3s so the forming candle and last-price line feel real-time. The 1m
-    // candle HISTORY refresh stays at 15s to respect TwelveData 8/min.
-    _priceTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    // 1s. The feed itself ticks every ~1.5s during liquid hours, so 1s
+    // polling shows nearly every tick (3s polling hid over half of them,
+    // which read as "the price moves very slow"). The 1m candle HISTORY
+    // refresh stays at 15s to respect TwelveData 8/min.
+    _priceTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       fetchPrice();
     });
     _ticker = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -502,9 +504,10 @@ class AppState extends ChangeNotifier {
   }
 
   bool _fetching = false;
+  int _lastFallbackTry = 0;
 
   Future<void> fetchPrice() async {
-    if (_fetching) return; // 3s cadence: never stack overlapping fetches
+    if (_fetching) return; // 1s cadence: never stack overlapping fetches
     _fetching = true;
     // Stage (c): primary source is the Swissquote public BBO feed with a
     // real bid/ask spread. Mid-only feeds remain as fallback.
@@ -523,6 +526,15 @@ class AppState extends ChangeNotifier {
       _fetching = false;
       return;
     } catch (_) {}
+    // Fallback feeds are minute-granularity mid prices. At the 1s poll
+    // cadence, retrying them every tick would hammer two free endpoints
+    // for no fresher data, so run the fallback chain at most every 10s.
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - _lastFallbackTry < 10000) {
+      _fetching = false;
+      return;
+    }
+    _lastFallbackTry = nowMs;
     Future<({double p, int t})?> trySource(int which) async {
       try {
         if (which == 0) {
