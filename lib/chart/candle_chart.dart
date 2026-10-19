@@ -245,8 +245,11 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   Offset? crosshairPos;
   Timer? _timer;
   bool biasExpanded = false;
-  bool smaOn = true;
-  bool emaOn = true;
+  // XM/MT5 default: a fresh chart has NO indicators; the user adds them
+  // from the Indicators menu. Saved layouts from before v1.0.93 carried the
+  // old on-by-default SMA/EMA - the one-time layoutV reset clears those.
+  bool smaOn = false;
+  bool emaOn = false;
   bool sma200On = false;
   bool rsiOn = false;
   bool macdOn = false;
@@ -332,6 +335,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 
   static const presetKey = 'sona_chart_presets';
   Map<String, dynamic> layoutSnapshot() => {
+    'layoutV': 2,
     'chartStyle': chartStyle.name,
     'emaPeriod': emaPeriod,
     'rsiPeriod': rsiPeriod,
@@ -369,8 +373,11 @@ class CandleChartPanelState extends State<CandleChartPanel> {
       macdFast = 12;
       macdSlow = 26;
     }
-    smaOn = data['sma20'] == true;
-    emaOn = data['ema50'] == true;
+    // layoutV<2 snapshots saved the old on-by-default SMA20/EMA50. Reset
+    // those once so existing installs also come up with a clean chart.
+    final v2 = data['layoutV'] == 2;
+    smaOn = v2 && data['sma20'] == true;
+    emaOn = v2 && data['ema50'] == true;
     sma200On = data['sma200'] == true;
     rsiOn = data['rsi'] == true;
     macdOn = data['macd'] == true;

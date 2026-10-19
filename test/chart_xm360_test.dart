@@ -120,4 +120,55 @@ void main() {
       matchesGoldenFile('goldens/xm360_bidask.png'),
     );
   });
+
+  testWidgets('fresh chart has no indicators by default (XM-style)', (
+    tester,
+  ) async {
+    await loadFonts();
+    final data = fakeCandles(80);
+    await tester.pumpWidget(harness(data));
+    await tester.pumpAndSettle();
+    final state = tester.state<CandleChartPanelState>(
+      find.byType(CandleChartPanel),
+    );
+    expect(state.smaOn, isFalse);
+    expect(state.emaOn, isFalse);
+    expect(state.sma200On, isFalse);
+    expect(state.rsiOn, isFalse);
+    expect(state.macdOn, isFalse);
+    expect(state.bollingerOn, isFalse);
+  });
+
+  testWidgets('pre-v2 saved layout loses the old default SMA/EMA once', (
+    tester,
+  ) async {
+    await loadFonts();
+    final data = fakeCandles(80);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 480,
+            child: CandleChartPanel(
+              loader: (iv) async => data,
+              initialLayout: {
+                'sma20': true, // old default, saved by <=1.0.92
+                'ema50': true,
+                'rsi': true, // explicit user choice survives
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final state = tester.state<CandleChartPanelState>(
+      find.byType(CandleChartPanel),
+    );
+    expect(state.smaOn, isFalse, reason: 'old default reset once');
+    expect(state.emaOn, isFalse, reason: 'old default reset once');
+    expect(state.rsiOn, isTrue, reason: 'explicit choice survives');
+  });
 }
