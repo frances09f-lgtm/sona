@@ -117,18 +117,45 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     if (bar == null) return candles;
     final last = candles.last;
     final now = DateTime.now();
-    if (now.isBefore(last.time) || !now.isBefore(last.time.add(bar))) {
-      return candles; // stale feed or data gap: never rewrite history
+    if (now.isBefore(last.time)) {
+      return candles; // provider data ahead of the clock: leave it alone
     }
+    if (now.isBefore(last.time.add(bar))) {
+      // The provider's last bar is still forming: fold the quote into it.
+      return [
+        ...candles.take(candles.length - 1),
+        Candle(
+          time: last.time,
+          open: last.open,
+          high: math.max(last.high, p),
+          low: math.min(last.low, p),
+          close: p,
+          volume: last.volume,
+        ),
+      ];
+    }
+    // The provider's last bar already closed. The free candle feed lags a
+    // minute or two behind the live quote, so without this the live price
+    // line floats away from the last candle. Synthesize the still-forming
+    // bar (opening at the last real close) so the latest candle and the
+    // live line always meet; provider history is never rewritten. Capped
+    // at 3 bar windows of lag - a bigger gap is a candle-feed outage, and
+    // fabricating a bar there would mislead.
+    final lagBars =
+        now.difference(last.time).inMilliseconds / bar.inMilliseconds;
+    if (lagBars > 3) return candles;
+    final k = now.difference(last.time).inMilliseconds ~/ bar.inMilliseconds;
+    final start = last.time.add(bar * k);
+    final o = last.close;
     return [
-      ...candles.take(candles.length - 1),
+      ...candles,
       Candle(
-        time: last.time,
-        open: last.open,
-        high: math.max(last.high, p),
-        low: math.min(last.low, p),
+        time: start,
+        open: o,
+        high: math.max(o, p),
+        low: math.min(o, p),
         close: p,
-        volume: last.volume,
+        volume: 0,
       ),
     ];
   }
@@ -1338,7 +1365,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     if (selected != null && candles.isNotEmpty) {
       c = candles[selected!.clamp(0, candles.length - 1)];
     } else if (candles.isNotEmpty) {
-      c = candles.last;
+      c = _liveCandles.last; // forming bar folded with the live quote
     }
     if (error != null) {
       return Text(

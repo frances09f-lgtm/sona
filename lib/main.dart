@@ -133,6 +133,12 @@ class AppState extends ChangeNotifier {
   }
 
   double? get spread => (bid != null && ask != null) ? ask! - bid! : null;
+  /// Single price basis for everything drawn on the chart: the live line,
+  /// its price tag, the forming candle's close and the big header number.
+  /// MetaTrader/XM OTC charts are based on bid, so we use bid too (mid as
+  /// fallback if a mid-only feed answered).
+  double? get chartBasis => bid ?? price;
+
   bool get priceFresh =>
       priceOk &&
       freshExecutionQuote(
@@ -1558,7 +1564,7 @@ class _TradeTabState extends State<TradeTab> {
                         ),
                       ),
                       Text(
-                        app.priceOk ? '\$${fmt(app.price)}' : '--',
+                        app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
                         style: const TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.w700,
@@ -1586,7 +1592,7 @@ class _TradeTabState extends State<TradeTab> {
                             }),
                   marketUpdates: app,
                   marketSnapshot: () => ChartMarketSnapshot(
-                    price: app.price,
+                    price: app.chartBasis,
                     fresh: app.priceFresh,
                     positions: [
                       for (final record in app.positions)
@@ -1601,7 +1607,7 @@ class _TradeTabState extends State<TradeTab> {
                           position,
                     ],
                   ),
-                  livePrice: app.price,
+                  livePrice: app.chartBasis,
                 ),
                 if (app.pendingOrders != null) ...[
                   const SizedBox(height: 12),
@@ -2435,7 +2441,7 @@ class _PositionsTabState extends State<PositionsTab> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  app.priceOk ? '\$${fmt(app.price)}' : '--',
+                  app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

@@ -450,4 +450,68 @@ void main() {
       await t.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets(
+    'lagging candle feed: forming bar synthesized from live quote, line meets last candle',
+    (t) async {
+      SharedPreferences.setMockInitialValues({});
+      await loadFonts();
+      // 15m bars (default interval), last bar closed ~20 minutes ago:
+      // ~1.3 bars of lag, inside the 3-bar synthesis cap.
+      final now = DateTime.now();
+      final bars = List.generate(
+        50,
+        (i) => Candle(
+          time: now.subtract(Duration(minutes: 15 * (50 - i) + 5)),
+          open: 4100,
+          high: 4110,
+          low: 4090,
+          close: 4105,
+          volume: 1,
+        ),
+      );
+      await t.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CandleChartPanel(
+              loader: (_) async => bars,
+              marketSnapshot: () =>
+                  const ChartMarketSnapshot(price: 4123.5, fresh: true),
+              livePrice: 4123.5,
+            ),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      final cs = painter(t).candles;
+      expect(cs.length, bars.length + 1); // synthesized forming bar appended
+      expect(cs.last.close, 4123.5); // close == live quote
+      expect(cs.last.open, 4105); // opens at last real close
+      expect(cs.take(bars.length).map((c) => c.close).join(','),
+          bars.map((c) => c.close).join(',')); // history untouched
+      await t.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('candle-feed outage: no bar is fabricated beyond 3 bars of lag',
+      (t) async {
+    SharedPreferences.setMockInitialValues({});
+    await loadFonts();
+    final bars = fakeCandles(60); // 13+ days stale
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CandleChartPanel(
+            loader: (_) async => bars,
+            marketSnapshot: () =>
+                const ChartMarketSnapshot(price: 4123.5, fresh: true),
+            livePrice: 4123.5,
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(painter(t).candles.length, bars.length); // nothing fabricated
+    await t.pumpWidget(const SizedBox());
+  });
 }

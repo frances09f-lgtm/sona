@@ -1,5 +1,5 @@
-Sona 1.0.86
+Sona 1.0.87
 
-- The live price now updates every second. Sona polled the Swissquote feed every 3s while the feed itself ticks about every 1.5s in liquid hours, so over half of the ticks never showed; at 1s polling the quote, last-price line and forming candle track the market closely.
-- A hung quote request can no longer freeze the price: the feed timeout is cut from 10s to 4s.
-- When the Swissquote feed is unreachable, the backup price sources are retried every 10s instead of on every tick, so an outage no longer hammers the free fallback endpoints.
+- The yellow live-price line, its price tag, the forming candle and the big price number now all use one basis - bid - matching XM/MetaTrader, where OTC charts are built on bid prices.
+- The latest candle now always meets the live line: when the free candle feed lags (its last bar already closed), Sona draws the still-forming bar from the live quote, opening at the last real close. Provider history is never rewritten, and if the candle feed is down (over 3 bars of lag) no bar is fabricated.
+- The chart's OHLC readout shows the live forming bar, so its C value equals the line price.
