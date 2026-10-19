@@ -19,12 +19,14 @@ import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'notifications.dart';
 
+import 'sessions.dart';
+
 /// Adaptive oz precision: tiny AI sizes must not display as 0.00.
 String fmtOz(num n) {
   final a = n.abs();
   return (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
 }
-import 'sessions.dart';
+
 
 class AiLogEntry {
   final DateTime at;
