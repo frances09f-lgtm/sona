@@ -166,14 +166,17 @@ class CandleChartPanelState extends State<CandleChartPanel> {
           continue; // no ticks for that minute: leave the time gap
         }
       }
-      final o = tw?.$1 ?? prevClose;
+      // Bars connect like a real chart: open is always the previous bar's
+      // close; high/low come from real ticks (plus that anchor); close is
+      // the window's last tick - the live quote for the forming bar.
+      final o = prevClose;
       final c = isCurrent ? p : tw!.$4;
       out.add(
         Candle(
           time: start,
           open: o,
-          high: math.max(o, math.max(tw?.$2 ?? p, c)),
-          low: math.min(o, math.min(tw?.$3 ?? p, c)),
+          high: math.max(o, math.max(tw?.$2 ?? c, c)),
+          low: math.min(o, math.min(tw?.$3 ?? c, c)),
           close: c,
           volume: 0,
         ),

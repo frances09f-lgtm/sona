@@ -54,28 +54,66 @@ void main() {
         final buf = TickBuffer();
         double live = first;
 
-        // Provider-like history: real-price 1m bars ending 3 min ago,
-        // mimicking TwelveData's free-tier lag. The loader rebuilds it on
-        // every call (production refetches on each refresh/switch).
+        // Provider-like history: REAL 1m bars aggregated from the same tick
+        // stream, ending 3 min ago to mimic TwelveData's free-tier lag. Bars
+        // older than tick coverage use a small synthetic wobble around the
+        // earliest real price, so the whole series looks like one market.
         List<Candle> seriesFor(String iv) {
           final spec = tradeRangeSpec(iv);
           final barSecs = spec.$1 == '1min' ? 60 : 900;
           final now = DateTime.now();
-          final end = now.subtract(const Duration(minutes: 3));
-          return List.generate(40, (i) {
-            final start = end.subtract(Duration(seconds: barSecs * (40 - i)));
-            final wob = (i % 5 - 2) * 0.06;
-            final o = live - 0.5 + wob;
-            final c = live - 0.4 + wob;
-            return Candle(
-              time: start,
-              open: o,
-              high: (o > c ? o : c) + 0.3,
-              low: (o < c ? o : c) - 0.3,
-              close: c,
-              volume: 1,
+          final lagEnd = now.subtract(const Duration(minutes: 3));
+          final bars = <Candle>[];
+          // Aggregate real ticks into closed minute bars.
+          final byMin = <int, List<double>>{};
+          for (final tk in buf.ticks) {
+            final m = (tk.$1 ~/ 60000) * 60000;
+            byMin.putIfAbsent(m, () => []).add(tk.$2);
+          }
+          final mins = byMin.keys.toList()..sort();
+          double anchor = first;
+          final realBars = <int, Candle>{};
+          for (final m in mins) {
+            final v = byMin[m]!;
+            realBars[m] = Candle(
+              time: DateTime.fromMillisecondsSinceEpoch(m),
+              open: anchor = v.first,
+              high: v.reduce((a, b) => a > b ? a : b),
+              low: v.reduce((a, b) => a < b ? a : b),
+              close: v.last,
+              volume: v.length.toDouble(),
             );
-          });
+          }
+          var prevClose = first - 0.4;
+          for (var i = 40; i >= 1; i--) {
+            final start = lagEnd.subtract(Duration(seconds: barSecs * i));
+            final m = (start.millisecondsSinceEpoch ~/ 60000) * 60000;
+            final real = barSecs == 60 ? realBars[m] : null;
+            if (real != null) {
+              bars.add(Candle(
+                  time: start,
+                  open: prevClose,
+                  high: real.high > prevClose ? real.high : prevClose,
+                  low: real.low < prevClose ? real.low : prevClose,
+                  close: real.close,
+                  volume: real.volume));
+              prevClose = real.close;
+            } else {
+              final wob = (i % 5 - 2) * 0.06;
+              final o = prevClose;
+              final c = prevClose + wob * 0.5;
+              bars.add(Candle(
+                time: start,
+                open: o,
+                high: (o > c ? o : c) + 0.15,
+                low: (o < c ? o : c) - 0.15,
+                close: c,
+                volume: 1,
+              ));
+              prevClose = c;
+            }
+          }
+          return bars;
         }
 
         final key = GlobalKey();
@@ -138,8 +176,11 @@ void main() {
           }
         }
 
-        // Poll the real feed every second for ~100s; sample every ~25s.
-        for (var i = 0; i < 35; i++) {
+        // Poll the real feed every second for up to ~4 minutes and sample
+        // 2s after each of 3 consecutive minute rollovers.
+        var lastMinute = DateTime.now().minute;
+        var rollovers = 0;
+        for (var i = 0; i < 240 && rollovers < 3; i++) {
           await Future<void>.delayed(const Duration(seconds: 1));
           final b = await realBid();
           if (b != null) {
@@ -147,9 +188,19 @@ void main() {
             buf.add(DateTime.now(), b);
             pulse.value++; // production: notifyListeners() rebuilds the chart
           }
-          if (i == 8) await sample('tick8', shot: true);
-          if (i == 20) await sample('tick20', shot: true);
-          if (i == 32) await sample('tick32', shot: true);
+          final m = DateTime.now().minute;
+          if (m != lastMinute) {
+            lastMinute = m;
+            rollovers++;
+            await Future<void>.delayed(const Duration(seconds: 2));
+            final b2 = await realBid();
+            if (b2 != null) {
+              live = b2;
+              buf.add(DateTime.now(), b2);
+              pulse.value++;
+            }
+            await sample('rollover$rollovers', shot: true);
+          }
         }
         // Timeframe switch 1H -> 1D -> 1H via the real chips.
         await t.tap(find.text('1D').first);
