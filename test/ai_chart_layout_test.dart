@@ -149,6 +149,9 @@ void main() {
     await t.pumpAndSettle();
     expect(state.currentState!.candles.length, 97);
     Future<void> capture(String name) async {
+      const captureDir = String.fromEnvironment('SONA_CAPTURE_DIR');
+      if (captureDir.isEmpty) return;
+      await Directory(captureDir).create(recursive: true);
       await t.runAsync(() async {
         final im =
             await (image.currentContext!.findRenderObject()
@@ -156,7 +159,7 @@ void main() {
                 .toImage(pixelRatio: 2);
         final bytes = await im.toByteData(format: ui.ImageByteFormat.png);
         await File(
-          '/home/user/workspace/sona-ai-chart-evidence/chart-${const String.fromEnvironment('STAGE', defaultValue: 'after')}-$name.png',
+          '$captureDir/chart-${const String.fromEnvironment('STAGE', defaultValue: 'after')}-$name.png',
         ).writeAsBytes(bytes!.buffer.asUint8List());
         im.dispose();
       });

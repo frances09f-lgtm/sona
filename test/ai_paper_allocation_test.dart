@@ -227,17 +227,20 @@ void main() {
       expect(app.orders, isEmpty);
       expect(find.textContaining('High allocation:'), findsOneWidget);
       expect(t.takeException(), isNull);
-      await t.runAsync(() async {
-        final im =
-            await (image.currentContext!.findRenderObject()
-                    as RenderRepaintBoundary)
-                .toImage(pixelRatio: 2);
-        final bytes = await im.toByteData(format: ui.ImageByteFormat.png);
-        await File(
-          '/home/user/workspace/sona-ai-chart-evidence/ai-full-balance-synthetic.png',
-        ).writeAsBytes(bytes!.buffer.asUint8List());
-        im.dispose();
-      });
+      const captureDir = String.fromEnvironment('SONA_CAPTURE_DIR');
+      if (captureDir.isNotEmpty) {
+        await Directory(captureDir).create(recursive: true);
+        await t.runAsync(() async {
+          final im =
+              await (image.currentContext!.findRenderObject()
+                      as RenderRepaintBoundary)
+                  .toImage(pixelRatio: 2);
+          final bytes = await im.toByteData(format: ui.ImageByteFormat.png);
+          await File('$captureDir/ai-full-balance-synthetic.png')
+              .writeAsBytes(bytes!.buffer.asUint8List());
+          im.dispose();
+        });
+      }
       await t.tap(sw);
       await t.pumpAndSettle();
       expect(AutoTrade.usesFullBalance(p), false);
