@@ -106,6 +106,7 @@ void main() {
                 key: key,
                 rangeMode: true,
                 initialLayout: const {
+                  'layoutV': 2,
                   'rangeMode': true,
                   'interval': 'range:1D',
                   'ema50': true,
