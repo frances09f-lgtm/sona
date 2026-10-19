@@ -85,7 +85,7 @@ void main() {
       await t.pump();
       expect(
         (t.widget<TextField>(find.byType(TextField).first)).controller!.text,
-        '10.0',
+        '0.10',
       );
       expect(find.text('Loss at stop: \$100.00'), findsOneWidget);
       expect(find.textContaining('Reward/risk 2.00'), findsOneWidget);

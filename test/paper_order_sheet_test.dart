@@ -38,7 +38,7 @@ void main() {
       );
       await t.pumpAndSettle();
       expect(app.calls, 0);
-      await t.enterText(find.byType(TextField).first, '0.25');
+      await t.enterText(find.byType(TextField).first, '0.0025'); // lots = 0.25 oz
       await t.tap(find.byType(Switch).last);
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField).at(1), '3990');
