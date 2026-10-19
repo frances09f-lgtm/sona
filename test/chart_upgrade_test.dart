@@ -63,16 +63,14 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byIcon(Icons.fullscreen));
     await t.pumpAndSettle();
-    expect(find.text('1Y').last, findsOneWidget);
-    await t.tap(find.text('1M').last);
-    await t.pumpAndSettle();
     final full = t.state<CandleChartPanelState>(
       find.byType(CandleChartPanel).last,
     );
-    expect(full.interval.code, 'range:1M');
-    await t.tap(find.text('Candle intervals').last);
+    // Interval/range selection moved to Settings; drive the same entry point.
+    full.applyChartSelection(range: true, code: 'range:1M');
     await t.pumpAndSettle();
-    await t.tap(find.text('H4').last);
+    expect(full.interval.code, 'range:1M');
+    full.applyChartSelection(range: false, code: '4h');
     await t.pumpAndSettle();
     await t.tap(find.byIcon(Icons.fullscreen_exit));
     await t.pumpAndSettle();

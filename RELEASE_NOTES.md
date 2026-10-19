@@ -1,6 +1,5 @@
-Sona 1.0.93
+Sona 1.0.94
 
-- Chart now starts clean like a fresh XM chart: no indicators are applied by default. Add any from the Indicators menu.
-- One-time reset: layouts saved by older versions had SMA 20 and EMA 50 switched on by default; those saved defaults are cleared once so the chart opens clean.
-- Everything else from 1.0.92 stands: M1/M5/M15/M30/H1/H4/D1/W1 timeframes, Candles/Line/Bars/Heikin Ashi types, toolbar crosshair with price + date/time tags, bid and ask lines, "Go to" chip when scrolled back.
-- Note: Android asks once for "install apps from this source" - the dialog explains it and opens the right setting. Android's own install confirm screen then finishes the update; that tap is the system's.
+- Candle interval (M1..W1) and history range (1H..1Y) controls moved off the chart into Settings > Chart.
+- Chart card stays clean: symbol, OHLC, toolbar and candles only.
+- Choices persist across launches and apply to the chart immediately; whichever you picked last (interval or range) is the active view.

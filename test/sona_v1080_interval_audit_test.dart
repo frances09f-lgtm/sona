@@ -130,10 +130,8 @@ void main() {
       await t.pumpAndSettle();
       expect(calls.last, 'range:1D');
       expect(key.currentState!.candles, hasLength(97));
-      await t.tap(find.text('Candle intervals'));
-      await t.pumpAndSettle();
-      for (final label in ['H1', 'H4', 'D1']) {
-        await t.tap(find.text(label));
+      for (final code in ['1h', '4h', '1day']) {
+        key.currentState!.applyChartSelection(range: false, code: code);
         await t.pumpAndSettle();
         expect(key.currentState!.candles, hasLength(120));
         final painter = t

@@ -1169,14 +1169,112 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
   }
 }
 
-class SonaSettingsScreen extends StatelessWidget {
+class SonaSettingsScreen extends StatefulWidget {
   final AppState app;
   const SonaSettingsScreen({super.key, required this.app});
+  @override
+  State<SonaSettingsScreen> createState() => _SonaSettingsScreenState();
+}
+
+class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
+  String _mode = 'candles';
+  String _intervalCode = '15min';
+  String _rangeCode = 'range:1D';
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (!mounted) return;
+      setState(() {
+        _mode = prefs.getString(kChartModePref) ?? _mode;
+        _intervalCode = prefs.getString(kChartIntervalPref) ?? _intervalCode;
+        _rangeCode = prefs.getString(kChartRangePref) ?? _rangeCode;
+      });
+    });
+  }
+
+  String _labelFor(bool range, String code) {
+    final list = range ? tradeRanges : intervals;
+    return list.where((e) => e.code == code).firstOrNull?.label ?? code;
+  }
+
+  Future<void> _pick(bool range) async {
+    final list = range ? tradeRanges : intervals;
+    final current = range ? _rangeCode : _intervalCode;
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final iv in list)
+              ListTile(
+                title: Text(iv.label),
+                trailing: iv.code == current
+                    ? const Icon(Icons.check, color: Color(0xFFF5C242))
+                    : null,
+                onTap: () => Navigator.pop(ctx, iv.code),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kChartModePref, range ? 'range' : 'candles');
+    await prefs.setString(range ? kChartRangePref : kChartIntervalPref, chosen);
+    await prefs.setInt(
+      kChartSelectionRevPref,
+      (prefs.getInt(kChartSelectionRevPref) ?? 0) + 1,
+    );
+    if (!mounted) return;
+    setState(() {
+      _mode = range ? 'range' : 'candles';
+      if (range) {
+        _rangeCode = chosen;
+      } else {
+        _intervalCode = chosen;
+      }
+    });
+    widget.app.notifyListeners();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Settings')),
     body: ListView(
       children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            'Chart',
+            style: TextStyle(
+              color: Color(0xFF8A93A6),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.candlestick_chart_outlined),
+          title: const Text('Candle interval'),
+          subtitle: Text(
+            'Chart shows candle intervals - now: ${_labelFor(false, _intervalCode)}${_mode == 'candles' ? ' (active)' : ''}',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _pick(false),
+        ),
+        ListTile(
+          leading: const Icon(Icons.date_range_outlined),
+          title: const Text('History range'),
+          subtitle: Text(
+            'Chart shows history ranges - now: ${_labelFor(true, _rangeCode)}${_mode == 'range' ? ' (active)' : ''}',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _pick(true),
+        ),
+        const Divider(),
         ListTile(
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Check for updates'),
@@ -1206,7 +1304,7 @@ class SonaSettingsScreen extends StatelessWidget {
           title: const Text('Paper account'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => LockScreen(app: app))),
+              .push(MaterialPageRoute(builder: (_) => LockScreen(app: widget.app))),
         ),
       ],
     ),

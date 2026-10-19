@@ -45,14 +45,17 @@ void main() {
       );
       await t.pumpAndSettle();
       expect(calls, ['range:1D']);
-      await t.tap(find.text('1M'));
+      // Interval/range selection now lives in Settings; drive it through the
+      // same public entry point Settings uses.
+      final state = t.state<CandleChartPanelState>(
+        find.byType(CandleChartPanel),
+      );
+      state.applyChartSelection(range: true, code: 'range:1M');
       await t.pumpAndSettle();
       expect(calls.last, 'range:1M');
-      expect(find.text('M1'), findsNothing);
-      await t.tap(find.text('Candle intervals'));
+      state.applyChartSelection(range: false, code: '1min');
       await t.pumpAndSettle();
       expect(calls.last, '1min');
-      expect(find.text('M1'), findsOneWidget);
       expect(t.takeException(), isNull);
     },
   );
@@ -67,6 +70,11 @@ void main() {
             height: 650,
             child: CandleChartPanel(
               rangeMode: true,
+              initialLayout: const {
+                'layoutV': 2,
+                'rangeMode': true,
+                'interval': 'range:1D',
+              },
               loader: (c) async {
                 if (c == 'range:1D') return old.future;
                 return [];
@@ -77,7 +85,9 @@ void main() {
       ),
     );
     await t.pump();
-    await t.tap(find.text('1M'));
+    t
+        .state<CandleChartPanelState>(find.byType(CandleChartPanel))
+        .applyChartSelection(range: true, code: 'range:1M');
     await t.pumpAndSettle();
     old.completeError(Exception('old range failed'));
     await t.pumpAndSettle();

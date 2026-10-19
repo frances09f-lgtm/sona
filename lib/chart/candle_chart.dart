@@ -11,6 +11,13 @@ import '../market_data/models.dart';
 import 'indicators.dart';
 import 'chart_tools.dart';
 
+/// Chart selection persisted from Sona Settings (user request: interval
+/// and range pickers live in Settings, not on the chart card).
+const kChartModePref = 'sona_chart_mode'; // 'candles' or 'range'
+const kChartIntervalPref = 'sona_chart_interval'; // e.g. '15min'
+const kChartRangePref = 'sona_chart_range'; // e.g. 'range:1D'
+const kChartSelectionRevPref = 'sona_chart_selection_rev';
+
 /// Real candle chart (stage b). Renders ONLY candles that came from a
 /// historical candle service - never synthetic or placeholder bars.
 
@@ -327,10 +334,71 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     usingRange =
         widget.initialLayout?['rangeMode'] as bool? ?? widget.rangeMode;
     if (usingRange) interval = tradeRanges[1];
-    if (widget.initialLayout != null) _restoreTools(widget.initialLayout!);
+    if (widget.initialLayout != null) {
+      _restoreTools(widget.initialLayout!);
+    } else {
+      _loadSavedSelection();
+    }
+    widget.marketUpdates?.addListener(_syncSavedSelection);
     _loadLines();
     _load();
     _armTimer();
+  }
+
+  int _appliedSelectionRev = 0;
+
+  /// Reads the Settings-chosen chart selection and applies it once at
+  /// start (fullscreen handoffs and presets pass initialLayout instead).
+  Future<void> _loadSavedSelection() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _appliedSelectionRev = prefs.getInt(kChartSelectionRevPref) ?? 0;
+      final mode = prefs.getString(kChartModePref);
+      if (mode == null || !mounted) return;
+      final code = mode == 'range'
+          ? prefs.getString(kChartRangePref)
+          : prefs.getString(kChartIntervalPref);
+      if (code == null) return;
+      applyChartSelection(range: mode == 'range', code: code);
+    } catch (_) {}
+  }
+
+  /// Settings bumps kChartSelectionRevPref and notifies app listeners;
+  /// pick up the new selection without touching presets or drawings.
+  void _syncSavedSelection() {
+    if (widget.initialLayout != null) return;
+    SharedPreferences.getInstance().then((prefs) {
+      final rev = prefs.getInt(kChartSelectionRevPref) ?? 0;
+      if (!mounted || rev == _appliedSelectionRev) return;
+      _appliedSelectionRev = rev;
+      final mode = prefs.getString(kChartModePref);
+      final code = mode == 'range'
+          ? prefs.getString(kChartRangePref)
+          : prefs.getString(kChartIntervalPref);
+      if (mode == null || code == null) return;
+      applyChartSelection(range: mode == 'range', code: code);
+    });
+  }
+
+  /// Applies a chart selection chosen in Settings (or tests): switches
+  /// the card between candle intervals and history ranges and reloads.
+  void applyChartSelection({required bool range, required String code}) {
+    final list = range ? tradeRanges : intervals;
+    final iv = list.where((e) => e.code == code).firstOrNull;
+    if (iv == null) return;
+    if (usingRange != range) {
+      setState(() {
+        usingRange = range;
+        interval = iv;
+        candles = [];
+        selected = null;
+        error = null;
+      });
+      _armTimer();
+      _load();
+    } else {
+      _setInterval(iv);
+    }
   }
 
   static const presetKey = 'sona_chart_presets';
@@ -868,6 +936,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 
   @override
   void dispose() {
+    widget.marketUpdates?.removeListener(_syncSavedSelection);
     _timer?.cancel();
     super.dispose();
   }
@@ -1217,55 +1286,6 @@ class CandleChartPanelState extends State<CandleChartPanel> {
             ],
           ),
           const SizedBox(height: 6),
-          if (widget.rangeMode)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  usingRange = !usingRange;
-                  _setInterval(usingRange ? tradeRanges[1] : intervals[0]);
-                },
-                child: Text(usingRange ? 'Candle intervals' : 'History ranges'),
-              ),
-            ),
-          if (!usingRange) ...[
-            Row(
-              children: [
-                ...(usingRange ? tradeRanges : intervals).map((iv) {
-                  final on = iv.code == interval.code;
-                  return GestureDetector(
-                    onTap: () => _setInterval(iv),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: on
-                            ? const Color(0xFFF5C242)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: on
-                              ? const Color(0xFFF5C242)
-                              : const Color(0xFF2A3140),
-                        ),
-                      ),
-                      child: Text(
-                        iv.label,
-                        style: TextStyle(
-                          color: on ? Colors.black : const Color(0xFF8A93A6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ],
           const SizedBox(height: 6),
           _legend(dim),
           if (market.positions.isNotEmpty)
@@ -1288,55 +1308,6 @@ class CandleChartPanelState extends State<CandleChartPanel> {
             Expanded(child: _body())
           else
             SizedBox(height: 220 + _rsiHeight + _macdHeight, child: _body()),
-          if (usingRange) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                ...(usingRange ? tradeRanges : intervals).map((iv) {
-                  final on = iv.code == interval.code;
-                  return GestureDetector(
-                    onTap: () => _setInterval(iv),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: on
-                            ? const Color(0xFFF5C242)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: on
-                              ? const Color(0xFFF5C242)
-                              : const Color(0xFF2A3140),
-                        ),
-                      ),
-                      child: Text(
-                        iv.label,
-                        style: TextStyle(
-                          color: on ? Colors.black : const Color(0xFF8A93A6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${tradeRangeDuration(interval.code).inHours < 24 ? "1-hour" : "${tradeRangeDuration(interval.code).inDays}-day"} window ending at latest returned candle · ${tradeRangeSpec(interval.code).$1} bars',
-              style: const TextStyle(color: Color(0xFF8A93A6), fontSize: 10),
-            ),
-            if (candles.length >= 2 && candles.first.close != 0)
-              Text(
-                '${interval.label} selected · available change ${(candles.last.close - candles.first.close) >= 0 ? '+' : ''}${(candles.last.close - candles.first.close).toStringAsFixed(2)} (${((candles.last.close - candles.first.close) / candles.first.close * 100).toStringAsFixed(2)}%) over ${candles.length} available candles',
-                style: const TextStyle(color: Color(0xFF8A93A6), fontSize: 10),
-              ),
-          ],
           if (!widget.expand && candles.length >= 50) _biasStrip(),
         ],
       ),

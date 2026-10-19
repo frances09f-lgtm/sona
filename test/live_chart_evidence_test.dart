@@ -143,8 +143,10 @@ void main() {
           ),
         );
         await t.pump();
-        // Start on the 1H view like the user.
-        await t.tap(find.text('H1').first);
+        // Start on the H1 view like the user (selection moved to Settings).
+        t
+            .state<CandleChartPanelState>(find.byType(CandleChartPanel))
+            .applyChartSelection(range: false, code: '1h');
         await t.pump();
 
         final log = <String>[];
@@ -202,12 +204,16 @@ void main() {
             await sample('rollover$rollovers', shot: true);
           }
         }
-        // Timeframe switch 1H -> 1D -> 1H via the real chips.
-        await t.tap(find.text('D1').first);
+        // Timeframe switch H1 -> D1 -> H1 (selection moved to Settings).
+        t
+            .state<CandleChartPanelState>(find.byType(CandleChartPanel))
+            .applyChartSelection(range: false, code: '1day');
         await t.pump();
         await Future<void>.delayed(const Duration(seconds: 3));
         await sample('range1D', shot: true);
-        await t.tap(find.text('H1').first);
+        t
+            .state<CandleChartPanelState>(find.byType(CandleChartPanel))
+            .applyChartSelection(range: false, code: '1h');
         await t.pump();
         await Future<void>.delayed(const Duration(seconds: 3));
         final b1 = await realBid();
