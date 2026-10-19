@@ -62,14 +62,51 @@ class ChartPosition {
   }
 }
 
+/// Rolling buffer of recent live ticks (millisecond timestamp + price).
+/// The chart builds its forming/recent bars from this buffer, so the bars
+/// and the live price line share ONE source and cannot diverge.
+class TickBuffer {
+  TickBuffer({this.keep = const Duration(minutes: 12)});
+  final Duration keep;
+  final List<(int ms, double price)> ticks = [];
+
+  void add(DateTime at, double price) {
+    if (!price.isFinite || price <= 0) return;
+    ticks.add((at.millisecondsSinceEpoch, price));
+    final cutoff = at.millisecondsSinceEpoch - keep.inMilliseconds;
+    while (ticks.isNotEmpty && ticks.first.$1 < cutoff) {
+      ticks.removeAt(0);
+    }
+  }
+
+  /// OHLC of ticks inside [start, end); null when the window has no ticks.
+  (double, double, double, double)? ohlc(DateTime start, DateTime end) {
+    double? o, h, l, c;
+    for (final t in ticks) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(t.$1);
+      if (dt.isBefore(start) || !dt.isBefore(end)) continue;
+      o ??= t.$2;
+      h = h == null ? t.$2 : (t.$2 > h ? t.$2 : h);
+      l = l == null ? t.$2 : (t.$2 < l ? t.$2 : l);
+      c = t.$2;
+    }
+    return o == null ? null : (o, h!, l!, c!);
+  }
+}
+
 class ChartMarketSnapshot {
   final double? price;
   final bool fresh;
   final List<ChartPosition> positions;
+
+  /// Recent live ticks (same stream that sets [price]); used to build the
+  /// forming bar. Null/empty when the app just started.
+  final List<(int ms, double price)>? liveTicks;
   const ChartMarketSnapshot({
     this.price,
     this.fresh = true,
     this.positions = const [],
+    this.liveTicks,
   });
   String get summary =>
       'Paper · display only · ' +

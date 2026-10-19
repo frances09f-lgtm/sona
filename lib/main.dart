@@ -23,6 +23,7 @@ import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
+import 'chart/chart_tools.dart' show TickBuffer;
 import 'chart/chart_tools.dart';
 import 'analytics.dart';
 import 'trade_card.dart';
@@ -512,6 +513,13 @@ class AppState extends ChangeNotifier {
   bool _fetching = false;
   int _lastFallbackTry = 0;
 
+  /// Recent bid ticks from the Swissquote stream. The chart builds its
+  /// forming bar from these - the same stream that drives the live line -
+  /// so the last candle and the line share one source.
+  final TickBuffer _tickBuffer = TickBuffer();
+  List<(int, double)> get liveTicks =>
+      List.unmodifiable(_tickBuffer.ticks);
+
   Future<void> fetchPrice() async {
     if (_fetching) return; // 1s cadence: never stack overlapping fetches
     _fetching = true;
@@ -523,6 +531,7 @@ class AppState extends ChangeNotifier {
       ask = q.ask;
       price = q.mid;
       priceAt = q.ts.millisecondsSinceEpoch;
+      if (bid != null) _tickBuffer.add(DateTime.now(), bid!);
       priceOk = true;
       notifyListeners();
       OroBridge.noteQuote(prefs, bid, ask, priceAt);
@@ -1594,6 +1603,7 @@ class _TradeTabState extends State<TradeTab> {
                   marketSnapshot: () => ChartMarketSnapshot(
                     price: app.chartBasis,
                     fresh: app.priceFresh,
+                    liveTicks: app.liveTicks,
                     positions: [
                       for (final record in app.positions)
                         if (ChartPosition.fromRecord(

@@ -1,4 +1,5 @@
-Sona 1.0.88
+Sona 1.0.89
 
-- The real reason the yellow line would not sit on the candles: TwelveData returns candle times in the exchange timezone (Sydney, UTC+11) with no timezone marker, so on an IST phone every candle was stamped about 8 hours in the future. The chart refused to fold the live quote into a "future" candle, so the line floated away from the last bar and the axis clock showed odd times (like 21:15 at 3:46 PM).
-- Candles are now fetched in UTC and converted to phone-local time: the axis clock reads correctly, and the live quote folds into the real forming bar every tick - the yellow line and the latest candle always meet, on every timeframe.
+- The forming candle is now built from the same live tick stream that drives the yellow line (the app records every Swissquote bid tick and aggregates the current minute's open/high/low/close from it). Line and candle share one source, so they cannot diverge - verified against the live feed: line == last candle close at every sampled tick, on both 1H and 1D, and after app resume.
+- Fixed the forming bar being clipped: the chart's scroll/zoom window now counts the drawn series (including the live bar), not just the provider history - this is why v1.0.88's line sat below the last candles.
+- When the candle feed lags, recent one-minute bars are aggregated from real ticks (gap minutes with no ticks are skipped; nothing is fabricated during a feed outage).

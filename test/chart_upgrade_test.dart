@@ -486,6 +486,10 @@ void main() {
       final cs = painter(t).candles;
       expect(cs.length, bars.length + 1); // synthesized forming bar appended
       expect(cs.last.close, 4123.5); // close == live quote
+      // The forming bar must be INSIDE the visible window (a provider-
+      // length window clips it off the right edge - the v1.0.88 bug).
+      final p0 = painter(t);
+      expect(p0.firstVisible + p0.visibleCount, greaterThanOrEqualTo(cs.length));
       expect(cs.last.open, 4105); // opens at last real close
       expect(cs.take(bars.length).map((c) => c.close).join(','),
           bars.map((c) => c.close).join(',')); // history untouched

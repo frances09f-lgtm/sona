@@ -120,44 +120,67 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     if (now.isBefore(last.time)) {
       return candles; // provider data ahead of the clock: leave it alone
     }
+    // Recent bars are built from the SAME live tick stream that drives the
+    // price line, so the last candle and the line cannot diverge.
+    final buf = TickBuffer()..ticks.addAll(market.liveTicks ?? const []);
+
     if (now.isBefore(last.time.add(bar))) {
-      // The provider's last bar is still forming: fold the quote into it.
+      // The provider's last bar is still forming: fold the quote and any
+      // tick extremes since the bar was stamped into it.
+      final tw = buf.ohlc(last.time, now.add(const Duration(seconds: 1)));
       return [
         ...candles.take(candles.length - 1),
         Candle(
           time: last.time,
           open: last.open,
-          high: math.max(last.high, p),
-          low: math.min(last.low, p),
+          high: math.max(last.high, math.max(tw?.$2 ?? p, p)),
+          low: math.min(last.low, math.min(tw?.$3 ?? p, p)),
           close: p,
           volume: last.volume,
         ),
       ];
     }
-    // The provider's last bar already closed. The free candle feed lags a
-    // minute or two behind the live quote, so without this the live price
-    // line floats away from the last candle. Synthesize the still-forming
-    // bar (opening at the last real close) so the latest candle and the
-    // live line always meet; provider history is never rewritten. Capped
-    // at 3 bar windows of lag - a bigger gap is a candle-feed outage, and
-    // fabricating a bar there would mislead.
+    // The provider's last bar already closed (the free candle feed lags a
+    // minute or two): extend with bars aggregated from the live tick
+    // stream. Bars built from real ticks are DATA, not fabrication, so the
+    // only limit is tick coverage (~12 min). Gap minutes with no ticks
+    // (e.g. just after app start, before the buffer fills) are skipped,
+    // and the currently forming bar is ALWAYS drawn: from ticks when they
+    // exist, otherwise anchored at the last real close for up to 3 bars of
+    // lag. Beyond that (candle-feed outage) nothing is fabricated.
     final lagBars =
         now.difference(last.time).inMilliseconds / bar.inMilliseconds;
-    if (lagBars > 3) return candles;
     final k = now.difference(last.time).inMilliseconds ~/ bar.inMilliseconds;
-    final start = last.time.add(bar * k);
-    final o = last.close;
-    return [
-      ...candles,
-      Candle(
-        time: start,
-        open: o,
-        high: math.max(o, p),
-        low: math.min(o, p),
-        close: p,
-        volume: 0,
-      ),
-    ];
+    final out = [...candles];
+    var prevClose = last.close;
+    for (var j = 1; j <= k; j++) {
+      final start = last.time.add(bar * j);
+      final isCurrent = j == k;
+      final end =
+          isCurrent ? now.add(const Duration(seconds: 1)) : start.add(bar);
+      final tw = buf.ohlc(start, end);
+      if (tw == null) {
+        if (isCurrent) {
+          if (lagBars > 3) break; // feed outage: fabricate nothing
+        } else {
+          continue; // no ticks for that minute: leave the time gap
+        }
+      }
+      final o = tw?.$1 ?? prevClose;
+      final c = isCurrent ? p : tw!.$4;
+      out.add(
+        Candle(
+          time: start,
+          open: o,
+          high: math.max(o, math.max(tw?.$2 ?? p, c)),
+          low: math.min(o, math.min(tw?.$3 ?? p, c)),
+          close: c,
+          volume: 0,
+        ),
+      );
+      prevClose = c;
+    }
+    return out;
   }
 
   static Duration? _barDuration(String code) {
@@ -211,8 +234,14 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   double _panStartX = 0;
   static const double rightPad = 52.0;
 
+  /// The series actually drawn: provider candles with the live quote
+  /// folded in (and a synthesized forming bar appended when the feed lags).
+  /// Every piece of visible-window math must use THIS length - using the
+  /// provider length clips the forming bar off the right edge.
+  List<Candle> get _drawn => _liveCandles;
+
   int get _vc {
-    final n = candles.length;
+    final n = _drawn.length;
     if (n == 0) return 1;
     final v = visibleOverride ?? n;
     if (v > n) return n;
@@ -220,7 +249,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   }
 
   int get _fv {
-    final n = candles.length;
+    final n = _drawn.length;
     if (n == 0) return 0;
     final maxFv = n - _vc;
     var fv = n - _vc - scrollCandles.round();
@@ -232,12 +261,13 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   /// Price range of the VISIBLE window (+ live price) - shared by the
   /// painter and every gesture mapper so they always agree.
   (double, double) _visiblePriceRange() {
-    final n = candles.length;
+    final eff = _drawn;
+    final n = eff.length;
     double hi = -double.infinity, lo = double.infinity;
     if (n > 0) {
       final fv = _fv, vc = _vc;
       for (int i = fv; i < (fv + vc < n ? fv + vc : n); i++) {
-        final c = candles[i];
+        final c = eff[i];
         hi = hi > c.high ? hi : c.high;
         lo = lo < c.low ? lo : c.low;
       }
@@ -1362,8 +1392,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 
   Widget _legend(Color dim) {
     Candle? c;
-    if (selected != null && candles.isNotEmpty) {
-      c = candles[selected!.clamp(0, candles.length - 1)];
+    if (selected != null && _drawn.isNotEmpty) {
+      c = _drawn[selected!.clamp(0, _drawn.length - 1)];
     } else if (candles.isNotEmpty) {
       c = _liveCandles.last; // forming bar folded with the live quote
     }
@@ -1448,7 +1478,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
           onScaleUpdate: drawMode
               ? null
               : (d) {
-                  final n = candles.length;
+                  final n = _drawn.length;
                   if (n == 0) return;
                   if (d.pointerCount >= 2) {
                     setState(() {
@@ -1560,8 +1590,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
 
   void _pick(Offset pos, double width) {
     final plotW = width - rightPad;
-    if (plotW <= 0 || candles.isEmpty) return;
-    final n = candles.length;
+    if (plotW <= 0 || _drawn.isEmpty) return;
+    final n = _drawn.length;
     var i = (_fv + (pos.dx / plotW) * _vc).floor();
     if (i < 0) i = 0;
     if (i > n - 1) i = n - 1;
