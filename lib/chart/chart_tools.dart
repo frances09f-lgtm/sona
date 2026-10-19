@@ -81,7 +81,7 @@ class ChartMarketSnapshot {
             final result = fresh && p.pnl != null
                 ? '${p.pnl! >= 0 ? '+' : '-'}\$${p.pnl!.abs().toStringAsFixed(2)}'
                 : 'PnL unavailable (no fresh quote)';
-            return '${e.key + 1} ${p.buy ? 'BUY' : 'SELL'} ${p.quantity} oz $result';
+            return '${e.key + 1} ${p.buy ? 'BUY' : 'SELL'} ${(p.quantity / 100).toStringAsFixed(p.quantity < 1 ? 4 : 2)} lot${p.quantity > 1 ? 's' : ''} (${p.quantity} oz) $result';
           })
           .join(' · ');
 }

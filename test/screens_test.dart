@@ -216,7 +216,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('TP / SL'));
     await t.pumpAndSettle();
-    expect(find.text('Quantity (oz)'), findsOneWidget);
+    expect(find.text('Quantity (lots · 0.01 = 1 oz)'), findsOneWidget);
     expect(find.text('New order'), findsNothing);
     await t.runAsync(() async {
       final image =

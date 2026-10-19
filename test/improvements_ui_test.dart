@@ -107,7 +107,7 @@ void main() {
       final key = await mount(t, AddTab(app: app));
       await t.enterText(field('Entry'), '4000');
       await t.enterText(field('Exit (optional)'), '4010');
-      await t.enterText(field('Quantity (oz)'), '2');
+      await t.enterText(field('Quantity (lots · 1 lot = 100 oz)'), '0.02');
       await t.enterText(field('Total costs (USD)'), '3');
       await t.enterText(field('Setup tag (optional)'), 'Breakout');
       await capture(t, key, 'journal');

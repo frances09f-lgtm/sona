@@ -62,6 +62,13 @@ String money(num? n, {bool sign = false}) {
   return s;
 }
 
+/// XM-style lots: 1 lot = 100 oz (min/step 0.01 lot = 1 oz).
+String lotsStr(num qtyOz) {
+  final l = qtyOz / 100;
+  final s = (l > 0 && l < 0.01) ? l.toStringAsFixed(4) : l.toStringAsFixed(2);
+  return '$s lot${l > 0.01 ? 's' : ''} (${fmt(qtyOz)} oz)';
+}
+
 Color cls(num? n) =>
     n == null ? cDim : (n > 0 ? cGreen : (n < 0 ? cRed : cDim));
 
@@ -694,7 +701,7 @@ class AppState extends ChangeNotifier {
       return '$warn - new trades blocked (Daily limits)';
     }
     if (!['buy', 'sell'].contains(dir) || !qty.isFinite || qty <= 0)
-      return 'Enter a valid side and positive oz size.';
+      return 'Enter a valid side and positive size.';
     if (openingPaper)
       return 'Another paper order is being checked. Wait for its result.';
     openingPaper = true;
@@ -1453,7 +1460,7 @@ class _TradeTabState extends State<TradeTab> {
     );
   }
 
-  final qtyCtrl = TextEditingController(text: '1');
+  final qtyCtrl = TextEditingController(text: '0.01'); // lots
   final tpCtrl = TextEditingController();
   final slCtrl = TextEditingController();
   final alertCtrl = TextEditingController();
@@ -1597,7 +1604,7 @@ class _TradeTabState extends State<TradeTab> {
                         (o) => Card(
                           child: ListTile(
                             title: Text(
-                              '${o.side.toUpperCase()} ${o.qty} oz ${o.above ? "at or above" : "at or below"} ${fmt(o.trigger)}',
+                              '${o.side.toUpperCase()} ${lotsStr(o.qty)} ${o.above ? "at or above" : "at or below"} ${fmt(o.trigger)}',
                             ),
                             subtitle: Text(
                               '${o.status} · ${o.gtc ? "GTC" : "expires at local midnight"} · fills only while Sona is open, needs internet${o.note == null ? "" : "\n${o.note}"}',
@@ -2148,7 +2155,8 @@ class _TradeTabState extends State<TradeTab> {
   /// risks 1% of the paper balance. Entry is the real side price.
   Widget _riskRow() {
     final entry = app.entrySidePrice(dir);
-    final qty = parseNum(qtyCtrl.text);
+    final lotsIn = parseNum(qtyCtrl.text);
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
     final sl = parseNum(slCtrl.text);
     if (entry == null) return const SizedBox.shrink();
     final risk = (qty != null && sl != null) ? (entry - sl).abs() * qty : null;
@@ -2176,9 +2184,9 @@ class _TradeTabState extends State<TradeTab> {
           if (suggested != null)
             GestureDetector(
               onTap: () =>
-                  setState(() => qtyCtrl.text = suggested.toStringAsFixed(2)),
+                  setState(() => qtyCtrl.text = (suggested / 100).toStringAsFixed(2)),
               child: Text(
-                '1% size: ${suggested.toStringAsFixed(2)} oz',
+                '1% size: ${lotsStr(suggested)}',
                 style: const TextStyle(
                   color: Color(0xFFF5C242),
                   fontSize: 12,
@@ -2527,7 +2535,7 @@ class _PositionsTabState extends State<PositionsTab> {
                           ),
                           const SizedBox(width: 3),
                           Text(
-                            '${fmt(qty)} oz  ${buy ? 'BUY' : 'SELL'}',
+                            '${lotsStr(qty)}  ${buy ? 'BUY' : 'SELL'}',
                             style: TextStyle(
                               color: buy ? cGreen : cRed,
                               fontSize: 12,
@@ -2698,7 +2706,7 @@ class _PositionsTabState extends State<PositionsTab> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Entry: ${fmt(open)} · Size: ${fmt((t['qty'] as num?)?.toDouble())} oz',
+                      'Entry: ${fmt(open)} · Size: ${lotsStr((t['qty'] as num?)?.toDouble() ?? 0)}',
                       style: const TextStyle(color: cDim, fontSize: 12),
                     ),
                   ),
@@ -3200,7 +3208,8 @@ class _AddTabState extends State<AddTab> {
     if (pnlManual) return;
     final en = double.tryParse(entryCtrl.text.trim());
     final ex = double.tryParse(exitCtrl.text.trim());
-    final qty = double.tryParse(journalQty.text.trim());
+    final lotsIn = double.tryParse(journalQty.text.trim());
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
     final costs = double.tryParse(costsCtrl.text.trim());
     final value = en == null || ex == null || qty == null || costs == null
         ? null
@@ -3231,7 +3240,7 @@ class _AddTabState extends State<AddTab> {
 
   void editTrade(Map<String, dynamic> t) {
     setState(() {
-      journalQty.text = t['qty']?.toString() ?? '';
+      journalQty.text = t['qty'] == null ? '' : ((t['qty'] as num) / 100).toString(); // show lots
       costsCtrl.text = t['costs']?.toString() ?? '0';
       setupCtrl.text = t['setup']?.toString() ?? '';
       legacySizeUnknown = t['qty'] == null;
@@ -3344,7 +3353,7 @@ class _AddTabState extends State<AddTab> {
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
-                        labelText: 'Quantity (oz)',
+                        labelText: 'Quantity (lots · 1 lot = 100 oz)',
                       ),
                     ),
                   ),
@@ -3565,7 +3574,7 @@ class _AddTabState extends State<AddTab> {
         : null;
     final sizeDescription = t['qty'] == null
         ? 'Legacy size unknown · recorded PnL'
-        : '${t['qty']} oz · costs ${money((t['costs'] as num?) ?? 0)}';
+        : '${lotsStr((t['qty'] as num?) ?? 0)} · costs ${money((t['costs'] as num?) ?? 0)}';
     final d = DateTime.tryParse(t['traded_at']?.toString() ?? '')?.toLocal();
     return card(
       Column(
@@ -3646,7 +3655,8 @@ class _AddTabState extends State<AddTab> {
     autoPnl();
     final pnl = pn(pnlCtrl.text);
     final ex = pn(exitCtrl.text);
-    final qty = pn(journalQty.text);
+    final lotsIn = pn(journalQty.text);
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
     final costs = pn(costsCtrl.text);
     if (costs == null ||
         !costs.isFinite ||
@@ -4410,14 +4420,15 @@ class _AiTabState extends State<AiTab> {
     if (px == null || px <= 0) {
       return 'AI is sure, but there is no fresh live price - not entered.';
     }
-    final qty = (app.balance * r.sizePct / 100) / px;
+    var qty = (app.balance * r.sizePct / 100) / px;
+    if (qty < 1) qty = 1; // XM minimum: 0.01 lot = 1 oz
     final err = await app.openPaper(dir, qty, r.tp, r.sl);
     if (err != null) {
       await AiLog.add('error', 'Advice trade not entered: $err');
       return 'AI is sure, but the trade was not entered: $err';
     }
     final msg =
-        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${fmt(qty)} oz @ ${fmt(px)} - TP ${fmt(r.tp)}, SL ${fmt(r.sl)}';
+        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${lotsStr(qty)} @ ${fmt(px)} - TP ${fmt(r.tp)}, SL ${fmt(r.sl)}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     UsageReporter.report('trade_opened', {'src': 'advice'});
@@ -4722,6 +4733,18 @@ class _AiTabState extends State<AiTab> {
                           value: 25.0,
                           child: Text('25% of balance'),
                         ),
+                        DropdownMenuItem(
+                          value: 50.0,
+                          child: Text('50% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 75.0,
+                          child: Text('75% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 100.0,
+                          child: Text('100% of balance'),
+                        ),
                       ],
                       onChanged: (v) async {
                         if (v == null) return;
@@ -4888,7 +4911,7 @@ class PaperOrderSheet extends StatefulWidget {
 
 class _PaperOrderSheetState extends State<PaperOrderSheet> {
   double? parseNum(String s) => double.tryParse(s.trim());
-  final quantity = TextEditingController(text: '1');
+  final quantity = TextEditingController(text: '0.01'); // lots
   final tp = TextEditingController();
   final sl = TextEditingController();
   bool tpsl = false, sending = false;
@@ -4920,7 +4943,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
           result == null) {
         error = 'Use a positive risk within your paper balance and a stop on the correct side of entry.';
       } else {
-        quantity.text = result.toString();
+        quantity.text = (result / 100).toStringAsFixed(2); // show lots
         selectedRiskBudget = budget;
         error = null;
       }
@@ -4951,9 +4974,10 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
 
   Future<void> submit() async {
     if (sending) return;
-    final q = parseNum(quantity.text);
+    final lotsIn = parseNum(quantity.text);
+    final q = lotsIn == null ? null : lotsIn * 100; // input is lots
     if (q == null || !q.isFinite || q <= 0) {
-      setState(() => error = 'Enter a positive quantity in oz.');
+      setState(() => error = 'Enter a positive quantity in lots (min 0.01 = 1 oz).');
       return;
     }
     final take = tpsl ? parseNum(tp.text) : null,
@@ -5067,7 +5091,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '${widget.side.toUpperCase()} paper order opened · $q oz',
+          '${widget.side.toUpperCase()} paper order opened · ${lotsStr(q)}',
         ),
       ),
     );
@@ -5077,7 +5101,8 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
   Widget build(BuildContext context) {
     final app = widget.app;
     final px = widget.side == 'buy' ? app.ask : app.bid;
-    final q = parseNum(quantity.text);
+    final lotsNow = parseNum(quantity.text);
+    final q = lotsNow == null ? null : lotsNow * 100; // input is lots
     final fresh = app.priceFresh && px != null;
     final previewEntry = pending
         ? parseNum(trigger.text)
@@ -5121,7 +5146,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Chip(label: Text('Quantity (oz)')),
+              const Chip(label: Text('Quantity (lots · 0.01 = 1 oz)')),
               Row(
                 children: [
                   IconButton(
@@ -5175,7 +5200,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                 style: const TextStyle(fontSize: 16),
               ),
               const Text(
-                'Quantity is oz. Estimated paper margin uses assumed 1:500, not broker/server margin. No liquidation model.',
+                'Quantity is lots, XM-style: 1 lot = 100 oz, min/step 0.01 lot = 1 oz. Estimated paper margin uses assumed 1:500, not broker/server margin. No liquidation model.',
                 style: TextStyle(color: cDim, fontSize: 11),
               ),
               const SizedBox(height: 8),
@@ -5340,7 +5365,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Size ${q!.toStringAsFixed(6)} oz · Exposure ${money(preview.exposure)}',
+                        'Size ${lotsStr(q!)} · Exposure ${money(preview.exposure)}',
                       ),
                       Text(
                         'Loss at stop: ${preview.loss == null ? "No stop set" : money(preview.loss)}',

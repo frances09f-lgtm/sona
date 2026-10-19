@@ -1,5 +1,5 @@
-Sona 1.0.83
+Sona 1.0.84
 
-- AI auto-trades now use a 0.01 oz minimum: computed sizes below 0.01 oz are raised to 0.01 oz instead of opening dust positions that displayed as "0.00 oz".
-- Trades are capped by the estimated free paper margin (1:500 client-side estimate), and a cycle is skipped with a clear AI-log entry and notification if the balance cannot cover the 0.01 oz minimum.
-- Carries over the 1.0.82 fix: sub-0.01 values in sizes and P/L now display with 4 decimals instead of rounding to 0.00.
+- XM-style lots everywhere: 1 lot = 100 oz, minimum and step 0.01 lot (= 1 oz), mirroring XM MT5 gold (contract size 100). Sizes display as lots with oz in brackets; order tickets, quick-trade, journal and AI logs all use lots.
+- AI auto-trade minimum is now 0.01 lot (1 oz) like XM, and the AI size-per-trade cap is raised to 100% of balance (new 50/75/100% options; default 100%).
+- The chart's yellow last-price line and the latest candle now agree: the live quote is folded into the still-forming bar (history is never rewritten, and a stale feed is left untouched).

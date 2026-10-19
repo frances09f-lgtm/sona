@@ -51,7 +51,7 @@ class TradeExplanationCard extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        Text('Entry: \$${f(data.entry)} · ${f(data.qty)} oz'),
+        Text('Entry: \$${f(data.entry)} · ${(data.qty / 100).toStringAsFixed(data.qty < 1 ? 4 : 2)} lot${data.qty > 1 ? 's' : ''} (${f(data.qty)} oz)'),
         Text(
           'SL distance: ${f(data.stopDistance)} USD/oz · TP distance: ${f(data.targetDistance)} USD/oz',
         ),

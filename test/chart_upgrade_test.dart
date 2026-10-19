@@ -292,7 +292,7 @@ void main() {
       await t.pumpAndSettle();
       expect(s.scrollCandles, greaterThan(0));
       expect(painter(t).positions.length, 2);
-      expect(find.textContaining('BUY 2.0 oz +\$12.00'), findsOneWidget);
+      expect(find.textContaining('BUY 0.02 lots (2.0 oz) +\$12.00'), findsOneWidget);
       expect(t.takeException(), isNull);
       await capture(t, image, 'phone-synthetic');
       await t.pumpWidget(const SizedBox());

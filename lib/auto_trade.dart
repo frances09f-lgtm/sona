@@ -28,6 +28,13 @@ String fmtOz(num n) {
   return (a > 0 && a < 0.01) ? n.toStringAsFixed(4) : n.toStringAsFixed(2);
 }
 
+/// XM-style lots: 1 lot = 100 oz (min/step 0.01 lot = 1 oz).
+String lotsStr(num qtyOz) {
+  final l = qtyOz / 100;
+  final s = (l > 0 && l < 0.01) ? l.toStringAsFixed(4) : l.toStringAsFixed(2);
+  return '$s lot${l > 0.01 ? 's' : ''} (${fmtOz(qtyOz)} oz)';
+}
+
 
 class AiLogEntry {
   final DateTime at;
@@ -124,7 +131,7 @@ class AutoTrade {
     _rollDay(prefs);
     return AutoTradeStatus(
       enabled: prefs.getBool(_enabledKey) ?? false,
-      sizePct: prefs.getDouble(_sizeKey) ?? 10,
+      sizePct: prefs.getDouble(_sizeKey) ?? 100,
       tradesToday: prefs.getInt(_countKey) ?? 0,
       consecutiveLosses: prefs.getInt(_lossesKey) ?? 0,
       pausedReason: prefs.getString(_pauseKey),
@@ -144,7 +151,7 @@ class AutoTrade {
   }
 
   static Future<void> setSizePct(SharedPreferences prefs, double pct) async {
-    await prefs.setDouble(_sizeKey, pct.clamp(1, 25));
+    await prefs.setDouble(_sizeKey, pct.clamp(1, 100));
   }
 
   static Future<void> resume(SharedPreferences prefs) async {
@@ -369,11 +376,11 @@ class AutoTrade {
 
     // --- execute within the rails ---
     final ref = d.action == 'buy' ? quote.$2 : quote.$1;
-    final sizePct = prefs.getDouble(_sizeKey) ?? d.sizePct;
-    // Minimum trade size: 0.01 oz. Anything smaller was real but
-    // displayed as 0.00 and is not worth a ticket. If free margin can't
-    // cover the minimum, skip honestly instead of trading dust.
-    const minQtyOz = 0.01;
+    final sizePct = prefs.getDouble(_sizeKey) ?? 100;
+    // Minimum trade size: XM gold minimum 0.01 lot = 1 oz. Anything
+    // smaller displayed as dust. If free margin can't cover the minimum,
+    // skip honestly instead of trading dust.
+    const minQtyOz = 1.0; // 0.01 lot
     var qty = ((balance * sizePct / 100) / ref);
     if (qty < minQtyOz) qty = minQtyOz;
     final free = PaperMargin.estimate(
@@ -387,7 +394,7 @@ class AutoTrade {
         : free * PaperMargin.leverage / ref;
     if (maxQty < minQtyOz) {
       final msg =
-          'Skipped: balance cannot cover the 0.01 oz minimum trade size (free margin \$${free?.toStringAsFixed(2) ?? 'unknown'})';
+          'Skipped: balance cannot cover the 0.01 lot (1 oz) minimum trade size (free margin \$${free?.toStringAsFixed(2) ?? 'unknown'})';
       await AiLog.add('error', msg);
       UsageReporter.report('auto_skip', {'why': 'min_size_margin'});
       await showForegroundNotification('Sona AI skipped a trade', msg);
@@ -404,7 +411,7 @@ class AutoTrade {
     await prefs.setString(_openIdKey, opened);
     await prefs.setDouble(_openEquityKey, balance);
     final msg =
-        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${fmtOz(qty)} oz @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
+        '${d.action == 'buy' ? 'Bought' : 'Sold'} ${lotsStr(qty)} @ ${ref.toStringAsFixed(2)} - TP ${d.tp!.toStringAsFixed(2)}, SL ${d.sl!.toStringAsFixed(2)}. ${d.reason}';
     await AiLog.add('trade', msg);
     await showForegroundNotification('Sona AI traded', msg);
     return msg;

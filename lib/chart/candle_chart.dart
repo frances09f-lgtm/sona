@@ -106,6 +106,45 @@ class CandleChartPanelState extends State<CandleChartPanel> {
       market.fresh && (market.price?.isFinite ?? false) && market.price! > 0
       ? market.price
       : null;
+  /// Candles with the live quote folded into the still-forming last bar,
+  /// so the last-price line and the last candle agree. Provider history
+  /// is never rewritten: only the bar whose window contains now, and
+  /// only that bar's close/high/low.
+  List<Candle> get _liveCandles {
+    final p = chartPrice;
+    if (p == null || candles.isEmpty) return candles;
+    final bar = _barDuration(interval.code);
+    if (bar == null) return candles;
+    final last = candles.last;
+    final now = DateTime.now();
+    if (now.isBefore(last.time) || !now.isBefore(last.time.add(bar))) {
+      return candles; // stale feed or data gap: never rewrite history
+    }
+    return [
+      ...candles.take(candles.length - 1),
+      Candle(
+        time: last.time,
+        open: last.open,
+        high: math.max(last.high, p),
+        low: math.min(last.low, p),
+        close: p,
+        volume: last.volume,
+      ),
+    ];
+  }
+
+  static Duration? _barDuration(String code) {
+    final c = code.startsWith('range:') ? tradeRangeSpec(code).$1 : code;
+    return switch (c) {
+      '1min' => const Duration(minutes: 1),
+      '15min' => const Duration(minutes: 15),
+      '1h' => const Duration(hours: 1),
+      '4h' => const Duration(hours: 4),
+      '1day' => const Duration(days: 1),
+      _ => null,
+    };
+  }
+
   double get _rsiHeight => rsiOn && candles.length > rsiPeriod ? 64 : 0;
   double get _macdHeight => macdOn && candles.length >= macdSlow ? 64 : 0;
   int _loadGeneration = 0;
@@ -1438,7 +1477,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
           child: CustomPaint(
             size: Size(cons.maxWidth, cons.maxHeight),
             painter: CandlePainter(
-              candles: candles,
+              candles: _liveCandles,
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
