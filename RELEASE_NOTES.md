@@ -1,5 +1,4 @@
-Sona 1.0.87
+Sona 1.0.88
 
-- The yellow live-price line, its price tag, the forming candle and the big price number now all use one basis - bid - matching XM/MetaTrader, where OTC charts are built on bid prices.
-- The latest candle now always meets the live line: when the free candle feed lags (its last bar already closed), Sona draws the still-forming bar from the live quote, opening at the last real close. Provider history is never rewritten, and if the candle feed is down (over 3 bars of lag) no bar is fabricated.
-- The chart's OHLC readout shows the live forming bar, so its C value equals the line price.
+- The real reason the yellow line would not sit on the candles: TwelveData returns candle times in the exchange timezone (Sydney, UTC+11) with no timezone marker, so on an IST phone every candle was stamped about 8 hours in the future. The chart refused to fold the live quote into a "future" candle, so the line floated away from the last bar and the axis clock showed odd times (like 21:15 at 3:46 PM).
+- Candles are now fetched in UTC and converted to phone-local time: the axis clock reads correctly, and the live quote folds into the real forming bar every tick - the yellow line and the latest candle always meet, on every timeframe.

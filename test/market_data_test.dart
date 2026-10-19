@@ -73,9 +73,28 @@ void main() {
       final candles =
           await s.fetchCandles(Instrument.xauUsd, interval: '15min');
       expect(candles.length, 2);
-      expect(candles.first.time, DateTime.parse('2026-10-06 14:15:00'));
+      expect(
+        candles.first.time.millisecondsSinceEpoch,
+        DateTime.utc(2026, 10, 6, 14, 15).millisecondsSinceEpoch,
+      );
+      expect(candles.first.time.isUtc, false); // converted to device-local
       expect(candles.first.close, 4161.00);
       expect(candles.last.close, 4162.10);
+    });
+
+    test('requests UTC timezone and parses datetimes as UTC instants', () async {
+      Uri? seen;
+      final client = MockClient((req) async {
+        seen = req.url;
+        return http.Response(twelveDataFixture, 200,
+            headers: {'content-type': 'application/json'});
+      });
+      final svc = TwelveDataCandleService(apiKey: 'k', client: client);
+      final candles =
+          await svc.fetchCandles(Instrument.xauUsd, interval: '1min');
+      expect(seen!.queryParameters['timezone'], 'UTC');
+      // Naive "2026-10-06 14:30:00" is read as 14:30 UTC, not device-local.
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 10, 6, 14, 30));
     });
 
     test('refuses to call without an API key', () {

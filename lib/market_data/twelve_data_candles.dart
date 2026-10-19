@@ -28,10 +28,16 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException(
           'Add your Twelve Data key in API settings to load candle history.');
     }
+    // timezone=UTC is load-bearing: without it TwelveData returns naive
+    // datetimes in the exchange timezone (Australia/Sydney for XAU/USD),
+    // which read as ~8 hours in the FUTURE for an IST user. The forming-
+    // candle fold then refuses to touch the "future" last bar, the live
+    // price line floats away from the candles and the axis clock is wrong.
     final uri = Uri.https('api.twelvedata.com', '/time_series', {
       'symbol': instrument.symbol,
       'interval': interval,
       'outputsize': '$limit',
+      'timezone': 'UTC',
       'apikey': apiKey,
     });
     final res = await client.get(uri).timeout(const Duration(seconds: 15));
@@ -53,7 +59,15 @@ class TwelveDataCandleService implements HistoricalCandleService {
     final out = <Candle>[];
     for (final v in values) {
       if (v is! Map<String, dynamic>) continue;
-      final time = DateTime.tryParse(v['datetime']?.toString() ?? '');
+      // Requested timezone=UTC, so datetimes are naive UTC
+      // ("2026-10-19 12:54:00"). Parse them AS UTC (a bare parse would read
+      // them as device-local), then toLocal() so axis labels read in the
+      // user's clock and now-vs-candle comparisons stay correct.
+      final raw = v['datetime']?.toString() ?? '';
+      final norm = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
+      final time = DateTime.tryParse(
+        norm.endsWith('Z') ? norm : '${norm}Z',
+      )?.toLocal();
       final o = double.tryParse(v['open']?.toString() ?? '');
       final h = double.tryParse(v['high']?.toString() ?? '');
       final l = double.tryParse(v['low']?.toString() ?? '');
