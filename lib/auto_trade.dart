@@ -18,6 +18,7 @@ import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'notifications.dart';
+import 'paper_margin.dart';
 
 import 'sessions.dart';
 
@@ -369,7 +370,30 @@ class AutoTrade {
     // --- execute within the rails ---
     final ref = d.action == 'buy' ? quote.$2 : quote.$1;
     final sizePct = prefs.getDouble(_sizeKey) ?? d.sizePct;
-    final qty = ((balance * sizePct / 100) / ref);
+    // Minimum trade size: 0.01 oz. Anything smaller was real but
+    // displayed as 0.00 and is not worth a ticket. If free margin can't
+    // cover the minimum, skip honestly instead of trading dust.
+    const minQtyOz = 0.01;
+    var qty = ((balance * sizePct / 100) / ref);
+    if (qty < minQtyOz) qty = minQtyOz;
+    final free = PaperMargin.estimate(
+      balance: balance,
+      bid: quote.$1,
+      ask: quote.$2,
+      positions: positions,
+    );
+    final maxQty = (free == null || free <= 0)
+        ? 0.0
+        : free * PaperMargin.leverage / ref;
+    if (maxQty < minQtyOz) {
+      final msg =
+          'Skipped: balance cannot cover the 0.01 oz minimum trade size (free margin \$${free?.toStringAsFixed(2) ?? 'unknown'})';
+      await AiLog.add('error', msg);
+      UsageReporter.report('auto_skip', {'why': 'min_size_margin'});
+      await showForegroundNotification('Sona AI skipped a trade', msg);
+      return msg;
+    }
+    if (qty > maxQty) qty = maxQty;
     final opened = await _paperOpen(pin, d.action, ref, qty, d.tp, d.sl);
     if (opened == null) {
       await AiLog.add('error', 'Order rejected by the paper backend');
