@@ -17,6 +17,9 @@ const kChartModePref = 'sona_chart_mode'; // 'candles' or 'range'
 const kChartIntervalPref = 'sona_chart_interval'; // e.g. '15min'
 const kChartRangePref = 'sona_chart_range'; // e.g. 'range:1D'
 const kChartSelectionRevPref = 'sona_chart_selection_rev';
+/// Red ask line on the chart (user request: hidden unless enabled in
+/// Settings; the yellow bid/last-price line always shows).
+const kChartShowAskPref = 'sona_chart_show_ask';
 
 /// Real candle chart (stage b). Renders ONLY candles that came from a
 /// historical candle service - never synthetic or placeholder bars.
@@ -262,6 +265,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   bool macdOn = false;
   final Set<int> extraEmas = {};
   bool bollingerOn = false;
+  bool showAskLine = false;
   bool alertMode = false;
   bool drawMode = false;
   bool trendMode = false;
@@ -353,8 +357,11 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _appliedSelectionRev = prefs.getInt(kChartSelectionRevPref) ?? 0;
+      final showAsk = prefs.getBool(kChartShowAskPref) ?? false;
+      if (!mounted) return;
+      if (showAsk != showAskLine) setState(() => showAskLine = showAsk);
       final mode = prefs.getString(kChartModePref);
-      if (mode == null || !mounted) return;
+      if (mode == null) return;
       final code = mode == 'range'
           ? prefs.getString(kChartRangePref)
           : prefs.getString(kChartIntervalPref);
@@ -371,6 +378,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
       final rev = prefs.getInt(kChartSelectionRevPref) ?? 0;
       if (!mounted || rev == _appliedSelectionRev) return;
       _appliedSelectionRev = rev;
+      final showAsk = prefs.getBool(kChartShowAskPref) ?? false;
+      if (showAsk != showAskLine) setState(() => showAskLine = showAsk);
       final mode = prefs.getString(kChartModePref);
       final code = mode == 'range'
           ? prefs.getString(kChartRangePref)
@@ -1586,7 +1595,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               visibleCount: _vc,
               livePrice: chartPrice,
               bid: market.bid,
-              ask: market.ask,
+              ask: showAskLine ? market.ask : null,
               crosshair: crosshairMode ? crosshairPos : null,
               chartStyle: chartStyle,
               positions: market.positions,

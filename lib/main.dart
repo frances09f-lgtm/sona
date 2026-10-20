@@ -1180,6 +1180,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
   String _mode = 'candles';
   String _intervalCode = '15min';
   String _rangeCode = 'range:1D';
+  bool _showAsk = false;
 
   @override
   void initState() {
@@ -1190,6 +1191,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
         _mode = prefs.getString(kChartModePref) ?? _mode;
         _intervalCode = prefs.getString(kChartIntervalPref) ?? _intervalCode;
         _rangeCode = prefs.getString(kChartRangePref) ?? _rangeCode;
+        _showAsk = prefs.getBool(kChartShowAskPref) ?? false;
       });
     });
   }
@@ -1273,6 +1275,25 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _pick(true),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.show_chart),
+          title: const Text('Show ask line'),
+          subtitle: const Text(
+            'Red dashed line at the buy (ask) price; the yellow bid line always shows',
+          ),
+          value: _showAsk,
+          onChanged: (v) async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(kChartShowAskPref, v);
+            await prefs.setInt(
+              kChartSelectionRevPref,
+              (prefs.getInt(kChartSelectionRevPref) ?? 0) + 1,
+            );
+            if (!mounted) return;
+            setState(() => _showAsk = v);
+            widget.app.notifyListeners();
+          },
         ),
         const Divider(),
         ListTile(

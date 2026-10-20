@@ -84,6 +84,7 @@ void main() {
     tester,
   ) async {
     await loadFonts();
+    SharedPreferences.setMockInitialValues({kChartShowAskPref: true});
     final data = fakeCandles(80);
     await tester.pumpWidget(harness(data, ask: data.last.close + 3.5));
     await tester.pumpAndSettle();
@@ -118,6 +119,7 @@ void main() {
 
   testWidgets('bid and ask lines with right-axis tags', (tester) async {
     await loadFonts();
+    SharedPreferences.setMockInitialValues({kChartShowAskPref: true});
     final data = fakeCandles(80);
     await tester.pumpWidget(harness(data, ask: data.last.close + 3.5));
     await tester.pumpAndSettle();
@@ -125,6 +127,38 @@ void main() {
       find.byType(CandleChartPanel),
       matchesGoldenFile('goldens/xm360_bidask.png'),
     );
+  });
+
+  CandlePainter chartPainter(WidgetTester tester) {
+    final paints = tester.widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(CandleChartPanel),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    return paints
+        .map((p) => p.painter)
+        .whereType<CandlePainter>()
+        .firstWhere((p) => p.candles.isNotEmpty);
+  }
+
+  testWidgets('ask line is hidden by default', (tester) async {
+    await loadFonts();
+    SharedPreferences.setMockInitialValues({});
+    final data = fakeCandles(80);
+    await tester.pumpWidget(harness(data, ask: data.last.close + 3.5));
+    await tester.pumpAndSettle();
+    expect(chartPainter(tester).ask, isNull);
+  });
+
+  testWidgets('ask line shows when the Settings pref is on', (tester) async {
+    await loadFonts();
+    SharedPreferences.setMockInitialValues({kChartShowAskPref: true});
+    final data = fakeCandles(80);
+    final ask = data.last.close + 3.5;
+    await tester.pumpWidget(harness(data, ask: ask));
+    await tester.pumpAndSettle();
+    expect(chartPainter(tester).ask, ask);
   });
 
   testWidgets('fresh chart has no indicators by default (XM-style)', (
