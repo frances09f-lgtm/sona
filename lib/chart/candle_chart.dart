@@ -127,6 +127,11 @@ class CandleChartPanel extends StatefulWidget {
   /// of the fixed in-page height.
   final bool expand;
   final bool rangeMode;
+
+  /// Trade-page mode (broker-reference layout): no card, no header, no
+  /// toolbar, no OHLC/positions text - the bare chart. Controls live below
+  /// the chart in the page (range chips, style, fullscreen).
+  final bool chromeless;
   final Map<String, dynamic>? initialLayout;
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
@@ -140,6 +145,7 @@ class CandleChartPanel extends StatefulWidget {
     this.livePrice,
     this.expand = false,
     this.rangeMode = false,
+    this.chromeless = false,
     this.initialLayout,
     this.marketUpdates,
     this.marketSnapshot,
@@ -669,6 +675,15 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final prefs = await SharedPreferences.getInstance();
     if (!await prefs.setString(presetKey, jsonEncode(data)))
       throw StateError('Could not delete preset.');
+  }
+
+  /// Cycles candles -> line -> Heikin Ashi (the below-chart style button in
+  /// chromeless mode mirrors the toolbar dropdown).
+  void cycleChartStyle() {
+    setState(() {
+      final values = ChartStyle.values;
+      chartStyle = values[(chartStyle.index + 1) % values.length];
+    });
   }
 
   void applyPreset(Map<String, dynamic> data) {
@@ -1384,6 +1399,14 @@ class CandleChartPanelState extends State<CandleChartPanel>
   Widget build(BuildContext context) {
     const bg = Color(0xFF0E1116);
     const dim = Color(0xFF8A93A6);
+    if (widget.chromeless) {
+      return SizedBox(
+        height: math.max(MediaQuery.of(context).size.height * 0.55, 340.0) +
+            _rsiHeight +
+            _macdHeight,
+        child: _body(),
+      );
+    }
     return LayoutBuilder(
       builder: (context, rootCons) {
         return Container(
@@ -3792,10 +3815,14 @@ class FullscreenChartPage extends StatefulWidget {
   final Map<String, dynamic>? initialLayout;
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
+  final VoidCallback? onReplay;
+  final bool replayOn;
   const FullscreenChartPage({
     super.key,
     this.loader,
     this.onAlertPrice,
+    this.onReplay,
+    this.replayOn = false,
     this.livePrice,
     this.rangeMode = false,
     this.initialLayout,
@@ -3850,6 +3877,8 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                       marketSnapshot: widget.marketSnapshot,
                       loader: widget.loader,
                       onAlertPrice: widget.onAlertPrice,
+                      onReplay: widget.onReplay,
+                      replayOn: widget.replayOn,
                       livePrice: widget.livePrice,
                       expand: true,
                       rangeMode: widget.rangeMode,

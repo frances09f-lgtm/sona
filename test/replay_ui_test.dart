@@ -38,7 +38,10 @@ void main() {
     );
     await t.pumpAndSettle();
 
-    // Enter replay pick mode from the chart toolbar chip.
+    // Trade page is chromeless: replay is entered via the fullscreen
+    // editor's toolbar chip, which pops back into pick mode.
+    await t.tap(find.byIcon(Icons.fullscreen));
+    await t.pumpAndSettle();
     await t.scrollUntilVisible(
       find.text('Replay'),
       60,

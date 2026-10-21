@@ -34,6 +34,9 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    // Chromeless trade page: chart tools live in the fullscreen editor.
+    await t.tap(find.byIcon(Icons.fullscreen));
+    await t.pumpAndSettle();
     await t.tap(find.text('Alert').first);
     await t.pumpAndSettle();
     final chart = find.byWidgetPredicate(

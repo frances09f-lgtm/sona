@@ -1672,6 +1672,59 @@ class _TradeTabState extends State<TradeTab> {
     );
   }
 
+  Widget _rangeChip(ChartInterval r) {
+    final st = chartKey.currentState;
+    final selected =
+        st != null && st.usingRange && st.interval.code == r.code;
+    return InkWell(
+      onTap: () => setState(() {
+        chartKey.currentState?.applyChartSelection(range: true, code: r.code);
+      }),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          r.label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.black : cDim,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChartFullscreen() async {
+    final st = chartKey.currentState;
+    if (st == null) return;
+    final layout = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => FullscreenChartPage(
+          loader: st.widget.loader,
+          livePrice: _replay?.price ?? app.chartBasis,
+          rangeMode: st.usingRange,
+          onAlertPrice: confirmChartAlert,
+          onReplay: () {
+            Navigator.of(context).pop();
+            _toggleReplay();
+          },
+          replayOn: _replay != null || _pickingReplayStart,
+          initialLayout: st.layoutSnapshot(),
+          marketUpdates: app,
+          marketSnapshot: st.widget.marketSnapshot,
+        ),
+      ),
+    );
+    if (layout != null) {
+      setState(() => st.applyPreset(layout));
+    }
+  }
+
   void _toggleReplay() {
     if (_replay != null) {
       _exitReplay();
@@ -1958,6 +2011,7 @@ class _TradeTabState extends State<TradeTab> {
                   key: chartKey,
                   onAlertPrice: confirmChartAlert,
                   rangeMode: true,
+                  chromeless: true,
                   loader:
                       widget.candleLoaderOverride ??
                       (_candles == null
@@ -2018,6 +2072,45 @@ class _TradeTabState extends State<TradeTab> {
                     );
                   },
                   livePrice: _replay?.price ?? app.chartBasis,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () =>
+                            chartKey.currentState?.cycleChartStyle(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.candlestick_chart,
+                            size: 20,
+                            color: cDim,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            for (final r in tradeRanges)
+                              _rangeChip(r),
+                          ],
+                        ),
+                      ),
+                      InkWell(
+                        onTap: _openChartFullscreen,
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.fullscreen,
+                            size: 20,
+                            color: cDim,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (_pickingReplayStart)
                   Container(

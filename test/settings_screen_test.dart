@@ -38,7 +38,9 @@ void main() {
     final buy = t.getRect(find.text('BUY'));
     expect(sell.bottom, lessThan(844));
     expect(buy.bottom, lessThan(844));
-    expect(find.text('XAU/USD'), findsWidgets);
+    // Chromeless chart: the panel header is gone; the range chips row
+    // under the chart is the chart region's marker now.
+    expect(find.text('1D'), findsWidgets);
     await t.runAsync(() async {
       final im =
           await (key.currentContext!.findRenderObject()
