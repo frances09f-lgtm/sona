@@ -1674,8 +1674,10 @@ class _TradeTabState extends State<TradeTab> {
 
   Widget _rangeChip(ChartInterval r) {
     final st = chartKey.currentState;
-    final selected =
-        st != null && st.usingRange && st.interval.code == r.code;
+    // Before the chart's first frame, highlight the panel's default (1D).
+    final selected = st == null
+        ? r.code == 'range:1D'
+        : st.usingRange && st.interval.code == r.code;
     return InkWell(
       onTap: () => setState(() {
         chartKey.currentState?.applyChartSelection(range: true, code: r.code);
