@@ -375,7 +375,16 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   void _recomputeStrategySegments() {
     final out = <StrategyLevelSegment>[];
     for (final s in _strategies) {
-      for (final seg in strat.strategySegments(candles, s)) {
+      final segs = strat.strategySegments(candles, s);
+      // User (v1.0.97): only TWO lines - the high and low of the most
+      // recent closed 1H candle, not every hour. The backtest engine
+      // still evaluates every hour; this filter is chart-only.
+      DateTime? latest;
+      for (final seg in segs) {
+        if (latest == null || seg.start.isAfter(latest)) latest = seg.start;
+      }
+      for (final seg in segs) {
+        if (latest != null && seg.start != latest) continue;
         var startIdx = candles.indexWhere((c) => !c.time.isBefore(seg.start));
         if (startIdx < 0) startIdx = candles.length - 1;
         var endIdx = candles.lastIndexWhere((c) => !c.time.isAfter(seg.end));
@@ -2274,7 +2283,10 @@ class CandlePainter extends CustomPainter {
           continue;
         }
         levelLabelYs.add(yy);
-        tp.paint(canvas, Offset(math.max(x1, 0) + 2, yy - tp.height - 1));
+        final lx = (math.max(x1, 0) + 2)
+            .clamp(0.0, math.max(0.0, plotW - tp.width - 2))
+            .toDouble();
+        tp.paint(canvas, Offset(lx, yy - tp.height - 1));
       }
     }
     canvas.restore();
