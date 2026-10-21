@@ -1,6 +1,7 @@
 import 'execution_ledger.dart';
 import 'trade_safety.dart';
 import 'journal_record.dart';
+import 'strategies_screen.dart';
 import 'history_summary.dart';
 
 import 'dart:async';
@@ -135,6 +136,10 @@ class AppState extends ChangeNotifier {
   }
 
   double? get spread => (bid != null && ask != null) ? ask! - bid! : null;
+
+  /// Public wrapper so screens can ask dependents to rebuild after they
+  /// mutate persisted preferences outside AppState's own setters.
+  void refresh() => notifyListeners();
 
   /// Single price basis for everything drawn on the chart: the live line,
   /// its price tag, the forming candle's close and the big header number.
@@ -1239,7 +1244,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
         _intervalCode = chosen;
       }
     });
-    widget.app.notifyListeners();
+    widget.app.refresh();
   }
 
   @override
@@ -1276,6 +1281,17 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _pick(true),
         ),
+        ListTile(
+          leading: const Icon(Icons.psychology_outlined),
+          title: const Text('Strategies'),
+          subtitle: const Text(
+            'Custom price-action strategies: chart levels and backtests',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => StrategiesScreen(app: widget.app)),
+          ),
+        ),
         SwitchListTile(
           secondary: const Icon(Icons.show_chart),
           title: const Text('Show ask line'),
@@ -1292,7 +1308,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             );
             if (!mounted) return;
             setState(() => _showAsk = v);
-            widget.app.notifyListeners();
+            widget.app.refresh();
           },
         ),
         const Divider(),

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../analysis.dart';
 import '../market_data/models.dart';
 import 'indicators.dart';
+import '../strategy.dart' as strat;
 import 'chart_tools.dart';
 
 /// Chart selection persisted from Sona Settings (user request: interval
@@ -266,6 +267,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   final Set<int> extraEmas = {};
   bool bollingerOn = false;
   bool showAskLine = false;
+  List<strat.PriceActionStrategy> _strategies = [];
+  List<StrategyLevelSegment> strategySegments = [];
   bool alertMode = false;
   bool drawMode = false;
   bool trendMode = false;
@@ -345,11 +348,49 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     }
     widget.marketUpdates?.addListener(_syncSavedSelection);
     _loadLines();
+    _loadStrategies();
     _load();
     _armTimer();
   }
 
   int _appliedSelectionRev = 0;
+
+  /// Custom price-action strategies (user request): enabled ones mark
+  /// their levels on the chart. Stored on-device; the Strategies screen
+  /// bumps kChartSelectionRevPref so _syncSavedSelection refreshes this.
+  Future<void> _loadStrategies() async {
+    List<strat.PriceActionStrategy> all;
+    try {
+      all = await strat.StrategyStore.load();
+    } catch (_) {
+      return; // no prefs plugin (tests) or unreadable store: no levels
+    }
+    if (!mounted) return;
+    setState(() {
+      _strategies = all.where((x) => x.showOnChart).toList();
+      _recomputeStrategySegments();
+    });
+  }
+
+  void _recomputeStrategySegments() {
+    final out = <StrategyLevelSegment>[];
+    for (final s in _strategies) {
+      for (final seg in strat.strategySegments(candles, s)) {
+        var startIdx = candles.indexWhere((c) => !c.time.isBefore(seg.start));
+        if (startIdx < 0) startIdx = candles.length - 1;
+        var endIdx = candles.lastIndexWhere((c) => !c.time.isAfter(seg.end));
+        if (endIdx < 0) endIdx = candles.length - 1;
+        out.add(StrategyLevelSegment(
+          price: seg.price,
+          isHigh: seg.isHigh,
+          startIdx: startIdx,
+          endIdx: endIdx < startIdx ? startIdx : endIdx,
+          broken: seg.broken,
+        ));
+      }
+    }
+    strategySegments = out;
+  }
 
   /// Reads the Settings-chosen chart selection and applies it once at
   /// start (fullscreen handoffs and presets pass initialLayout instead).
@@ -380,6 +421,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
       _appliedSelectionRev = rev;
       final showAsk = prefs.getBool(kChartShowAskPref) ?? false;
       if (showAsk != showAskLine) setState(() => showAskLine = showAsk);
+      _loadStrategies();
       final mode = prefs.getString(kChartModePref);
       final code = mode == 'range'
           ? prefs.getString(kChartRangePref)
@@ -985,6 +1027,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
         loadedAt = DateTime.now().millisecondsSinceEpoch;
         loading = false;
         error = null;
+        _recomputeStrategySegments();
       });
     } catch (e) {
       if (!mounted || generation != _loadGeneration) return;
@@ -1596,6 +1639,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
               livePrice: chartPrice,
               bid: market.bid,
               ask: showAskLine ? market.ask : null,
+              strategySegments: strategySegments,
               crosshair: crosshairMode ? crosshairPos : null,
               chartStyle: chartStyle,
               positions: market.positions,
@@ -1881,11 +1925,29 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   }
 }
 
+/// One strategy level in candle-INDEX space (chart draws candles equally
+/// spaced, so the painter works in indices, not timestamps).
+class StrategyLevelSegment {
+  final double price;
+  final bool isHigh;
+  final int startIdx;
+  final int endIdx;
+  final bool broken;
+  const StrategyLevelSegment({
+    required this.price,
+    required this.isHigh,
+    required this.startIdx,
+    required this.endIdx,
+    this.broken = false,
+  });
+}
+
 class CandlePainter extends CustomPainter {
   final List<Candle> candles;
   final double? livePrice;
   final double? bid;
   final double? ask;
+  final List<StrategyLevelSegment> strategySegments;
   final int? selected;
   final Offset? crosshair;
   final List<double>? sma;
@@ -1922,6 +1984,7 @@ class CandlePainter extends CustomPainter {
     this.livePrice,
     this.bid,
     this.ask,
+    this.strategySegments = const [],
     this.selected,
     this.crosshair,
     this.hLines = const [],
@@ -2163,6 +2226,44 @@ class CandlePainter extends CustomPainter {
       drawLine(bands!.$1, 20, const Color(0xFF95D5B2));
       drawLine(bands!.$2, 20, const Color(0xFF52B788));
       drawLine(bands!.$3, 20, const Color(0xFF52B788));
+    }
+
+    // custom strategy levels (user request): 1H high/low markers, each
+    // segment ending where price broke the level
+    for (final seg in strategySegments) {
+      if (seg.endIdx < fv0 || seg.startIdx >= iEnd) continue;
+      final x1 = stepI * (seg.startIdx - fv0 + 0.5);
+      final x2 = math.min(stepI * (seg.endIdx - fv0 + 0.5), plotW);
+      final yy = y(seg.price);
+      final col = seg.isHigh
+          ? const Color(0xFFF48FB1)
+          : const Color(0xFF80DEEA);
+      final p = Paint()
+        ..color = seg.broken ? col.withValues(alpha: 0.45) : col
+        ..strokeWidth = 1;
+      double dx = math.max(x1, 0.0);
+      while (dx < x2) {
+        canvas.drawLine(
+          Offset(dx, yy),
+          Offset(math.min(dx + 3, x2), yy),
+          p,
+        );
+        dx += 6;
+      }
+      if (!seg.broken) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: seg.price.toStringAsFixed(2),
+            style: TextStyle(
+              color: col,
+              fontSize: 8,
+              fontFamily: 'Roboto',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(math.max(x1, 0) + 2, yy - tp.height - 1));
+      }
     }
 
     // MT5 free crosshair: vertical+horizontal lines at the finger, price
@@ -2622,6 +2723,7 @@ class CandlePainter extends CustomPainter {
       old.extraEmas != extraEmas ||
       old.bands != bands ||
       old.sma != sma ||
+      old.strategySegments != strategySegments ||
       old.ema != ema ||
       old.rsi != rsi ||
       old.hLines != hLines ||
