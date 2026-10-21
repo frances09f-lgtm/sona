@@ -46,6 +46,8 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Add strategy'), findsOneWidget);
     await t.enterText(find.byType(TextField).first, 'London 1H break');
+    // real-size editor render for spacing review (v1.0.97 fix)
+    await t.runAsync(() => snap(key, '/tmp/sona-v1097-editor.png'));
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
 
@@ -110,6 +112,48 @@ void main() {
     );
     await t.runAsync(() => snap(key, '/tmp/sona-v1096-chart-levels.png'));
     expect(t.takeException(), isNull);
+  });
+
+  test('strategy levels outside the visible price range never draw', () {
+    // v1.0.97 regression: off-range 1H levels drew over the GOLD header
+    // above the chart card on a real phone. Paint into a recording canvas
+    // and assert every line stays inside the plot rect.
+    final data = fakeCandles(60);
+    var hi = 0.0, lo = double.infinity;
+    for (final c in data) {
+      if (c.high > hi) hi = c.high;
+      if (c.low < lo) lo = c.low;
+    }
+    final painter = CandlePainter(
+      candles: data,
+      visibleCount: data.length,
+      strategySegments: [
+        StrategyLevelSegment(
+            price: hi + 300, isHigh: true, startIdx: 2, endIdx: 40),
+        StrategyLevelSegment(
+            price: lo - 300, isHigh: false, startIdx: 2, endIdx: 40),
+        StrategyLevelSegment(
+            price: (hi + lo) / 2, isHigh: true, startIdx: 2, endIdx: 40),
+      ],
+    );
+    final canvas = TestRecordingCanvas();
+    painter.paint(canvas, const Size(400, 300));
+    const plotH = 300 - 16.0; // size.height - bottomPad (no rsi/macd pane)
+    var sawInRange = false;
+    for (final rec in canvas.invocations) {
+      final call = rec.invocation;
+      if (call.memberName == #drawLine) {
+        final p1 = call.positionalArguments[0] as Offset;
+        final p2 = call.positionalArguments[1] as Offset;
+        expect(p1.dy, inClosedOpenRange(-0.001, plotH + 0.001),
+            reason: 'line start above/below the plot rect');
+        expect(p2.dy, inClosedOpenRange(-0.001, plotH + 0.001),
+            reason: 'line end above/below the plot rect');
+        if ((p1.dy - plotH / 2).abs() < 5) sawInRange = true;
+      }
+    }
+    expect(sawInRange, isTrue,
+        reason: 'the in-range level should still be drawn');
   });
 
   testWidgets('backtest result screen renders stats and equity curve',

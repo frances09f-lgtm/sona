@@ -247,6 +247,7 @@ class _StrategyEditorScreenState extends State<StrategyEditorScreen> {
           controller: _name,
           decoration: const InputDecoration(labelText: 'Strategy name'),
         ),
+        const SizedBox(height: 16),
         TextField(
           controller: _notes,
           maxLines: 3,
@@ -256,9 +257,10 @@ class _StrategyEditorScreenState extends State<StrategyEditorScreen> {
                 'hour; buy the high break, sell the low break',
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         const Text('Rule: 1H high/low break',
             style: TextStyle(color: _dim, fontSize: 12)),
+        const SizedBox(height: 8),
         TextField(
           controller: _lookback,
           keyboardType: TextInputType.number,
@@ -266,6 +268,7 @@ class _StrategyEditorScreenState extends State<StrategyEditorScreen> {
             labelText: 'Mark levels for the last N hours',
           ),
         ),
+        const SizedBox(height: 16),
         TextField(
           controller: _rr,
           keyboardType: TextInputType.number,
@@ -274,6 +277,7 @@ class _StrategyEditorScreenState extends State<StrategyEditorScreen> {
             helperText: 'Stop is the opposite side of the signal hour candle',
           ),
         ),
+        const SizedBox(height: 8),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Long (buy the hour-high break)'),

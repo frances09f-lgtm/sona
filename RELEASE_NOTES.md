@@ -1,5 +1,5 @@
-Sona 1.0.96
+Sona 1.0.97
 
-- New: custom price-action strategies. Settings > Strategies lets you add a strategy with a name, notes and the 1H high/low rule parameters.
-- Chart levels: when a strategy's switch is on, every closed 1-hour candle's high (pink) and low (cyan) is drawn as a dotted line that stops where price closes through it.
-- Backtest: tap the play button on a strategy to run it over the last month of 15-minute candles. Entry on a close beyond the latest closed hour's high/low, stop at the other side of that hour, target at 2R (configurable), one trade at a time. Shows trades, win rate, net points and an equity curve. Backtests never touch the paper account or journal.
+- Fix: 1H strategy levels no longer draw outside the chart. Levels above or below the visible price range are skipped and everything is clipped to the chart area, so nothing overlaps the GOLD header anymore.
+- Fix: level price labels no longer stack on top of each other - when two labels would collide, only the first is shown.
+- Fix: the Add strategy form has proper spacing - field labels, the rule caption and the boxes no longer overlap.

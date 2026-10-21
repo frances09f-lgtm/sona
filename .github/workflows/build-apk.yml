@@ -50,7 +50,7 @@ jobs:
           CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
           test "$CERT_SHA" = '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
-          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='96' versionName='1.0.96'" /tmp/badging.txt
+          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='97' versionName='1.0.97'" /tmp/badging.txt
           grep -F "application-label:'Sona'" /tmp/badging.txt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
@@ -62,4 +62,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.0.96 "build/app/outputs/flutter-apk/Sona.apk" --target "$GITHUB_SHA" --title "Sona 1.0.96 - custom price-action strategies with 1H levels and backtest" --notes-file RELEASE_NOTES.md
+          gh release create v1.0.97 "build/app/outputs/flutter-apk/Sona.apk" --target "$GITHUB_SHA" --title "Sona 1.0.97 - strategy UI fixes (chart clipping, editor spacing)" --notes-file RELEASE_NOTES.md

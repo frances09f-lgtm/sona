@@ -2229,12 +2229,18 @@ class CandlePainter extends CustomPainter {
     }
 
     // custom strategy levels (user request): 1H high/low markers, each
-    // segment ending where price broke the level
+    // segment ending where price broke the level. Clipped to the plot:
+    // levels outside the visible price range are skipped entirely so they
+    // never draw over the header (real-phone report, v1.0.97).
+    final levelLabelYs = <double>[];
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
     for (final seg in strategySegments) {
       if (seg.endIdx < fv0 || seg.startIdx >= iEnd) continue;
       final x1 = stepI * (seg.startIdx - fv0 + 0.5);
       final x2 = math.min(stepI * (seg.endIdx - fv0 + 0.5), plotW);
       final yy = y(seg.price);
+      if (yy < 0 || yy > plotH) continue;
       final col = seg.isHigh
           ? const Color(0xFFF48FB1)
           : const Color(0xFF80DEEA);
@@ -2262,9 +2268,16 @@ class CandlePainter extends CustomPainter {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
+        // keep labels readable: drop one that would collide with a label
+        // already drawn at nearly the same height
+        if (levelLabelYs.any((v) => (v - yy).abs() < tp.height + 2)) {
+          continue;
+        }
+        levelLabelYs.add(yy);
         tp.paint(canvas, Offset(math.max(x1, 0) + 2, yy - tp.height - 1));
       }
     }
+    canvas.restore();
 
     // MT5 free crosshair: vertical+horizontal lines at the finger, price
     // tag on the right axis, bar date/time tag on the bottom axis.
