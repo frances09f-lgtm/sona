@@ -1,5 +1,4 @@
-- Strategy 1-hour levels now align to UTC hour boundaries, matching TradingView/OANDA hourly candles (previously offset 30 minutes on IST devices). Backtests align the same way.
-- Session shading: translucent Asia/London/New York bands behind the candles (UTC reference windows). Toggle: Sess chip.
-- Previous day/week high-low lines (PDH/PDL/PWH/PWL), NY 5pm-close days/weeks like TradingView. Toggle: PD/PW chip.
-- Double-tap the chart to reset zoom and scroll to the newest candle.
-- Pinch zoom now goes down to 8 visible bars (was 15).
+- TradingView-style chart interactions: pinch zoom anchors at your fingers, scroll flings with momentum, drag the price axis up/down to rescale, press-and-hold for the crosshair (quick taps still place drawings and alerts), and the chart keeps TradingView's right-edge margin when you zoom out.
+- Drawing tools (Draw chip): trend lines plus parallel channel, rectangle, and a ruler that measures bars, price distance and time. Magnet snap catches candle open/high/low/close while you draw. Drawings persist per interval.
+- Bar Replay: practice paper trading over historical bars. Tap the Replay chip, tap the candle where replay should start, then step bar-by-bar or play at 1x/2x/4x. BUY/SELL fill at the bar close; replay positions and P&L are local to the replay session and never touch your real paper account. Everything still open settles when the data runs out.
+- Includes 1.1.0: UTC-matched strategy hour levels (TradingView/OANDA alignment), Asia/London/New York session shading, previous day/week high-low lines, double-tap zoom reset, and 8-bar minimum zoom.
