@@ -130,7 +130,8 @@ class CandleChartPanel extends StatefulWidget {
   State<CandleChartPanel> createState() => CandleChartPanelState();
 }
 
-class CandleChartPanelState extends State<CandleChartPanel> {
+class CandleChartPanelState extends State<CandleChartPanel>
+    with SingleTickerProviderStateMixin {
   bool usingRange = false;
   ChartStyle chartStyle = ChartStyle.candles;
   int emaPeriod = 50,
@@ -301,6 +302,10 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   double _scaleStartVC = 0;
   double _panStartScroll = 0;
   double _panStartX = 0;
+  double _scaleStartIndexFloat = 0; // candle index under the pinch focal point
+  int _gesturePointers = 0; // pointers at gesture start (ScaleEnd reports 0)
+  Timer? _kineticTimer;
+  double _kineticVelBars = 0; // bars per second, + = scroll back (right drag)
   static const double rightPad = 52.0;
 
   /// The series actually drawn: provider candles with the live quote
@@ -314,13 +319,15 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     if (n == 0) return 1;
     final v = visibleOverride ?? n;
     if (v > n) return n;
-    return v < 15 ? (n < 15 ? n : 15) : v;
+    return v < 8 ? (n < 8 ? n : 8) : v;
   }
 
   int get _fv {
     final n = _drawn.length;
     if (n == 0) return 0;
-    final maxFv = n - _vc;
+    // Right-edge margin (TradingView-style): up to 5 bars of empty space
+    // past the newest candle when the user scrolls forward.
+    final maxFv = n - _vc + 5;
     var fv = n - _vc - scrollCandles.round();
     if (fv < 0) fv = 0;
     if (fv > maxFv) fv = maxFv < 0 ? 0 : maxFv;
@@ -540,7 +547,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     visibleOverride = (data['visibleCount'] as int?)?.clamp(8, 500);
     final savedScroll = data['scrollCandles'];
     scrollCandles = savedScroll is num && savedScroll.isFinite
-        ? math.max(0.0, savedScroll.toDouble())
+        ? savedScroll.toDouble().clamp(-5.0, 100000.0)
         : 0;
   }
 
@@ -1011,8 +1018,43 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     _saveLines();
   }
 
+  void _stopKinetic() {
+    _kineticTimer?.cancel();
+    _kineticTimer = null;
+  }
+
+  void _startKinetic(double velPxPerSec, double plotW) {
+    debugPrint('KINETIC start velPx=$velPxPerSec plotW=$plotW vc=$_vc ptr=$_gesturePointers');
+    _stopKinetic();
+    final step = plotW / _vc;
+    if (step <= 0) return;
+    // Same sign convention as the pan: finger/drag moving right (vx>0)
+    // scrolls back through older candles; left scrolls forward.
+    _kineticVelBars = velPxPerSec / step;
+    if (_kineticVelBars.abs() < 2) return; // too slow to matter
+    // 16ms timer instead of a Ticker: close enough to vsync for a
+    // sub-second fling, and deterministic under fake-time widget tests.
+    const dt = 0.016;
+    _kineticTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      // exponential friction: v halves roughly every 0.6s
+      _kineticVelBars *= math.pow(0.5, dt / 0.6);
+      final n = _drawn.length;
+      final maxScroll = (n - _vc) > 0 ? (n - _vc).toDouble() : 0.0;
+      var next = scrollCandles + _kineticVelBars * dt;
+      if (next < -5 || next > maxScroll) {
+        next = next.clamp(-5.0, maxScroll);
+        _kineticVelBars = 0; // hit the wall: stop
+      }
+      if (_kineticVelBars.abs() < 0.5) {
+        _stopKinetic();
+      }
+      if (mounted) setState(() => scrollCandles = next);
+    });
+  }
+
   @override
   void dispose() {
+    _stopKinetic();
     widget.marketUpdates?.removeListener(_syncSavedSelection);
     _timer?.cancel();
     super.dispose();
@@ -1601,9 +1643,19 @@ class CandleChartPanelState extends State<CandleChartPanel> {
           onScaleStart: drawMode
               ? null
               : (d) {
+                  _stopKinetic();
+                  _gesturePointers = d.pointerCount;
                   _panStartScroll = scrollCandles;
                   _panStartX = d.localFocalPoint.dx;
                   _scaleStartVC = _vc.toDouble();
+                  // Focal-anchored pinch: remember which candle sits under
+                  // the focal point so it stays put while zooming.
+                  final plotW0 = cons.maxWidth - rightPad;
+                  final frac0 =
+                      plotW0 > 0 ? d.localFocalPoint.dx / plotW0 : 0.5;
+                  _scaleStartIndexFloat =
+                      (_drawn.length - _vc - scrollCandles) +
+                          frac0 * _vc;
                 },
           onScaleUpdate: drawMode
               ? null
@@ -1618,7 +1670,19 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                   if (d.pointerCount >= 2) {
                     setState(() {
                       final v = (_scaleStartVC / d.scale).round();
-                      visibleOverride = v < 8 ? 8 : (v > n ? n : v);
+                      final vcNew = v < 8 ? 8 : (v > n ? n : v);
+                      visibleOverride = vcNew;
+                      // Keep the candle under the original focal point
+                      // stationary (TradingView pinch feel).
+                      final plotW = cons.maxWidth - rightPad;
+                      final frac =
+                          plotW > 0 ? _panStartX / plotW : 0.5;
+                      final maxScroll =
+                          (n - vcNew) > 0 ? (n - vcNew).toDouble() : 0.0;
+                      scrollCandles = (n -
+                              vcNew -
+                              (_scaleStartIndexFloat - frac * vcNew))
+                          .clamp(-5.0, maxScroll);
                     });
                   } else {
                     final plotW = cons.maxWidth - 52.0;
@@ -1631,8 +1695,18 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                       scrollCandles =
                           (_panStartScroll +
                                   (d.localFocalPoint.dx - _panStartX) / step)
-                              .clamp(0.0, maxScroll);
+                              .clamp(-5.0, maxScroll);
                     });
+                  }
+                },
+          onScaleEnd: drawMode
+              ? null
+              : (d) {
+                  debugPrint('SCALEEND ptr=$_gesturePointers vx=${d.velocity.pixelsPerSecond.dx}');
+                  if (!crosshairMode && _gesturePointers == 1) {
+                    _startKinetic(
+                        d.velocity.pixelsPerSecond.dx,
+                        cons.maxWidth - rightPad);
                   }
                 },
           onTapDown: (d) {
