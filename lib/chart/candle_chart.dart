@@ -117,6 +117,11 @@ class CandleChartPanel extends StatefulWidget {
   /// Latest live price for the dashed last-price line (optional).
   final double? livePrice;
 
+  /// Bar Replay entry point. When set, a Replay chip appears in the
+  /// toolbar; [replayOn] highlights it while a replay session runs.
+  final VoidCallback? onReplay;
+  final bool replayOn;
+
   /// Fullscreen mode: the chart body fills the available height instead
   /// of the fixed in-page height.
   final bool expand;
@@ -129,6 +134,8 @@ class CandleChartPanel extends StatefulWidget {
     super.key,
     this.loader,
     this.onAlertPrice,
+    this.onReplay,
+    this.replayOn = false,
     this.livePrice,
     this.expand = false,
     this.rangeMode = false,
@@ -1296,6 +1303,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
     _timer = Timer.periodic(interval.refresh, (_) => _load(quiet: true));
   }
 
+  /// Re-invoke the loader without a loading spinner (bar-replay steps,
+  /// external data refresh). Same path as the periodic refresh.
+  Future<void> reload() => _load(quiet: true);
+
   Future<void> _load({bool quiet = false}) async {
     final loader = widget.loader;
     if (loader == null) return;
@@ -1532,6 +1543,13 @@ class CandleChartPanelState extends State<CandleChartPanel>
                               fibMode = false;
                             }
                           }),
+                        ),
+                      if (widget.onReplay != null)
+                        _indChip(
+                          'Replay',
+                          widget.replayOn,
+                          const Color(0xFF9B7BFF),
+                          widget.onReplay!,
                         ),
                       _indChip(
                         'Draw',

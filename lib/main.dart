@@ -1,4 +1,5 @@
 import 'execution_ledger.dart';
+import 'replay.dart';
 import 'trade_safety.dart';
 import 'journal_record.dart';
 import 'strategies_screen.dart';
@@ -1543,6 +1544,226 @@ class _TradeTabState extends State<TradeTab> {
 
   final chartKey = GlobalKey<CandleChartPanelState>();
   bool explaining = false;
+
+  // ---- Bar replay (practice trading over historical bars) ----
+  ReplayController? _replay;
+  List<Candle>? _replayCandles;
+  bool _pickingReplayStart = false;
+  bool _replayPlaying = false;
+  Timer? _replayTimer;
+  double _replaySpeed = 1;
+
+  Widget _replayControls() {
+    final r = _replay!;
+    final pnl = r.equity - r.startBalance;
+    final pnlColor = pnl >= 0 ? cGreen : const Color(0xFFDE1557);
+    final lt = r.time.toLocal();
+    final stamp =
+        '${lt.month.toString().padLeft(2, '0')}-${lt.day.toString().padLeft(2, '0')} '
+        '${lt.hour.toString().padLeft(2, '0')}:${lt.minute.toString().padLeft(2, '0')}';
+    Widget orderButton(String label, bool buy) => Expanded(
+      child: Material(
+        color: buy ? cGreen : const Color(0xFFDE1557),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _replayOrder(buy),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF9B7BFF),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'REPLAY',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$stamp · P&L ${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}'
+                '${r.open.isNotEmpty ? ' · ${r.open.length} open' : ''}',
+                style: TextStyle(fontSize: 12, color: pnlColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: _replayCycleSpeed,
+              child: Text(
+                'x${_replaySpeed.toInt()}',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            InkWell(
+              onTap: _exitReplay,
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.close, size: 18, color: cDim),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            orderButton('SELL', false),
+            const SizedBox(width: 8),
+            InkWell(
+              key: const ValueKey('replay-play'),
+              onTap: r.atEnd ? null : _replayPlayPause,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  _replayPlaying ? Icons.pause : Icons.play_arrow,
+                  color: r.atEnd ? cDim : Colors.white,
+                ),
+              ),
+            ),
+            InkWell(
+              key: const ValueKey('replay-step'),
+              onTap: r.atEnd ? null : _replayStep,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  Icons.skip_next,
+                  color: r.atEnd ? cDim : Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            orderButton('BUY', true),
+          ],
+        ),
+        if (r.open.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => setState(() => r.closeAll()),
+              child: const Text('Close all', style: TextStyle(fontSize: 12)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _toggleReplay() {
+    if (_replay != null) {
+      _exitReplay();
+      return;
+    }
+    final chart = chartKey.currentState;
+    if (chart == null || chart.candles.length < 30) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chart still loading - try again.')),
+      );
+      return;
+    }
+    setState(() => _pickingReplayStart = true);
+  }
+
+  Future<void> _startReplay() async {
+    final chart = chartKey.currentState;
+    if (chart == null) return;
+    final full = List<Candle>.of(chart.candles);
+    final sel = chart.selected ?? (full.length - 60);
+    final start = sel.clamp(20, full.length - 1) + 1;
+    setState(() {
+      _replayCandles = full;
+      _replay = ReplayController(full, startIndex: start);
+      _pickingReplayStart = false;
+      _replayPlaying = false;
+    });
+    await chart.reload();
+  }
+
+  Future<void> _replayStep() async {
+    final r = _replay;
+    if (r == null) return;
+    setState(() {
+      r.step();
+      if (r.atEnd) {
+        r.settle();
+        _replayPlaying = false;
+        _replayTimer?.cancel();
+      }
+    });
+    await chartKey.currentState?.reload();
+  }
+
+  void _replayPlayPause() {
+    setState(() {
+      _replayPlaying = !_replayPlaying;
+      _replayTimer?.cancel();
+      if (_replayPlaying) {
+        _replayTimer = Timer.periodic(
+          Duration(milliseconds: (700 ~/ _replaySpeed).clamp(80, 2000)),
+          (_) => _replayStep(),
+        );
+      }
+    });
+  }
+
+  void _replayCycleSpeed() {
+    setState(() {
+      _replaySpeed = _replaySpeed == 1 ? 2 : (_replaySpeed == 2 ? 4 : 1);
+      if (_replayPlaying) {
+        _replayPlaying = false;
+        _replayTimer?.cancel();
+        _replayPlayPause();
+      }
+    });
+  }
+
+  void _replayOrder(bool buy) {
+    final r = _replay;
+    if (r == null) return;
+    setState(() {
+      final err = r.openMarket(buy);
+      if (err != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(err)));
+      }
+    });
+  }
+
+  void _exitReplay() {
+    _replayTimer?.cancel();
+    setState(() {
+      _replay = null;
+      _replayCandles = null;
+      _pickingReplayStart = false;
+      _replayPlaying = false;
+    });
+    chartKey.currentState?.reload();
+  }
+
   Future<void> explainChart() async {
     Map<String, dynamic> data;
     try {
@@ -1665,6 +1886,7 @@ class _TradeTabState extends State<TradeTab> {
 
   @override
   void dispose() {
+    _replayTimer?.cancel();
     qtyCtrl.dispose();
     slCtrl.dispose();
     tpCtrl.dispose();
@@ -1741,6 +1963,10 @@ class _TradeTabState extends State<TradeTab> {
                       (_candles == null
                           ? null
                           : (iv) async {
+                              final replay = _replay;
+                              if (replay != null) {
+                                return _replayCandles!.sublist(0, replay.index);
+                              }
                               final spec = tradeRangeSpec(iv);
                               final data = await _candles!.fetchCandles(
                                 Instrument.xauUsd,
@@ -1750,27 +1976,84 @@ class _TradeTabState extends State<TradeTab> {
                               return trimTradeRange(data, iv);
                             }),
                   marketUpdates: app,
-                  marketSnapshot: () => ChartMarketSnapshot(
-                    price: app.chartBasis,
-                    fresh: app.priceFresh,
-                    bid: app.bid,
-                    ask: app.ask,
-                    liveTicks: app.liveTicks,
-                    positions: [
-                      for (final record in app.positions)
-                        if (ChartPosition.fromRecord(
-                              record,
-                              mark: app.exitSidePrice(
-                                record['direction'] == 'buy' ? 'buy' : 'sell',
-                              ),
-                              fresh: app.priceFresh,
-                            )
+                  onReplay: _toggleReplay,
+                  replayOn: _replay != null || _pickingReplayStart,
+                  marketSnapshot: () {
+                    final replay = _replay;
+                    if (replay != null) {
+                      return ChartMarketSnapshot(
+                        price: replay.price,
+                        fresh: false,
+                        positions: [
+                          for (final p in replay.open)
+                            ChartPosition(
+                              buy: p.buy,
+                              entry: p.entry,
+                              quantity: p.size,
+                              stop: p.stop,
+                              target: p.target,
+                              pnl: p.unrealized(replay.price),
+                            ),
+                        ],
+                      );
+                    }
+                    return ChartMarketSnapshot(
+                      price: app.chartBasis,
+                      fresh: app.priceFresh,
+                      bid: app.bid,
+                      ask: app.ask,
+                      liveTicks: app.liveTicks,
+                      positions: [
+                        for (final record in app.positions)
+                          if (ChartPosition.fromRecord(
+                                record,
+                                mark: app.exitSidePrice(
+                                  record['direction'] == 'buy' ? 'buy' : 'sell',
+                                ),
+                                fresh: app.priceFresh,
+                              )
                             case final ChartPosition position)
-                          position,
-                    ],
-                  ),
-                  livePrice: app.chartBasis,
+                            position,
+                      ],
+                    );
+                  },
+                  livePrice: _replay?.price ?? app.chartBasis,
                 ),
+                if (_pickingReplayStart)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B2440),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF9B7BFF)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Tap the candle where replay should start',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF9B7BFF),
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _startReplay,
+                          child: const Text('Start'),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _pickingReplayStart = false),
+                          child: const Text('Cancel'),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (app.pendingOrders != null) ...[
                   const SizedBox(height: 12),
                   ...app.pendingOrders!.orders
@@ -2080,14 +2363,17 @@ class _TradeTabState extends State<TradeTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Material(
-                            color: const Color(0xFFDE1557),
+                if (_replay != null)
+                  _replayControls()
+                else
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Material(
+                              color: const Color(0xFFDE1557),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
