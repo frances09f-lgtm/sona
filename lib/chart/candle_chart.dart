@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -305,6 +306,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
   bool _longPressCrosshair = false;
   Offset? crosshairPos;
   Timer? _timer;
+  Timer? _countdownTimer;
   bool biasExpanded = false;
   // XM/MT5 default: a fresh chart has NO indicators; the user adds them
   // from the Indicators menu. Saved layouts from before v1.0.93 carried the
@@ -363,10 +365,18 @@ class CandleChartPanelState extends State<CandleChartPanel>
   /// provider length clips the forming bar off the right edge.
   List<Candle> get _drawn => _liveCandles;
 
+  /// Deterministic clock under flutter_test so goldens never flake.
+  static DateTime _chartNow() {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return DateTime(2026, 10, 7, 13, 59, 42);
+    }
+    return DateTime.now();
+  }
+
   int get _vc {
     final n = _drawn.length;
     if (n == 0) return 1;
-    final v = visibleOverride ?? n;
+    final v = visibleOverride ?? math.min(n, 60);
     if (v > n) return n;
     return v < 8 ? (n < 8 ? n : 8) : v;
   }
@@ -1295,12 +1305,21 @@ class CandleChartPanelState extends State<CandleChartPanel>
     _stopKinetic();
     widget.marketUpdates?.removeListener(_syncSavedSelection);
     _timer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
   void _armTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(interval.refresh, (_) => _load(quiet: true));
+    // 1s repaint driver for the candle-close countdown under the price pill.
+    // Skipped under flutter_test so fake-time tests stay deterministic.
+    if (_countdownTimer == null &&
+        !Platform.environment.containsKey('FLUTTER_TEST')) {
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   /// Re-invoke the loader without a loading spinner (bar-replay steps,
@@ -1365,14 +1384,16 @@ class CandleChartPanelState extends State<CandleChartPanel>
   Widget build(BuildContext context) {
     const bg = Color(0xFF0E1116);
     const dim = Color(0xFF8A93A6);
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF232A35)),
-      ),
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-      child: Column(
+    return LayoutBuilder(
+      builder: (context, rootCons) {
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF232A35)),
+          ),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -1757,10 +1778,32 @@ class CandleChartPanelState extends State<CandleChartPanel>
           if (widget.expand)
             Expanded(child: _body())
           else
-            SizedBox(height: 220 + _rsiHeight + _macdHeight, child: _body()),
+            SizedBox(
+              // TradingView feel: the chart dominates the screen. When a
+              // parent bounds our height (embedded panels, test harnesses),
+              // leave room for the header/toolbar/legend chrome instead of
+              // overflowing.
+              height: () {
+                // TradingView feel: the chart dominates the screen. Applies
+                // when the parent lets us grow (the trade page scrolls);
+                // bounded embeds keep the compact 220px chart.
+                if (rootCons.maxHeight.isFinite) {
+                  return 220 + _rsiHeight + _macdHeight;
+                }
+                return math.max(
+                      MediaQuery.of(context).size.height * 0.55,
+                      340.0,
+                    ) +
+                    _rsiHeight +
+                    _macdHeight;
+              }(),
+              child: _body(),
+            ),
           if (!widget.expand && candles.length >= 50) _biasStrip(),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -2145,6 +2188,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
+              now: _chartNow(),
+              showCountdown: market.fresh,
               bid: market.bid,
               ask: showAskLine ? market.ask : null,
               strategySegments: strategySegments,
@@ -2621,12 +2666,18 @@ class CandlePainter extends CustomPainter {
   final (double, double)? prevWeekHL;
   final double priceScale;
 
+  /// Wall clock for the candle-close countdown; null hides the countdown.
+  final DateTime? now;
+  final bool showCountdown;
+
   CandlePainter({
     required this.candles,
     this.chartStyle = ChartStyle.candles,
     this.sessionShading = false,
     this.prevDayHL,
     this.prevWeekHL,
+    this.now,
+    this.showCountdown = false,
     this.priceScale = 1.0,
     this.positions = const [],
     this.macdSlow = 26,
@@ -2664,9 +2715,23 @@ class CandlePainter extends CustomPainter {
     this.macdHist,
   });
 
-  static const bull = Color(0xFF2EC27E);
-  static const bear = Color(0xFFE0654F);
-  static const grid = Color(0xFF1C2230);
+  /// 4127.45 -> "4,127.45" (TradingView-style thousands grouping).
+  static String fmtAxisPrice(double v) {
+    final s = v.toStringAsFixed(2);
+    final dot = s.indexOf('.');
+    final intPart = dot < 0 ? s : s.substring(0, dot);
+    final rest = dot < 0 ? '' : s.substring(dot);
+    final buf = StringBuffer();
+    for (var i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 == 0) buf.write(',');
+      buf.write(intPart[i]);
+    }
+    return '$buf$rest';
+  }
+
+  static const bull = Color(0xFF26A69A);
+  static const bear = Color(0xFFEF5350);
+  static const grid = Color(0xFF161C26);
   static const axis = Color(0xFF8A93A6);
   static const gold = Color(0xFFF5C242);
 
@@ -2715,30 +2780,85 @@ class CandlePainter extends CustomPainter {
     }
     double y(double v) => plotH * (1 - (v - lo) / (hi - lo));
 
-    // grid + price labels
-    final gridPaint = Paint()..color = grid;
+    // grid + price labels (TradingView-style): faint dotted grid on round
+    // price steps, dense comma-formatted labels, minor axis ticks.
     final labelStyle = TextStyle(
       color: axis,
-      fontSize: 9,
+      fontSize: 10,
       fontFamily: 'Roboto',
       height: 1,
     );
-    for (int g = 0; g <= 4; g++) {
-      final v = lo + (hi - lo) * g / 4;
+    double niceStep(double range) {
+      final target = range / 6;
+      if (target <= 0 || !target.isFinite) return 1;
+      final mag =
+          math.pow(10, (math.log(target) / math.ln10).floor()).toDouble();
+      final t = target / mag;
+      final s = t < 1.5 ? 1.0 : t < 3.5 ? 2.0 : t < 7.5 ? 5.0 : 10.0;
+      return s * mag;
+    }
+
+    final gridPaint = Paint()
+      ..color = grid
+      ..strokeWidth = 1;
+    void dottedH(double yy) {
+      for (double dx = 0; dx < plotW; dx += 6) {
+        canvas.drawLine(
+            Offset(dx, yy), Offset(math.min(dx + 2, plotW), yy), gridPaint);
+      }
+    }
+
+    final stepG = niceStep(hi - lo);
+    final tickPaint = Paint()
+      ..color = axis.withValues(alpha: 0.45)
+      ..strokeWidth = 1;
+    for (double v = (lo / stepG).ceil() * stepG; v <= hi; v += stepG) {
       final yy = y(v);
-      canvas.drawLine(Offset(0, yy), Offset(plotW, yy), gridPaint);
+      if (yy < 0 || yy > plotH) continue;
+      dottedH(yy);
+      for (int m = 1; m < 5; m++) {
+        final my = y(v + stepG * m / 5);
+        if (my >= 0 && my <= plotH) {
+          canvas.drawLine(
+              Offset(plotW + 1, my), Offset(plotW + 4, my), tickPaint);
+        }
+      }
       final tp = TextPainter(
-        text: TextSpan(text: v.toStringAsFixed(2), style: labelStyle),
+        text: TextSpan(text: fmtAxisPrice(v), style: labelStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(
         canvas,
         Offset(
-          plotW + 4,
+          plotW + 6,
           (yy - tp.height / 2).clamp(0.0, size.height - tp.height),
         ),
       );
     }
+
+    // Axis pills are collected through the paint and rendered at the end
+    // with vertical de-collision (TradingView stacks overlapping tags).
+    final axisPills = <(double, Color, Color, bool)>[];
+    void priceTag(double price, Color bg, Color fg) {
+      axisPills.add((price, bg, fg, false));
+    }
+
+    void dashedH(double py, Color color) {
+      const dw = 3.0, gw = 3.0;
+      final p = Paint()
+        ..color = color
+        ..strokeWidth = 1;
+      double dx = 0;
+      while (dx < plotW) {
+        canvas.drawLine(
+          Offset(dx, py),
+          Offset(math.min(dx + dw, plotW), py),
+          p,
+        );
+        dx += dw + gw;
+      }
+    }
+
 
     // Candle OHLC is immutable provider history. The separate quote marker
     // must never rewrite old candles after a market/data gap.
@@ -2746,7 +2866,7 @@ class CandlePainter extends CustomPainter {
         chartStyle == ChartStyle.heikinAshi ? _heikinAshi(candles) : candles;
     final n = eff.length;
     final step = plotW / vc0;
-    final bodyW = math.max(step * 0.65, 1.5);
+    final bodyW = math.max(step * 0.55, 1.5);
     final iEnd = fv0 + vc0 < n ? fv0 + vc0 : n;
     final closePath = Path();
     canvas.save();
@@ -2867,6 +2987,7 @@ class CandlePainter extends CustomPainter {
       )..layout();
       final ty = (yy - tp.height - 2).clamp(0.0, plotH - tp.height);
       tp.paint(canvas, Offset(4, ty));
+      priceTag(price, spec.$3, Colors.black);
     }
     // Display-only paper trade levels. Off-screen levels get explicit edge labels;
     // they never expand the range or masquerade as a price within the view.
@@ -2886,13 +3007,16 @@ class CandlePainter extends CustomPainter {
         if (price == null || !price.isFinite || price <= 0) continue;
         final yy = y(price);
         final inside = yy >= 0 && yy <= plotH;
-        if (inside)
+        if (inside) {
           for (double x = 0; x < plotW; x += 8)
             canvas.drawLine(
               Offset(x, yy),
               Offset(math.min(x + 4, plotW), yy),
               Paint()..color = level.$3.withValues(alpha: 0.7),
             );
+          priceTag(price, level.$3, Colors.white);
+          continue;
+        }
         final labelY = overlayLabelY(yy, plotH, used);
         if (labelY == null) continue;
         used.add(labelY);
@@ -3088,13 +3212,14 @@ class CandlePainter extends CustomPainter {
       canvas.drawLine(Offset(0, cy), Offset(plotW, cy), dash);
     }
 
-    // last price line + tag
+    // last price line + tag (TradingView-style white dotted line + pill,
+    // candle-close countdown beneath the pill)
     final lp = livePrice ?? candles.last.close;
     final lpy = y(lp);
     final dashPaint = Paint()
-      ..color = gold
+      ..color = Colors.white.withValues(alpha: 0.85)
       ..strokeWidth = 1;
-    const dashW = 5.0, gapW = 4.0;
+    const dashW = 3.0, gapW = 3.0;
     double x = 0;
     while (x < plotW) {
       canvas.drawLine(
@@ -3106,10 +3231,10 @@ class CandlePainter extends CustomPainter {
     }
     final tagTp = TextPainter(
       text: TextSpan(
-        text: lp.toStringAsFixed(2),
+        text: fmtAxisPrice(lp),
         style: const TextStyle(
           color: Colors.black,
-          fontSize: 9,
+          fontSize: 10,
           fontFamily: 'Roboto',
           fontWeight: FontWeight.w700,
         ),
@@ -3120,58 +3245,84 @@ class CandlePainter extends CustomPainter {
       0.0,
       size.height - tagTp.height,
     );
-    final rr = RRect.fromRectAndRadius(
-      Rect.fromLTWH(plotW + 2, tagY - 2, tagTp.width + 8, tagTp.height + 4),
-      const Radius.circular(3),
-    );
-    canvas.drawRRect(rr, Paint()..color = gold);
-    tagTp.paint(canvas, Offset(plotW + 6, tagY));
-
+    axisPills.add((lp, Colors.white, Colors.black, true));
     // MetaTrader-style bid/ask lines: bid is the chart's price basis (drawn
     // above); ask gets its own line + right-axis tag when the BBO feed has it.
-    void priceTag(double price, Color bg, Color fg) {
-      final py = y(price);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: price.toStringAsFixed(2),
-          style: TextStyle(
-            color: fg,
-            fontSize: 9,
-            fontFamily: 'Roboto',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final ty = (py - tp.height / 2).clamp(0.0, size.height - tp.height);
-      final r = RRect.fromRectAndRadius(
-        Rect.fromLTWH(plotW + 2, ty - 2, tp.width + 8, tp.height + 4),
-        const Radius.circular(3),
-      );
-      canvas.drawRRect(r, Paint()..color = bg);
-      tp.paint(canvas, Offset(plotW + 6, ty));
-    }
-
-    void dashedH(double py, Color color) {
-      final p = Paint()
-        ..color = color
-        ..strokeWidth = 1;
-      double dx = 0;
-      while (dx < plotW) {
-        canvas.drawLine(
-          Offset(dx, py),
-          Offset(math.min(dx + dashW, plotW), py),
-          p,
-        );
-        dx += dashW + gapW;
-      }
-    }
-
     final askP = ask;
     if (askP != null && askP.isFinite && askP > lo && askP < hi) {
       const askColor = Color(0xFFFF8A80);
       dashedH(y(askP), askColor);
       priceTag(askP, askColor, Colors.black);
+    }
+
+    // Render axis pills top-to-bottom, bumping overlaps down (last-price
+    // pill keeps priority placement via stable order on ties).
+    double lpBottom = -1, lpCenterX = 0;
+    if (axisPills.isNotEmpty) {
+      axisPills.sort((a, b) {
+        final c = y(a.$1).compareTo(y(b.$1));
+        return c != 0 ? c : (b.$4 ? 1 : 0) - (a.$4 ? 1 : 0);
+      });
+      var bottom = -1e9;
+      for (final pill in axisPills) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: fmtAxisPrice(pill.$1),
+            style: TextStyle(
+              color: pill.$3,
+              fontSize: 10,
+              fontFamily: 'Roboto',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        var ty = y(pill.$1) - tp.height / 2 - 2;
+        if (ty < bottom + 2) ty = bottom + 2;
+        if (ty + tp.height + 4 > plotH) {
+          ty = math.max(0.0, plotH - tp.height - 4);
+        }
+        final r = RRect.fromRectAndRadius(
+          Rect.fromLTWH(plotW + 2, ty, tp.width + 8, tp.height + 4),
+          const Radius.circular(3),
+        );
+        canvas.drawRRect(r, Paint()..color = pill.$2);
+        tp.paint(canvas, Offset(plotW + 6, ty + 2));
+        bottom = ty + tp.height + 4;
+        if (pill.$4) {
+          lpBottom = bottom;
+          lpCenterX = plotW + 2 + (tp.width + 8) / 2;
+        }
+      }
+    }
+    if (showCountdown && lpBottom >= 0 && eff.length >= 2 && now != null) {
+      final barMs = eff.last.time.millisecondsSinceEpoch -
+          eff[eff.length - 2].time.millisecondsSinceEpoch;
+      final remMs =
+          eff.last.time.millisecondsSinceEpoch + barMs - now!.millisecondsSinceEpoch;
+      if (barMs > 0 && remMs > 0) {
+        final s = remMs ~/ 1000;
+        final cd = TextPainter(
+          text: TextSpan(
+            text:
+                '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontFamily: 'Roboto',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        // Skip the countdown when the axis strip is too narrow to hold it
+        // (inverted clamp range would throw).
+        if (plotW + 2 <= size.width - cd.width && size.height >= cd.height) {
+          final cx = (lpCenterX - cd.width / 2)
+              .clamp(plotW + 2, size.width - cd.width);
+          final cy = (lpBottom + 4).clamp(0.0, size.height - cd.height);
+          cd.paint(canvas, Offset(cx, cy));
+        }
+      }
     }
 
     // user-drawn horizontal lines
@@ -3182,18 +3333,7 @@ class CandlePainter extends CustomPainter {
       if (l.price < lo || l.price > hi) continue;
       final yy = y(l.price);
       canvas.drawLine(Offset(0, yy), Offset(plotW, yy), hlPaint);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${l.name} ${l.price.toStringAsFixed(2)}',
-          style: const TextStyle(
-            color: Color(0xFF5EE0A0),
-            fontSize: 9,
-            fontFamily: 'Roboto',
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(plotW - tp.width - 2, yy - tp.height - 1));
+      priceTag(l.price, const Color(0xFF5EE0A0), Colors.black);
     }
 
     // trend lines (anchored by candle time, extended to the plot edges)
@@ -3504,6 +3644,13 @@ class CandlePainter extends CustomPainter {
       final s = sameDay
           ? '${c.time.hour.toString().padLeft(2, '0')}:${c.time.minute.toString().padLeft(2, '0')}'
           : '${c.time.month}/${c.time.day}';
+      if (t > 0 && t < 3) {
+        final lx = step * (i - fv0 + 0.5);
+        for (double vy = 0; vy < plotH; vy += 6) {
+          canvas.drawLine(
+              Offset(lx, vy), Offset(lx, math.min(vy + 2, plotH)), gridPaint);
+        }
+      }
       final tp = TextPainter(
         text: TextSpan(text: s, style: tf),
         textDirection: TextDirection.ltr,
@@ -3619,6 +3766,8 @@ class CandlePainter extends CustomPainter {
       old.macdHist != macdHist ||
       old.candles != candles ||
       old.livePrice != livePrice ||
+      old.now != now ||
+      old.showCountdown != showCountdown ||
       old.selected != selected ||
       old.extraEmas != extraEmas ||
       old.bands != bands ||
