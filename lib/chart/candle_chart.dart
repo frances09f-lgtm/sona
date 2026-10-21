@@ -11,6 +11,7 @@ import '../market_data/models.dart';
 import 'indicators.dart';
 import '../strategy.dart' as strat;
 import 'chart_tools.dart';
+import 'session_levels.dart';
 
 /// Chart selection persisted from Sona Settings (user request: interval
 /// and range pickers live in Settings, not on the chart card).
@@ -224,6 +225,16 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     return out;
   }
 
+  DateTime _lastChartTap = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @visibleForTesting
+  void debugSetView({int? visibleCount, double? scroll}) {
+    setState(() {
+      visibleOverride = visibleCount;
+      if (scroll != null) scrollCandles = scroll;
+    });
+  }
+
   static Duration? _barDuration(String code) {
     final c = code.startsWith('range:') ? tradeRangeSpec(code).$1 : code;
     return switch (c) {
@@ -267,6 +278,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
   final Set<int> extraEmas = {};
   bool bollingerOn = false;
   bool showAskLine = false;
+  bool sessionShadingOn = true;
+  bool prevLevelsOn = true;
   List<strat.PriceActionStrategy> _strategies = [];
   List<StrategyLevelSegment> strategySegments = [];
   bool alertMode = false;
@@ -478,6 +491,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     'rsi': rsiOn,
     'macd': macdOn,
     'bollinger': bollingerOn,
+    'sessionShading': sessionShadingOn,
+    'prevLevels': prevLevelsOn,
     'extraEmas': extraEmas.toList(),
     'visibleCount': visibleOverride,
     'scrollCandles': scrollCandles,
@@ -510,6 +525,8 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     rsiOn = data['rsi'] == true;
     macdOn = data['macd'] == true;
     bollingerOn = data['bollinger'] == true;
+    sessionShadingOn = data['sessionShading'] != false;
+    prevLevelsOn = data['prevLevels'] != false;
     extraEmas
       ..clear()
       ..addAll(
@@ -520,7 +537,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
     final opts = usingRange ? tradeRanges : intervals;
     interval =
         opts.where((iv) => iv.code == data['interval']).firstOrNull ?? interval;
-    visibleOverride = (data['visibleCount'] as int?)?.clamp(15, 500);
+    visibleOverride = (data['visibleCount'] as int?)?.clamp(8, 500);
     final savedScroll = data['scrollCandles'];
     scrollCandles = savedScroll is num && savedScroll.isFinite
         ? math.max(0.0, savedScroll.toDouble())
@@ -603,7 +620,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
       extraEmas
         ..clear()
         ..addAll(extras);
-      visibleOverride = count == null ? null : count.clamp(15, 500);
+      visibleOverride = count == null ? null : count.clamp(8, 500);
       selected = null;
       alertMode = drawMode = trendMode = fibMode = false;
       pendingTrend = null;
@@ -1284,6 +1301,20 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                           pendingFib = null;
                         }),
                       ),
+                      _indChip(
+                        'Sess',
+                        sessionShadingOn,
+                        const Color(0xFF5B8DEF),
+                        () => setState(
+                            () => sessionShadingOn = !sessionShadingOn),
+                      ),
+                      _indChip(
+                        'PD/PW',
+                        prevLevelsOn,
+                        const Color(0xFFB78CFF),
+                        () =>
+                            setState(() => prevLevelsOn = !prevLevelsOn),
+                      ),
                     ],
                   ),
                 ),
@@ -1587,7 +1618,7 @@ class CandleChartPanelState extends State<CandleChartPanel> {
                   if (d.pointerCount >= 2) {
                     setState(() {
                       final v = (_scaleStartVC / d.scale).round();
-                      visibleOverride = v < 15 ? 15 : (v > n ? n : v);
+                      visibleOverride = v < 8 ? 8 : (v > n ? n : v);
                     });
                   } else {
                     final plotW = cons.maxWidth - 52.0;
@@ -1618,6 +1649,26 @@ class CandleChartPanelState extends State<CandleChartPanel> {
             }
           },
           onTapUp: (d) {
+            // TradingView-style double-tap reset (manual detection: a real
+            // onDoubleTap recognizer would delay every single tap in the
+            // gesture arena). Chart area only, plain browse mode only.
+            if (!drawMode &&
+                !trendMode &&
+                !fibMode &&
+                !crosshairMode &&
+                !alertMode &&
+                d.localPosition.dx < cons.maxWidth - rightPad) {
+              final now = DateTime.now();
+              if (now.difference(_lastChartTap).inMilliseconds < 300) {
+                _lastChartTap = DateTime.fromMillisecondsSinceEpoch(0);
+                setState(() {
+                  visibleOverride = null;
+                  scrollCandles = 0;
+                });
+                return;
+              }
+              _lastChartTap = now;
+            }
             // Draw-mode add/remove lives on tap-UP so a drag-move (pan wins
             // the arena) never deletes the line being moved.
             if (!drawMode &&
@@ -1643,6 +1694,9 @@ class CandleChartPanelState extends State<CandleChartPanel> {
             size: Size(cons.maxWidth, cons.maxHeight),
             painter: CandlePainter(
               candles: _liveCandles,
+              sessionShading: sessionShadingOn,
+              prevDayHL: prevLevelsOn ? previousDayHL(candles) : null,
+              prevWeekHL: prevLevelsOn ? previousWeekHL(candles) : null,
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
@@ -1981,10 +2035,16 @@ class CandlePainter extends CustomPainter {
   final int macdSlow, macdSignalPeriod;
   final int firstVisible;
   final int visibleCount;
+  final bool sessionShading;
+  final (double, double)? prevDayHL;
+  final (double, double)? prevWeekHL;
 
   CandlePainter({
     required this.candles,
     this.chartStyle = ChartStyle.candles,
+    this.sessionShading = false,
+    this.prevDayHL,
+    this.prevWeekHL,
     this.positions = const [],
     this.macdSlow = 26,
     this.macdSignalPeriod = 9,
@@ -2051,6 +2111,11 @@ class CandlePainter extends CustomPainter {
       hi = math.max(hi, livePrice!);
       lo = math.min(lo, livePrice!);
     }
+    for (final hl in [prevDayHL, prevWeekHL]) {
+      if (hl == null) continue;
+      hi = math.max(hi, hl.$1);
+      lo = math.min(lo, hl.$2);
+    }
     final pad = math.max((hi - lo) * 0.05, 0.01);
     hi += pad;
     lo -= pad;
@@ -2092,6 +2157,37 @@ class CandlePainter extends CustomPainter {
     final closePath = Path();
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
+    if (sessionShading) {
+      // Translucent vertical bands per market session (UTC reference
+      // windows, matching the sessions strip). Overlaps blend.
+      const bandColors = {
+        ChartSession.asia: Color(0x0D2EC4B6),
+        ChartSession.london: Color(0x0F5B8DEF),
+        ChartSession.newYork: Color(0x0DF5A142),
+      };
+      for (final entry in bandColors.entries) {
+        final paint = Paint()..color = entry.value;
+        int? bandStart;
+        for (int i = fv0; i <= iEnd; i++) {
+          final active = i < iEnd &&
+              sessionsAt(candles[i].time).contains(entry.key);
+          if (active && bandStart == null) {
+            bandStart = i;
+          } else if (!active && bandStart != null) {
+            canvas.drawRect(
+              Rect.fromLTRB(
+                step * (bandStart - fv0),
+                0,
+                step * (i - fv0),
+                plotH,
+              ),
+              paint,
+            );
+            bandStart = null;
+          }
+        }
+      }
+    }
     for (int i = fv0; i < iEnd; i++) {
       final c = eff[i];
       final up = c.close >= c.open;
@@ -2145,6 +2241,39 @@ class CandlePainter extends CustomPainter {
           ..strokeWidth = 1.6,
       );
     canvas.restore();
+    // Previous day/week high-low reference lines (NY-close sessions,
+    // TradingView/OANDA style). Dashed, subtle, labeled at the left edge.
+    for (final spec in [
+      (prevDayHL?.$1, 'PDH', const Color(0xFF9AA7BD)),
+      (prevDayHL?.$2, 'PDL', const Color(0xFF9AA7BD)),
+      (prevWeekHL?.$1, 'PWH', const Color(0xFFB78CFF)),
+      (prevWeekHL?.$2, 'PWL', const Color(0xFFB78CFF)),
+    ]) {
+      final price = spec.$1;
+      if (price == null) continue;
+      final yy = y(price);
+      if (yy < 0 || yy > plotH) continue;
+      final lp = Paint()
+        ..color = spec.$3.withValues(alpha: 0.75)
+        ..strokeWidth = 1;
+      for (double x = 0; x < plotW; x += 10) {
+        canvas.drawLine(Offset(x, yy), Offset(math.min(x + 5, plotW), yy), lp);
+      }
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${spec.$2} ${price.toStringAsFixed(2)}',
+          style: TextStyle(
+            color: spec.$3,
+            fontSize: 9,
+            fontFamily: 'Roboto',
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final ty = (yy - tp.height - 2).clamp(0.0, plotH - tp.height);
+      tp.paint(canvas, Offset(4, ty));
+    }
     // Display-only paper trade levels. Off-screen levels get explicit edge labels;
     // they never expand the range or masquerade as a price within the view.
     final used = <double>[];

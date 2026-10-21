@@ -9,7 +9,7 @@ Candle c(DateTime t, double o, double h, double l, double cl) =>
 /// 15-minute candles for two hours plus a bit: hour 1 ranges 90..110,
 /// hour 2 ranges 95..115, then price closes above hour-2 high.
 List<Candle> sample() {
-  final t0 = DateTime(2026, 10, 20, 9, 0);
+  final t0 = DateTime.utc(2026, 10, 20, 9, 0);
   final out = <Candle>[];
   // hour 1: 09:00-09:45, range 90..110
   for (var i = 0; i < 4; i++) {
@@ -37,7 +37,8 @@ void main() {
     expect(hours[0].low, 90);
     expect(hours[1].high, 115);
     expect(hours[1].low, 95);
-    expect(hours[0].hourStart, DateTime(2026, 10, 20, 9, 0));
+    expect(hours[0].hourStart.millisecondsSinceEpoch,
+      DateTime.utc(2026, 10, 20, 9, 0).millisecondsSinceEpoch);
   });
 
   test('strategySegments mark every closed hour and stop at the break', () {
@@ -49,7 +50,7 @@ void main() {
     final h2High = segs.firstWhere((x) => x.isHigh && x.price == 115);
     // hour-1 high (110): broken by the 11:00 close at 118
     expect(h1High.broken, isTrue);
-    expect(h1High.end, DateTime(2026, 10, 20, 11, 0));
+    expect(h1High.end, DateTime.utc(2026, 10, 20, 11, 0));
     // hour-2 high (115): also broken by the same close at 118
     expect(h2High.broken, isTrue);
     // lows never broken (no close below them)
@@ -70,7 +71,7 @@ void main() {
   });
 
   test('TP hits at rrMultiple x risk', () {
-    final t0 = DateTime(2026, 10, 20, 9, 0);
+    final t0 = DateTime.utc(2026, 10, 20, 9, 0);
     final out = <Candle>[];
     for (var i = 0; i < 4; i++) {
       out.add(c(t0.add(Duration(minutes: 15 * i)), 100, 110, 90, 100));
@@ -88,7 +89,7 @@ void main() {
   });
 
   test('short side mirrors: close below hour low enters short', () {
-    final t0 = DateTime(2026, 10, 20, 9, 0);
+    final t0 = DateTime.utc(2026, 10, 20, 9, 0);
     final out = <Candle>[];
     for (var i = 0; i < 4; i++) {
       out.add(c(t0.add(Duration(minutes: 15 * i)), 100, 110, 90, 100));
@@ -106,7 +107,7 @@ void main() {
   });
 
   test('one trade at a time and open trade closes at end of data', () {
-    final t0 = DateTime(2026, 10, 20, 9, 0);
+    final t0 = DateTime.utc(2026, 10, 20, 9, 0);
     final out = <Candle>[];
     for (var i = 0; i < 4; i++) {
       out.add(c(t0.add(Duration(minutes: 15 * i)), 100, 110, 90, 100));

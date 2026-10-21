@@ -1,2 +1,5 @@
-- Strategy 1-hour levels now align to UTC hour boundaries, matching TradingView/OANDA hourly candles. Previously they were bucketed on device-local (IST) hours, offset 30 minutes, so line levels differed from your TradingView chart. Backtests align the same way.
-- Displayed times are unchanged (still your local time).
+- Strategy 1-hour levels now align to UTC hour boundaries, matching TradingView/OANDA hourly candles (previously offset 30 minutes on IST devices). Backtests align the same way.
+- Session shading: translucent Asia/London/New York bands behind the candles (UTC reference windows). Toggle: Sess chip.
+- Previous day/week high-low lines (PDH/PDL/PWH/PWL), NY 5pm-close days/weeks like TradingView. Toggle: PD/PW chip.
+- Double-tap the chart to reset zoom and scroll to the newest candle.
+- Pinch zoom now goes down to 8 visible bars (was 15).
