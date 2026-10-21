@@ -1,4 +1,9 @@
-- Trade page rebuilt broker-style: borderless full-width chart, range chips (1H 1D 1W 1M 3M 1Y) under it, chart-style and fullscreen buttons beside the chips. OHLC/positions text line collapsed into the chart.
-- New fullscreen chart editor (portrait, reference-matched): top bar with symbol, tool row (timeframe, candle style, indicators, templates), left vertical drawing toolbar (crosshair, trend, channel, rectangle, fib, brush, ruler, magnet, alert, replay, delete-all), floating SELL/BUY pills with live spread, bottom bar with Date Range, live UTC clock and auto.
-- Floating SELL/BUY pills in the editor close it and pre-select that order side on the trade page.
-- TradingView-feel chart polish: faint dotted grid, comma-formatted round-step axis labels, white last-price pill with candle-close countdown, colliding-free axis pills for positions and levels, TradingView candle colors, and the chart now opens on the newest 60 bars.
+- True black chart background and every dotted grid line removed (user request: clean chart). The last-price line stays, now solid white; the dashed ask line is gone (its axis pill remains).
+- Previous day/week levels and session shading now default OFF, with a one-time switch-off on existing installs. Settings toggles remain if you want them back.
+- Undo/redo for every drawing operation (lines, channels, rectangles, fibs, levels, deletes, clear-all), live in the fullscreen editor tool row.
+- Chart templates: save the current style/indicator/zoom setup under a name, apply or delete it later. Stored on-device.
+- Editor overlay shows the day-change figure (+2.06 (+0.05%) style) next to the price.
+- Candle-close countdown shows h:mm:ss past one hour; axis labels no longer collide with the price pill and countdown.
+- Interval labels now TradingView-style: 1m 5m 15m 30m 1h 4h - the 5-minute chart was always there as M5, now easy to find in the editor timeframe popup and Settings.
+- Switching timeframe or range resets to the default newest-60-bars view, so candle width is sane at every range.
+- Star and gear placeholders on the editor bottom bar.
