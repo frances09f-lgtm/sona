@@ -82,6 +82,54 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
+  testWidgets('price-axis drag scales the price range, double-tap resets',
+      (t) async {
+    final key = await pumpChart(t);
+    final st = key.currentState!;
+    st.debugSetView(visibleCount: 60, scroll: 0);
+    await t.pumpAndSettle();
+    final rect = t.getRect(find.byType(CandleChartPanel));
+    // Vertical drag on the right price axis pad (last ~40px), downward =
+    // expand the range.
+    final g = await t
+        .startGesture(Offset(rect.right - 20, rect.center.dy - 60));
+    await t.pump();
+    for (var i = 0; i < 10; i++) {
+      await g.moveBy(const Offset(0, 12));
+      await t.pump();
+    }
+    await g.up();
+    await t.pumpAndSettle();
+    // ignore: avoid_print
+    print('PRICESCALE after drag: ${st.debugPriceScale}');
+    expect(st.debugPriceScale > 1.0, isTrue,
+        reason: 'dragging the price axis down should expand the range');
+    // Double-tap on the chart area resets everything incl. the price scale.
+    await t.tapAt(rect.center);
+    await t.pump(const Duration(milliseconds: 60));
+    await t.tapAt(rect.center);
+    await t.pumpAndSettle();
+    expect(st.debugPriceScale, 1.0);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('press-and-hold shows the crosshair and drags it', (t) async {
+    final key = await pumpChart(t);
+    final st = key.currentState!;
+    final center = t.getCenter(find.byType(CandleChartPanel));
+    final g = await t.startGesture(center);
+    await t.pump(const Duration(milliseconds: 600)); // long-press timeout
+    expect(st.crosshairMode, isTrue);
+    expect(st.crosshairPos, isNotNull);
+    await g.moveBy(const Offset(40, -30));
+    await t.pump();
+    expect(st.crosshairPos, isNot(center));
+    await g.up();
+    await t.pumpAndSettle();
+    expect(st.crosshairMode, isTrue, reason: 'stays until toggled off');
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets('right-edge margin allows ~5 bars past the newest', (t) async {
     final key = await pumpChart(t);
     final st = key.currentState!;

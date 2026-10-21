@@ -227,6 +227,19 @@ class CandleChartPanelState extends State<CandleChartPanel>
   }
 
   DateTime _lastChartTap = DateTime.fromMillisecondsSinceEpoch(0);
+  // Price-axis drag (TradingView-style vertical price scale): 1.0 = auto.
+  double _priceScale = 1.0;
+  bool _axisDrag = false;
+  double _axisStartY = 0, _axisStartScale = 1.0;
+
+  (double, double) _applyPriceScale(double hi, double lo) {
+    if (_priceScale == 1.0) return (hi, lo);
+    final mid = (hi + lo) / 2, half = (hi - lo) / 2 * _priceScale;
+    return (mid + half, mid - half);
+  }
+
+  @visibleForTesting
+  double get debugPriceScale => _priceScale;
 
   @visibleForTesting
   void debugSetView({int? visibleCount, double? scroll}) {
@@ -265,6 +278,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
   // one-finger drag moves the crosshair freely (price on the right axis,
   // date/time on the bottom axis, OHLC caption at the touched bar).
   bool crosshairMode = false;
+  bool _longPressCrosshair = false;
   Offset? crosshairPos;
   Timer? _timer;
   bool biasExpanded = false;
@@ -351,6 +365,13 @@ class CandleChartPanelState extends State<CandleChartPanel>
     if (chartPrice != null) {
       hi = hi > chartPrice! ? hi : chartPrice!;
       lo = lo < chartPrice! ? lo : chartPrice!;
+    }
+    if (prevLevelsOn) {
+      for (final hl in [previousDayHL(candles), previousWeekHL(candles)]) {
+        if (hl == null) continue;
+        hi = hi > hl.$1 ? hi : hl.$1;
+        lo = lo < hl.$2 ? lo : hl.$2;
+      }
     }
     return (hi, lo);
   }
@@ -895,6 +916,31 @@ class CandleChartPanelState extends State<CandleChartPanel>
 
   /// Long-press near a drawn line: rename it (Support, Resistance, ...) or
   /// delete it (spec 9: create / edit / delete / rename).
+  bool _anyDrawingHit(Offset pos, Size size) {
+    if (candles.isEmpty) return false;
+    const bottomPad = 16.0;
+    final paneH = chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
+    final plotH = size.height - bottomPad - rsiH - macdH;
+    if (pos.dy < 0 || pos.dy > plotH) return false;
+    var (hi, lo) = _visiblePriceRange();
+    final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
+    hi += pad;
+    lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
+    final price = lo + (1 - pos.dy / plotH) * (hi - lo);
+    final range = hi - lo;
+    if (hLines.any((l) => (l.price - price).abs() < range * 0.02)) {
+      return true;
+    }
+    if (_trendHit(pos, Size(size.width, plotH), hi, lo) >= 0) return true;
+    if (_fibHit(pos, Size(size.width, plotH), hi, lo) >= 0) return true;
+    return false;
+  }
+
   Future<void> _editLineAt(Offset pos, Size size) async {
     if (hLines.isEmpty || candles.isEmpty) return;
     const bottomPad = 16.0;
@@ -907,6 +953,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
     hi += pad;
     lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
     final price = lo + (1 - pos.dy / plotH) * (hi - lo);
     final range = hi - lo;
     final idx = hLines.indexWhere(
@@ -1024,7 +1073,6 @@ class CandleChartPanelState extends State<CandleChartPanel>
   }
 
   void _startKinetic(double velPxPerSec, double plotW) {
-    debugPrint('KINETIC start velPx=$velPxPerSec plotW=$plotW vc=$_vc ptr=$_gesturePointers');
     _stopKinetic();
     final step = plotW / _vc;
     if (step <= 0) return;
@@ -1645,6 +1693,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
               : (d) {
                   _stopKinetic();
                   _gesturePointers = d.pointerCount;
+                  _axisDrag = d.pointerCount == 1 &&
+                      d.localFocalPoint.dx >= cons.maxWidth - rightPad;
+                  _axisStartY = d.localFocalPoint.dy;
+                  _axisStartScale = _priceScale;
                   _panStartScroll = scrollCandles;
                   _panStartX = d.localFocalPoint.dx;
                   _scaleStartVC = _vc.toDouble();
@@ -1665,6 +1717,18 @@ class CandleChartPanelState extends State<CandleChartPanel>
                   if (crosshairMode && d.pointerCount == 1) {
                     // MT5 crosshair mode: the drag moves the crosshair.
                     setState(() => crosshairPos = d.localFocalPoint);
+                    return;
+                  }
+                  if (_axisDrag) {
+                    // Price-axis drag: vertical stretch around the mid price
+                    // (TradingView price-scale behavior). Down = expand.
+                    setState(() {
+                      _priceScale = (_axisStartScale *
+                              math.exp(
+                                  (d.localFocalPoint.dy - _axisStartY) *
+                                      0.004))
+                          .clamp(0.2, 20.0);
+                    });
                     return;
                   }
                   if (d.pointerCount >= 2) {
@@ -1702,12 +1766,12 @@ class CandleChartPanelState extends State<CandleChartPanel>
           onScaleEnd: drawMode
               ? null
               : (d) {
-                  debugPrint('SCALEEND ptr=$_gesturePointers vx=${d.velocity.pixelsPerSecond.dx}');
-                  if (!crosshairMode && _gesturePointers == 1) {
+                  if (!_axisDrag && !crosshairMode && _gesturePointers == 1) {
                     _startKinetic(
                         d.velocity.pixelsPerSecond.dx,
                         cons.maxWidth - rightPad);
                   }
+                  _axisDrag = false;
                 },
           onTapDown: (d) {
             if (crosshairMode) {
@@ -1738,6 +1802,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                 setState(() {
                   visibleOverride = null;
                   scrollCandles = 0;
+                  _priceScale = 1.0;
                 });
                 return;
               }
@@ -1762,7 +1827,31 @@ class CandleChartPanelState extends State<CandleChartPanel>
             }
           },
           onLongPressStart: (d) {
-            _editLineAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
+            // Press-and-hold crosshair (TradingView-style) when the hold
+            // does not land on an existing drawing; line editing unchanged.
+            if (!drawMode &&
+                !trendMode &&
+                !fibMode &&
+                !alertMode &&
+                !_anyDrawingHit(
+                    d.localPosition, Size(cons.maxWidth, cons.maxHeight))) {
+              setState(() {
+                _longPressCrosshair = true;
+                crosshairMode = true;
+                crosshairPos = d.localPosition;
+              });
+            } else {
+              _editLineAt(
+                  d.localPosition, Size(cons.maxWidth, cons.maxHeight));
+            }
+          },
+          onLongPressMoveUpdate: (d) {
+            if (_longPressCrosshair) {
+              setState(() => crosshairPos = d.localPosition);
+            }
+          },
+          onLongPressEnd: (_) {
+            _longPressCrosshair = false; // crosshair stays until toggled off
           },
           child: CustomPaint(
             size: Size(cons.maxWidth, cons.maxHeight),
@@ -1771,6 +1860,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
               sessionShading: sessionShadingOn,
               prevDayHL: prevLevelsOn ? previousDayHL(candles) : null,
               prevWeekHL: prevLevelsOn ? previousWeekHL(candles) : null,
+              priceScale: _priceScale,
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
@@ -1915,6 +2005,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
     hi += pad;
     lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
     final price = lo + (1 - pos.dy / plotH) * (hi - lo);
     final n = candles.length;
     var i = (_fv + (pos.dx / plotW) * _vc).floor();
@@ -1965,6 +2058,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
     hi += pad;
     lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
     final price = lo + (1 - pos.dy / plotH) * (hi - lo);
     final n = candles.length;
     var i = (_fv + (pos.dx / plotW) * _vc).floor();
@@ -1997,6 +2093,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
     hi += pad;
     lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
     return lo + (1 - dy / plotH) * (hi - lo);
   }
 
@@ -2045,6 +2144,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
     hi += pad;
     lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
     final price = lo + (1 - pos.dy / plotH) * (hi - lo);
     // remove if tapping within 1% of range of an existing line
     final range = hi - lo;
@@ -2112,6 +2214,7 @@ class CandlePainter extends CustomPainter {
   final bool sessionShading;
   final (double, double)? prevDayHL;
   final (double, double)? prevWeekHL;
+  final double priceScale;
 
   CandlePainter({
     required this.candles,
@@ -2119,6 +2222,7 @@ class CandlePainter extends CustomPainter {
     this.sessionShading = false,
     this.prevDayHL,
     this.prevWeekHL,
+    this.priceScale = 1.0,
     this.positions = const [],
     this.macdSlow = 26,
     this.macdSignalPeriod = 9,
@@ -2193,6 +2297,11 @@ class CandlePainter extends CustomPainter {
     final pad = math.max((hi - lo) * 0.05, 0.01);
     hi += pad;
     lo -= pad;
+    if (priceScale != 1.0) {
+      final mid = (hi + lo) / 2, half = (hi - lo) / 2 * priceScale;
+      hi = mid + half;
+      lo = mid - half;
+    }
     double y(double v) => plotH * (1 - (v - lo) / (hi - lo));
 
     // grid + price labels
