@@ -104,13 +104,18 @@ class HourBar {
 }
 
 /// Groups candles (any interval <= 1h) into completed 1-hour bars, aligned
-/// to wall-clock hours. The final, possibly still-forming hour is dropped:
-/// signals only ever come from CLOSED hours.
+/// to UTC hour boundaries - the same boundaries TradingView/OANDA hourly
+/// candles close on. (v1.0.99: this used the device-local hour, so an IST
+/// phone bucketed 09:30-10:30 UTC while OANDA closes 10:00-11:00 UTC - a
+/// permanent 30-minute phase shift that put strategy levels on different
+/// prices than the user's TradingView chart.) The final, possibly
+/// still-forming hour is dropped: signals only ever come from CLOSED hours.
 List<HourBar> completedHourBars(List<Candle> candles) {
   if (candles.isEmpty) return [];
   final byHour = <int, List<Candle>>{};
   for (final c in candles) {
-    final h = DateTime(c.time.year, c.time.month, c.time.day, c.time.hour)
+    final u = c.time.toUtc();
+    final h = DateTime.utc(u.year, u.month, u.day, u.hour)
         .millisecondsSinceEpoch;
     byHour.putIfAbsent(h, () => []).add(c);
   }

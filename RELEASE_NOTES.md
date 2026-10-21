@@ -1,6 +1,2 @@
-Sona 1.0.98
-
-- Chart now draws only TWO strategy lines: the high and low of the most recent closed 1-hour candle, updating each hour (the many older lines are gone). Backtests still evaluate every hour.
-- Fix: strategy levels no longer draw outside the chart - off-range levels are skipped and everything is clipped to the chart area, so nothing overlaps the GOLD header.
-- Fix: level price labels no longer stack on top of each other.
-- Fix: the Add strategy form has proper spacing - labels and boxes no longer overlap.
+- Strategy 1-hour levels now align to UTC hour boundaries, matching TradingView/OANDA hourly candles. Previously they were bucketed on device-local (IST) hours, offset 30 minutes, so line levels differed from your TradingView chart. Backtests align the same way.
+- Displayed times are unchanged (still your local time).
