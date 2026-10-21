@@ -69,7 +69,7 @@ void main() {
     final data = fakeCandles(80);
     await tester.pumpWidget(harness(data));
     await tester.pumpAndSettle();
-    for (final tf in ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1']) {
+    for (final tf in ['1m', '5m', '15m', '30m', '1h', '4h', 'D1', 'W1']) {
       expect(find.text(tf), findsNothing, reason: '$tf should be in Settings');
     }
     expect(find.text('Candle intervals'), findsNothing);
@@ -244,7 +244,7 @@ void main() {
     // Pick a candle interval: mode flips back to candles.
     await tester.tap(find.text('Candle interval'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('M5').last);
+    await tester.tap(find.text('5m').last);
     await tester.pumpAndSettle();
     final prefs2 = await SharedPreferences.getInstance();
     expect(prefs2.getString(kChartModePref), 'candles');

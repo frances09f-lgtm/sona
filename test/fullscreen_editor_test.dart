@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sona/chart/candle_chart.dart';
 import 'package:sona/chart/chart_tools.dart';
 import 'package:sona/market_data/models.dart';
@@ -38,8 +39,100 @@ List<Candle> fakeCandles(int n) {
 }
 
 void main() {
+  Future<void> pumpEditor(WidgetTester tester, List<Candle> data) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: FullscreenChartPage(
+          loader: (iv) async => data,
+          livePrice: data.last.close + 1.2,
+          rangeMode: true,
+          marketSnapshot: () => ChartMarketSnapshot(
+            price: data.last.close,
+            fresh: true,
+            bid: data.last.close - 0.18,
+            ask: data.last.close + 0.17,
+          ),
+          onTradeSide: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('editor undo/redo restores drawings', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await loadFonts();
+    final data = fakeCandles(120);
+    await pumpEditor(tester, data);
+    final panel = tester.state<CandleChartPanelState>(
+      find.byType(CandleChartPanel),
+    );
+    expect(panel.trendLines, isEmpty);
+    expect(panel.canUndo, isFalse);
+
+    // Trend mode, then two anchor taps on the chart body.
+    await tester.tap(find.byIcon(Icons.show_chart));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(CandleChartPanel));
+    await tester.tapAt(Offset(rect.left + rect.width * 0.5, rect.top + 300));
+    await tester.pumpAndSettle();
+    await tester.tapAt(Offset(rect.left + rect.width * 0.75, rect.top + 380));
+    await tester.pumpAndSettle();
+    expect(panel.trendLines.length, 1);
+    expect(panel.canUndo, isTrue);
+
+    await tester.tap(find.byIcon(Icons.undo));
+    await tester.pumpAndSettle();
+    expect(panel.trendLines, isEmpty);
+    expect(panel.canRedo, isTrue);
+
+    await tester.tap(find.byIcon(Icons.redo));
+    await tester.pumpAndSettle();
+    expect(panel.trendLines.length, 1);
+  });
+
+  testWidgets('editor templates save, list and apply', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await loadFonts();
+    final data = fakeCandles(120);
+    await pumpEditor(tester, data);
+    final panel = tester.state<CandleChartPanelState>(
+      find.byType(CandleChartPanel),
+    );
+
+    await tester.tap(find.byIcon(Icons.grid_view));
+    await tester.pumpAndSettle();
+    expect(find.text('Templates'), findsOneWidget);
+    await tester.tap(find.text('Save current as template'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Scalp setup');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    // Turn an indicator on, then re-apply the template to restore.
+    panel.setState(() => panel.rsiOn = true);
+    await tester.pumpAndSettle();
+    expect(panel.rsiOn, isTrue);
+
+    await tester.tap(find.byIcon(Icons.grid_view));
+    await tester.pumpAndSettle();
+    expect(find.text('Scalp setup'), findsOneWidget);
+    await tester.tap(find.text('Scalp setup'));
+    await tester.pumpAndSettle();
+    expect(panel.rsiOn, isFalse);
+
+    // Persists on-device.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('sona_chart_templates'), contains('Scalp setup'));
+  });
+
   testWidgets('fullscreen editor renders like the broker reference (golden)',
       (tester) async {
+    SharedPreferences.setMockInitialValues({});
     await loadFonts();
     tester.view.physicalSize = const Size(1170, 2532);
     tester.view.devicePixelRatio = 3.0;

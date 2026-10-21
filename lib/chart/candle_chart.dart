@@ -90,12 +90,12 @@ List<Candle> _heikinAshi(List<Candle> cs) {
 }
 
 const intervals = [
-  ChartInterval('1min', 'M1', Duration(seconds: 15)),
-  ChartInterval('5min', 'M5', Duration(seconds: 60)),
-  ChartInterval('15min', 'M15', Duration(minutes: 5)),
-  ChartInterval('30min', 'M30', Duration(minutes: 5)),
-  ChartInterval('1h', 'H1', Duration(minutes: 15)),
-  ChartInterval('4h', 'H4', Duration(minutes: 30)),
+  ChartInterval('1min', '1m', Duration(seconds: 15)),
+  ChartInterval('5min', '5m', Duration(seconds: 60)),
+  ChartInterval('15min', '15m', Duration(minutes: 5)),
+  ChartInterval('30min', '30m', Duration(minutes: 5)),
+  ChartInterval('1h', '1h', Duration(minutes: 15)),
+  ChartInterval('4h', '4h', Duration(minutes: 30)),
   ChartInterval('1day', 'D1', Duration(hours: 1)),
   ChartInterval('1week', 'W1', Duration(hours: 6)),
 ];
@@ -117,6 +117,8 @@ class CandleChartPanel extends StatefulWidget {
 
   /// Latest live price for the dashed last-price line (optional).
   final double? livePrice;
+
+  /// Editor overlay occupies the top-left; level labels stay clear of it.
 
   /// Bar Replay entry point. When set, a Replay chip appears in the
   /// toolbar; [replayOn] highlights it while a replay session runs.
@@ -325,8 +327,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
   final Set<int> extraEmas = {};
   bool bollingerOn = false;
   bool showAskLine = false;
-  bool sessionShadingOn = true;
-  bool prevLevelsOn = true;
+  bool sessionShadingOn = false;
+  bool prevLevelsOn = false;
   List<strat.PriceActionStrategy> _strategies = [];
   List<StrategyLevelSegment> strategySegments = [];
   bool alertMode = false;
@@ -350,6 +352,98 @@ class CandleChartPanelState extends State<CandleChartPanel>
   int? _dragLineIdx; // hLine being drag-moved in Draw mode
   final List<TrendLine> fibs = []; // fibonacci retracements (2 anchors each)
   TrendLine? pendingFib;
+
+  /// Undo/redo over drawing operations (user request, broker reference):
+  /// snapshots of every drawing list, taken before each mutation.
+  final List<Map<String, List<Map<String, Object>>>> _undoStack = [];
+  final List<Map<String, List<Map<String, Object>>>> _redoStack = [];
+
+  static Map<String, Object> _tl(TrendLine t) => {
+        't1': t.t1.millisecondsSinceEpoch,
+        'p1': t.p1,
+        't2': t.t2.millisecondsSinceEpoch,
+        'p2': t.p2,
+      };
+
+  Map<String, List<Map<String, Object>>> _drawingsSnapshot() => {
+        'h': [for (final l in hLines) {'p': l.price, 'n': l.name}],
+        't': [for (final t in trendLines) _tl(t)],
+        'r': [for (final t in rects) _tl(t)],
+        'c': [
+          for (final c in channels)
+            {
+              't1': c.t1.millisecondsSinceEpoch,
+              'p1': c.p1,
+              't2': c.t2.millisecondsSinceEpoch,
+              'p2': c.p2,
+              'dp': c.dp,
+            }
+        ],
+        'f': [for (final t in fibs) _tl(t)],
+        'm': [for (final t in rulers) _tl(t)],
+      };
+
+  void _restoreDrawings(Map<String, List<Map<String, Object>>> snap) {
+    TrendLine tl(Map<String, Object> e) => TrendLine(
+          DateTime.fromMillisecondsSinceEpoch(e['t1'] as int),
+          (e['p1'] as num).toDouble(),
+          DateTime.fromMillisecondsSinceEpoch(e['t2'] as int),
+          (e['p2'] as num).toDouble(),
+        );
+    hLines
+      ..clear()
+      ..addAll((snap['h'] ?? const []).map(
+          (e) => DrawnLine((e['p'] as num).toDouble(), e['n']?.toString() ?? 'Level')));
+    trendLines
+      ..clear()
+      ..addAll((snap['t'] ?? const []).map(tl));
+    rects
+      ..clear()
+      ..addAll((snap['r'] ?? const []).map(tl));
+    channels
+      ..clear()
+      ..addAll((snap['c'] ?? const []).map((e) => Channel(
+            DateTime.fromMillisecondsSinceEpoch(e['t1'] as int),
+            (e['p1'] as num).toDouble(),
+            DateTime.fromMillisecondsSinceEpoch(e['t2'] as int),
+            (e['p2'] as num).toDouble(),
+            (e['dp'] as num).toDouble(),
+          )));
+    fibs
+      ..clear()
+      ..addAll((snap['f'] ?? const []).map(tl));
+    rulers
+      ..clear()
+      ..addAll((snap['m'] ?? const []).map(tl));
+    pendingTrend = null;
+    pendingRect = null;
+    pendingChannel = null;
+    channelStage = 0;
+    pendingRuler = null;
+    pendingFib = null;
+    _dragLineIdx = null;
+  }
+
+  void _pushUndo() {
+    _undoStack.add(_drawingsSnapshot());
+    if (_undoStack.length > 50) _undoStack.removeAt(0);
+    _redoStack.clear();
+  }
+
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
+
+  void undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(_drawingsSnapshot());
+    setState(() => _restoreDrawings(_undoStack.removeLast()));
+  }
+
+  void redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(_drawingsSnapshot());
+    setState(() => _restoreDrawings(_redoStack.removeLast()));
+  }
 
   // Chart navigation (user request): pinch to zoom, horizontal drag to
   // scroll back through candles. scrollCandles = bars scrolled back from
@@ -436,7 +530,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     if (widget.initialLayout != null) {
       _restoreTools(widget.initialLayout!);
     } else {
-      _loadSavedSelection();
+      _loadSavedSelection().whenComplete(_migrateV122Overlays);
     }
     widget.marketUpdates?.addListener(_syncSavedSelection);
     _loadLines();
@@ -541,6 +635,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final list = range ? tradeRanges : intervals;
     final iv = list.where((e) => e.code == code).firstOrNull;
     if (iv == null) return;
+    // New timeframe: back to the default newest-bars view (sane candle
+    // width at every range; a zoom saved on another timeframe looked broken).
+    visibleOverride = null;
+    scrollCandles = 0;
     if (usingRange != range) {
       setState(() {
         usingRange = range;
@@ -554,6 +652,22 @@ class CandleChartPanelState extends State<CandleChartPanel>
     } else {
       _setInterval(iv);
     }
+  }
+
+  /// v1.2.2: session shading + previous day/week levels default OFF (user
+  /// request: "why so many lines"). Existing installs get them switched off
+  /// once; the Settings toggles can turn them back on and stay on.
+  Future<void> _migrateV122Overlays() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('sona_v122_overlay_reset') == true) return;
+      await prefs.setBool('sona_v122_overlay_reset', true);
+      if (!mounted) return;
+      setState(() {
+        sessionShadingOn = false;
+        prevLevelsOn = false;
+      });
+    } catch (_) {}
   }
 
   static const presetKey = 'sona_chart_presets';
@@ -608,8 +722,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
     rsiOn = data['rsi'] == true;
     macdOn = data['macd'] == true;
     bollingerOn = data['bollinger'] == true;
-    sessionShadingOn = data['sessionShading'] != false;
-    prevLevelsOn = data['prevLevels'] != false;
+    sessionShadingOn = data['sessionShading'] == true;
+    prevLevelsOn = data['prevLevels'] == true;
     magnetOn = data['magnet'] != false;
     extraEmas
       ..clear()
@@ -1119,7 +1233,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
         ],
       ),
     );
-    if (ok == true) await _clearAllDrawings();
+    if (ok == true) {
+      _pushUndo();
+      await _clearAllDrawings();
+    }
   }
 
   Future<void> _saveLines() async {
@@ -1207,6 +1324,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
           ),
         );
         if (delF == true) {
+          _pushUndo();
           setState(() => fibs.removeAt(fIdx));
           _saveFibs();
         }
@@ -1231,6 +1349,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
         ),
       );
       if (del == true) {
+        _pushUndo();
         setState(() => trendLines.removeAt(tIdx));
         _saveTrends();
       }
@@ -1274,6 +1393,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     );
     setState(() {
       if (act == 'delete') {
+        _pushUndo();
         hLines.removeAt(idx);
       } else if (act == 'save') {
         hLines[idx] = DrawnLine(
@@ -2216,6 +2336,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
               visibleCount: _vc,
               livePrice: chartPrice,
               now: _chartNow(),
+              reserveTopLeft: widget.chromeless && widget.expand,
               showCountdown: market.fresh,
               bid: market.bid,
               ask: showAskLine ? market.ask : null,
@@ -2410,6 +2531,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
       if (p == null) {
         pendingRect = TrendLine(a.$1, a.$2, a.$1, a.$2);
       } else {
+        _pushUndo();
         rects.add(TrendLine(p.t1, p.p1, a.$1, a.$2));
         pendingRect = null;
         _saveRects();
@@ -2438,6 +2560,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
         final onLine = t2ms == t1ms
             ? p.p2
             : p.p1 + (p.p2 - p.p1) * (ams - t1ms) / (t2ms - t1ms);
+        _pushUndo();
         channels.add(Channel(p.t1, p.p1, p.t2, p.p2, a.$2 - onLine));
         pendingChannel = null;
         channelStage = 0;
@@ -2454,6 +2577,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
       if (p == null) {
         pendingRuler = TrendLine(a.$1, a.$2, a.$1, a.$2);
       } else {
+        _pushUndo();
         rulers.add(TrendLine(p.t1, p.p1, a.$1, a.$2));
         pendingRuler = null;
         _saveRulers();
@@ -2490,6 +2614,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
         pendingTrend = TrendLine(t, price, t, price);
       } else {
         if (t == p.t1) return; // same candle - ignore
+        _pushUndo();
         trendLines.add(TrendLine(p.t1, p.p1, t, price));
         pendingTrend = null;
         _saveTrends();
@@ -2544,6 +2669,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
         pendingFib = TrendLine(t, price, t, price);
       } else {
         if (t == p.t1) return; // same candle - ignore
+        _pushUndo();
         fibs.add(TrendLine(p.t1, p.p1, t, price));
         pendingFib = null;
         _saveFibs();
@@ -2584,6 +2710,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final hit = hLines.indexWhere(
       (l) => (l.price - price).abs() < range * 0.02,
     );
+    if (hit >= 0) _pushUndo();
     setState(() => _dragLineIdx = hit >= 0 ? hit : null);
   }
 
@@ -2626,8 +2753,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
     );
     setState(() {
       if (hit >= 0) {
+        _pushUndo();
         hLines.removeAt(hit);
       } else {
+        _pushUndo();
         hLines.add(DrawnLine(price, 'Level ${hLines.length + 1}'));
       }
     });
@@ -2655,6 +2784,9 @@ class StrategyLevelSegment {
 class CandlePainter extends CustomPainter {
   final List<Candle> candles;
   final double? livePrice;
+
+  /// Editor overlay occupies the top-left; level labels stay clear of it.
+  final bool reserveTopLeft;
   final double? bid;
   final double? ask;
   final List<StrategyLevelSegment> strategySegments;
@@ -2712,6 +2844,7 @@ class CandlePainter extends CustomPainter {
     this.firstVisible = 0,
     this.visibleCount = 0,
     this.livePrice,
+    this.reserveTopLeft = false,
     this.bid,
     this.ask,
     this.strategySegments = const [],
@@ -2776,6 +2909,8 @@ class CandlePainter extends CustomPainter {
     final plotW = size.width - rightPad;
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (candles.isEmpty || plotW <= 0 || plotH <= 0) return;
+    // True black chart background (user request).
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
 
     final n0 = candles.length;
     final vc0 = visibleCount <= 0 || visibleCount > n0 ? n0 : visibleCount;
@@ -2825,24 +2960,17 @@ class CandlePainter extends CustomPainter {
       return s * mag;
     }
 
-    final gridPaint = Paint()
-      ..color = grid
-      ..strokeWidth = 1;
-    void dottedH(double yy) {
-      for (double dx = 0; dx < plotW; dx += 6) {
-        canvas.drawLine(
-            Offset(dx, yy), Offset(math.min(dx + 2, plotW), yy), gridPaint);
-      }
-    }
-
     final stepG = niceStep(hi - lo);
     final tickPaint = Paint()
       ..color = axis.withValues(alpha: 0.45)
       ..strokeWidth = 1;
+    final lpY = livePrice == null ? null : y(livePrice!);
     for (double v = (lo / stepG).ceil() * stepG; v <= hi; v += stepG) {
       final yy = y(v);
       if (yy < 0 || yy > plotH) continue;
-      dottedH(yy);
+      // The last-price pill + candle-close countdown occupy this band on the
+      // axis; a grid label behind them reads as a collision.
+      if (lpY != null && (yy - lpY).abs() < 34) continue;
       for (int m = 1; m < 5; m++) {
         final my = y(v + stepG * m / 5);
         if (my >= 0 && my <= plotH) {
@@ -2870,21 +2998,6 @@ class CandlePainter extends CustomPainter {
       axisPills.add((price, bg, fg, false));
     }
 
-    void dashedH(double py, Color color) {
-      const dw = 3.0, gw = 3.0;
-      final p = Paint()
-        ..color = color
-        ..strokeWidth = 1;
-      double dx = 0;
-      while (dx < plotW) {
-        canvas.drawLine(
-          Offset(dx, py),
-          Offset(math.min(dx + dw, plotW), py),
-          p,
-        );
-        dx += dw + gw;
-      }
-    }
 
 
     // Candle OHLC is immutable provider history. The separate quote marker
@@ -2994,26 +3107,29 @@ class CandlePainter extends CustomPainter {
       if (price == null) continue;
       final yy = y(price);
       if (yy < 0 || yy > plotH) continue;
+      final label = !reserveTopLeft || yy > 110;
       final lp = Paint()
         ..color = spec.$3.withValues(alpha: 0.75)
         ..strokeWidth = 1;
       for (double x = 0; x < plotW; x += 10) {
         canvas.drawLine(Offset(x, yy), Offset(math.min(x + 5, plotW), yy), lp);
       }
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${spec.$2} ${price.toStringAsFixed(2)}',
-          style: TextStyle(
-            color: spec.$3,
-            fontSize: 9,
-            fontFamily: 'Roboto',
-            height: 1,
+      if (label) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${spec.$2} ${price.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: spec.$3,
+              fontSize: 9,
+              fontFamily: 'Roboto',
+              height: 1,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final ty = (yy - tp.height - 2).clamp(0.0, plotH - tp.height);
-      tp.paint(canvas, Offset(4, ty));
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final ty = (yy - tp.height - 2).clamp(0.0, plotH - tp.height);
+        tp.paint(canvas, Offset(4, ty));
+      }
       priceTag(price, spec.$3, Colors.black);
     }
     // Display-only paper trade levels. Off-screen levels get explicit edge labels;
@@ -3246,16 +3362,7 @@ class CandlePainter extends CustomPainter {
     final dashPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.85)
       ..strokeWidth = 1;
-    const dashW = 3.0, gapW = 3.0;
-    double x = 0;
-    while (x < plotW) {
-      canvas.drawLine(
-        Offset(x, lpy),
-        Offset(math.min(x + dashW, plotW), lpy),
-        dashPaint,
-      );
-      x += dashW + gapW;
-    }
+    canvas.drawLine(Offset(0, lpy), Offset(plotW, lpy), dashPaint);
     final tagTp = TextPainter(
       text: TextSpan(
         text: fmtAxisPrice(lp),
@@ -3268,17 +3375,12 @@ class CandlePainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    final tagY = (lpy - tagTp.height / 2).clamp(
-      0.0,
-      size.height - tagTp.height,
-    );
     axisPills.add((lp, Colors.white, Colors.black, true));
     // MetaTrader-style bid/ask lines: bid is the chart's price basis (drawn
     // above); ask gets its own line + right-axis tag when the BBO feed has it.
     final askP = ask;
     if (askP != null && askP.isFinite && askP > lo && askP < hi) {
       const askColor = Color(0xFFFF8A80);
-      dashedH(y(askP), askColor);
       priceTag(askP, askColor, Colors.black);
     }
 
@@ -3329,10 +3431,12 @@ class CandlePainter extends CustomPainter {
           eff.last.time.millisecondsSinceEpoch + barMs - now!.millisecondsSinceEpoch;
       if (barMs > 0 && remMs > 0) {
         final s = remMs ~/ 1000;
+        final cdText = s >= 3600
+            ? '${s ~/ 3600}:${((s % 3600) ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}'
+            : '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
         final cd = TextPainter(
           text: TextSpan(
-            text:
-                '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}',
+            text: cdText,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 9,
@@ -3671,13 +3775,6 @@ class CandlePainter extends CustomPainter {
       final s = sameDay
           ? '${c.time.hour.toString().padLeft(2, '0')}:${c.time.minute.toString().padLeft(2, '0')}'
           : '${c.time.month}/${c.time.day}';
-      if (t > 0 && t < 3) {
-        final lx = step * (i - fv0 + 0.5);
-        for (double vy = 0; vy < plotH; vy += 6) {
-          canvas.drawLine(
-              Offset(lx, vy), Offset(lx, math.min(vy + 2, plotH)), gridPaint);
-        }
-      }
       final tp = TextPainter(
         text: TextSpan(text: s, style: tf),
         textDirection: TextDirection.ltr,
@@ -3847,6 +3944,9 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   final chartKey = GlobalKey<CandleChartPanelState>();
   Timer? _clockTimer;
 
+  /// Named chart templates (indicators/style/view), stored on-device.
+  Map<String, Map<String, dynamic>> _templates = {};
+
   bool get _isTest => Platform.environment.containsKey('FLUTTER_TEST');
 
   @override
@@ -3861,6 +3961,131 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
         if (mounted) setState(() {});
       });
     }
+    _loadTemplates();
+  }
+
+  Future<void> _loadTemplates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('sona_chart_templates');
+      if (raw == null) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() {
+        _templates = m.map(
+            (k, v) => MapEntry(k, Map<String, dynamic>.from(v as Map)));
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveTemplates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('sona_chart_templates', jsonEncode(_templates));
+    } catch (_) {}
+  }
+
+  Future<void> _openTemplates() async {
+    final st = chartKey.currentState;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF151A22),
+          title: const Text('Templates',
+              style: TextStyle(color: Colors.white, fontSize: 15)),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.save_outlined,
+                      color: Colors.white70),
+                  title: const Text('Save current as template',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _saveTemplateAs();
+                  },
+                ),
+                if (_templates.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'No saved templates yet. A template remembers the chart '
+                      'style, indicators and zoom - not drawings.',
+                      style: TextStyle(color: Color(0xFF8A93A6), fontSize: 12),
+                    ),
+                  )
+                else
+                  for (final name in _templates.keys.toList())
+                    ListTile(
+                      dense: true,
+                      title: Text(name,
+                          style: const TextStyle(color: Colors.white)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Color(0xFFF27EA9), size: 20),
+                        onPressed: () async {
+                          _templates.remove(name);
+                          await _saveTemplates();
+                          setDlg(() {});
+                          setState(() {});
+                        },
+                      ),
+                      onTap: () {
+                        final layout = _templates[name];
+                        if (st != null && layout != null) {
+                          st.applyPreset(Map<String, dynamic>.from(layout));
+                        }
+                        Navigator.of(ctx).pop();
+                      },
+                    ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveTemplateAs() async {
+    final st = chartKey.currentState;
+    if (st == null) return;
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151A22),
+        title: const Text('Template name',
+            style: TextStyle(color: Colors.white, fontSize: 15)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'e.g. Scalp 5m EMA',
+            hintStyle: TextStyle(color: Color(0xFF8A93A6)),
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    _templates[name] = st.layoutSnapshot();
+    await _saveTemplates();
+    setState(() {});
   }
 
   @override
@@ -3933,7 +4158,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFF0B0F17);
+    const bg = Colors.black;
     return PopScope<Map<String, dynamic>>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -4060,13 +4285,40 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                           ],
                         ),
                         _vr(),
-                        const Icon(Icons.grid_view,
-                            color: Color(0x558A93A6), size: 20),
+                        IconButton(
+                          icon: const Icon(Icons.grid_view,
+                              color: Colors.white70, size: 20),
+                          onPressed: _openTemplates,
+                        ),
                         _vr(),
                         const Icon(Icons.add, color: Color(0x558A93A6)),
                         _vr(),
-                        const Icon(Icons.undo, color: Color(0x558A93A6)),
-                        const Icon(Icons.redo, color: Color(0x558A93A6)),
+                        IconButton(
+                          icon: Icon(
+                            Icons.undo,
+                            size: 20,
+                            color: st?.canUndo == true
+                                ? Colors.white70
+                                : const Color(0x558A93A6),
+                          ),
+                          onPressed: () {
+                            st?.undo();
+                            setState(() {});
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.redo,
+                            size: 20,
+                            color: st?.canRedo == true
+                                ? Colors.white70
+                                : const Color(0x558A93A6),
+                          ),
+                          onPressed: () {
+                            st?.redo();
+                            setState(() {});
+                          },
+                        ),
                         const Spacer(),
                       ],
                     ),
@@ -4185,14 +4437,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       ),
                                     ),
                                     if (widget.livePrice != null)
-                                      Text(
-                                        CandlePainter.fmtAxisPrice(
-                                            widget.livePrice!),
-                                        style: const TextStyle(
-                                          color: Color(0xFF26A69A),
-                                          fontSize: 12,
-                                        ),
-                                      ),
+                                      _changeLine(st),
                                   ],
                                 ),
                               ),
@@ -4236,6 +4481,9 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                     child: Row(
                       children: [
                         const SizedBox(width: 10),
+                        const Icon(Icons.star_border,
+                            color: Color(0x558A93A6), size: 20),
+                        const SizedBox(width: 10),
                         PopupMenuButton<String>(
                           onSelected: (code) {
                             st?.applyChartSelection(range: true, code: code);
@@ -4266,6 +4514,9 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                         const Text('auto',
                             style: TextStyle(
                                 color: Colors.white70, fontSize: 13)),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.settings_outlined,
+                            color: Color(0x558A93A6), size: 20),
                         const SizedBox(width: 12),
                       ],
                     ),
@@ -4281,6 +4532,44 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   Widget _vr() =>
       const VerticalDivider(width: 12, color: Color(0xFF1C2230));
+
+  /// Reference-style change figure: price, then +/- change and percent
+  /// against the first bar of the last candle's UTC day.
+  Widget _changeLine(CandleChartPanelState? st) {
+    final px = widget.livePrice!;
+    double? open;
+    final cs = st?.candles;
+    if (cs != null && cs.isNotEmpty) {
+      final lastDay = cs.last.time.toUtc();
+      final dayStart =
+          DateTime.utc(lastDay.year, lastDay.month, lastDay.day);
+      for (final c in cs.reversed) {
+        if (c.time.toUtc().isBefore(dayStart)) break;
+        open = c.open;
+      }
+    }
+    final chg = open == null ? null : px - open;
+    final pct = open == null || open == 0 ? null : chg! / open * 100;
+    final up = (chg ?? 0) >= 0;
+    final color =
+        chg == null ? const Color(0xFF26A69A) : (up ? const Color(0xFF26A69A) : const Color(0xFFEF5350));
+    return Row(
+      children: [
+        Text(
+          CandlePainter.fmtAxisPrice(px),
+          style: TextStyle(color: color, fontSize: 12),
+        ),
+        if (chg != null && pct != null) ...[
+          const SizedBox(width: 6),
+          Text(
+            '${up ? '+' : ''}${chg.toStringAsFixed(2)} '
+            '(${up ? '+' : ''}${pct.toStringAsFixed(2)}%)',
+            style: TextStyle(color: color, fontSize: 12),
+          ),
+        ],
+      ],
+    );
+  }
 
   PopupMenuItem<String> _indItem(String v, String label, bool? on) =>
       PopupMenuItem(
