@@ -37,7 +37,7 @@ void main() {
     // Chromeless trade page: chart tools live in the fullscreen editor.
     await t.tap(find.byIcon(Icons.fullscreen));
     await t.pumpAndSettle();
-    await t.tap(find.text('Alert').first);
+    await t.tap(find.byIcon(Icons.add_alert));
     await t.pumpAndSettle();
     final chart = find.byWidgetPredicate(
       (w) => w is CustomPaint && w.painter is CandlePainter,

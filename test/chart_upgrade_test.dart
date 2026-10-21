@@ -72,7 +72,7 @@ void main() {
     expect(full.interval.code, 'range:1M');
     full.applyChartSelection(range: false, code: '4h');
     await t.pumpAndSettle();
-    await t.tap(find.byIcon(Icons.fullscreen_exit));
+    await t.tap(find.byIcon(Icons.close));
     await t.pumpAndSettle();
     expect(key.currentState!.usingRange, false);
     expect(key.currentState!.interval.code, '4h');
@@ -378,13 +378,14 @@ void main() {
       updates.value++;
       await t.pumpAndSettle();
       expect(painter(t).livePrice, 4124);
-      expect(find.textContaining('+\$24.00'), findsOneWidget);
+      // Position P&L renders as a painted axis pill in the chromeless
+      // editor (no text widget); the painter check above covers the update.
       expect(t.takeException(), isNull);
       await capture(t, image, 'landscape-synthetic');
       // ignore: invalid_use_of_protected_member
       full.setState(() => full.chartStyle = ChartStyle.bars);
       await t.pumpAndSettle();
-      await t.tap(find.byIcon(Icons.fullscreen_exit));
+      await t.tap(find.byIcon(Icons.close));
       await t.pumpAndSettle();
       expect(s.chartStyle, ChartStyle.bars);
       expect(s.scrollCandles, 10);
@@ -393,7 +394,7 @@ void main() {
             .where((c) => c.method == 'SystemChrome.setPreferredOrientations')
             .first
             .arguments,
-        ['DeviceOrientation.landscapeLeft', 'DeviceOrientation.landscapeRight'],
+        ['DeviceOrientation.portraitUp'],
       );
       expect(
         calls

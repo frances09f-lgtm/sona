@@ -39,15 +39,10 @@ void main() {
     await t.pumpAndSettle();
 
     // Trade page is chromeless: replay is entered via the fullscreen
-    // editor's toolbar chip, which pops back into pick mode.
+    // editor's left toolbar, which pops back into pick mode.
     await t.tap(find.byIcon(Icons.fullscreen));
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('Replay'),
-      60,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await t.tap(find.text('Replay'));
+    await t.tap(find.byIcon(Icons.play_circle_outline));
     await t.pumpAndSettle();
     expect(
       find.text('Tap the candle where replay should start'),

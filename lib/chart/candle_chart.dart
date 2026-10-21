@@ -677,6 +677,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
       throw StateError('Could not delete preset.');
   }
 
+  /// Public entry for the fullscreen editor's delete button.
+  void clearDrawingsConfirmed() => _confirmClearAll();
+
   /// Cycles candles -> line -> Heikin Ashi (the below-chart style button in
   /// chromeless mode mirrors the toolbar dropdown).
   void cycleChartStyle() {
@@ -1400,6 +1403,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     const bg = Color(0xFF0E1116);
     const dim = Color(0xFF8A93A6);
     if (widget.chromeless) {
+      if (widget.expand) return _body();
       return SizedBox(
         height: math.max(MediaQuery.of(context).size.height * 0.55, 340.0) +
             _rsiHeight +
@@ -3817,12 +3821,17 @@ class FullscreenChartPage extends StatefulWidget {
   final ChartMarketSnapshot Function()? marketSnapshot;
   final VoidCallback? onReplay;
   final bool replayOn;
+
+  /// Floating SELL/BUY pills over the chart (broker reference): the page
+  /// reports the side; the caller opens its order flow.
+  final ValueChanged<String>? onTradeSide;
   const FullscreenChartPage({
     super.key,
     this.loader,
     this.onAlertPrice,
     this.onReplay,
     this.replayOn = false,
+    this.onTradeSide,
     this.livePrice,
     this.rangeMode = false,
     this.initialLayout,
@@ -3836,75 +3845,485 @@ class FullscreenChartPage extends StatefulWidget {
 
 class _FullscreenChartPageState extends State<FullscreenChartPage> {
   final chartKey = GlobalKey<CandleChartPanelState>();
+  Timer? _clockTimer;
+
+  bool get _isTest => Platform.environment.containsKey('FLUTTER_TEST');
+
   @override
   void initState() {
     super.initState();
+    // Portrait editor (broker reference layout).
     SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
+      DeviceOrientation.portraitUp,
     ]);
+    if (!_isTest) {
+      _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
+  static const _dim = Color(0xFF8A93A6);
+  static const _active = Color(0xFF2E5CFF);
+
+  void _pop() {
+    Navigator.of(context).pop(chartKey.currentState?.layoutSnapshot());
+  }
+
+  /// Exactly one drawing mode at a time (mirrors the toolbar chips).
+  void _mode(void Function(CandleChartPanelState st) apply) {
+    final st = chartKey.currentState;
+    if (st == null) return;
+    st.setState(() {
+      st.alertMode = false;
+      st.drawMode = false;
+      st.trendMode = false;
+      st.fibMode = false;
+      st.rectMode = false;
+      st.channelMode = false;
+      st.rulerMode = false;
+      apply(st);
+    });
+  }
+
+  Widget _toolIcon(IconData icon,
+      {bool active = false, bool enabled = true, VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: active ? _active : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 19,
+            color: !enabled
+                ? _dim.withValues(alpha: 0.35)
+                : active
+                    ? Colors.white
+                    : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _clockText() {
+    final now = _isTest ? DateTime(2026, 10, 7, 15, 40, 2) : DateTime.now();
+    final off = now.timeZoneOffset;
+    final sign = off.isNegative ? '-' : '+';
+    final oh = off.abs().inHours, om = off.abs().inMinutes % 60;
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(now.hour)}:${two(now.minute)}:${two(now.second)} '
+        'UTC$sign$oh${om == 0 ? '' : ':${two(om)}'}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    const bg = Color(0xFF0B0F17);
     return PopScope<Map<String, dynamic>>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop)
-          Navigator.of(context).pop(chartKey.currentState?.layoutSnapshot());
+        if (!didPop) _pop();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0E1116),
+        backgroundColor: bg,
         body: SafeArea(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: AnimatedBuilder(
-                    animation:
-                        widget.marketUpdates ?? const AlwaysStoppedAnimation(0),
-                    builder: (_, __) => CandleChartPanel(
-                      key: chartKey,
-                      initialLayout: widget.initialLayout,
-                      marketUpdates: widget.marketUpdates,
-                      marketSnapshot: widget.marketSnapshot,
-                      loader: widget.loader,
-                      onAlertPrice: widget.onAlertPrice,
-                      onReplay: widget.onReplay,
-                      replayOn: widget.replayOn,
-                      livePrice: widget.livePrice,
-                      expand: true,
-                      rangeMode: widget.rangeMode,
+          child: AnimatedBuilder(
+            animation:
+                widget.marketUpdates ?? const AlwaysStoppedAnimation(0),
+            builder: (_, __) {
+              final st = chartKey.currentState;
+              if (st == null) {
+                // The panel attaches after the first frame; rebuild once it
+                // does so the timeframe label fills in.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() {});
+                });
+              }
+              final snap = widget.marketSnapshot?.call();
+              final bid = snap?.bid ?? widget.livePrice;
+              final ask = snap?.ask ?? widget.livePrice;
+              final spread =
+                  (bid != null && ask != null) ? (ask - bid).abs() : null;
+              return Column(
+                children: [
+                  // ---- top bar: X | symbol | search | layout ----
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: _pop,
+                        ),
+                        const Icon(Icons.widgets,
+                            color: Color(0xFFF5C242), size: 18),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'GOLD',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Icon(Icons.keyboard_arrow_down,
+                            color: Colors.white70),
+                        const Spacer(),
+                        const Icon(Icons.search,
+                            color: Color(0x558A93A6)), // single instrument
+                        const SizedBox(width: 14),
+                        const Icon(Icons.space_dashboard_outlined,
+                            color: Color(0x558A93A6)), // templates pending
+                        const SizedBox(width: 6),
+                      ],
                     ),
                   ),
+                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  // ---- tool row ----
+                  SizedBox(
+                    height: 44,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        PopupMenuButton<String>(
+                          onSelected: (code) {
+                            final range = code.startsWith('range:');
+                            st?.applyChartSelection(range: range, code: code);
+                            setState(() {});
+                          },
+                          itemBuilder: (_) => [
+                            for (final iv in intervals)
+                              PopupMenuItem(value: iv.code, child: Text(iv.label)),
+                            const PopupMenuDivider(),
+                            for (final r in tradeRanges)
+                              PopupMenuItem(value: r.code, child: Text(r.label)),
+                          ],
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 8),
+                            child: Text(
+                              st?.interval.label ?? '',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                        _vr(),
+                        IconButton(
+                          icon: const Icon(Icons.candlestick_chart,
+                              color: Colors.white70, size: 20),
+                          onPressed: () => st?.cycleChartStyle(),
+                        ),
+                        _vr(),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.functions,
+                              color: Colors.white70, size: 20),
+                          onSelected: (v) {
+                            if (st == null) return;
+                            st.setState(() {
+                              switch (v) {
+                                case 'sma':
+                                  st.smaOn = !st.smaOn;
+                                case 'ema':
+                                  st.emaOn = !st.emaOn;
+                                case 'sma200':
+                                  st.sma200On = !st.sma200On;
+                                case 'rsi':
+                                  st.rsiOn = !st.rsiOn;
+                                case 'macd':
+                                  st.macdOn = !st.macdOn;
+                              }
+                            });
+                          },
+                          itemBuilder: (_) => [
+                            _indItem('sma', 'SMA 20', st?.smaOn),
+                            _indItem('ema', 'EMA 50', st?.emaOn),
+                            _indItem('sma200', 'SMA 200', st?.sma200On),
+                            _indItem('rsi', 'RSI 14', st?.rsiOn),
+                            _indItem('macd', 'MACD', st?.macdOn),
+                          ],
+                        ),
+                        _vr(),
+                        const Icon(Icons.grid_view,
+                            color: Color(0x558A93A6), size: 20),
+                        _vr(),
+                        const Icon(Icons.add, color: Color(0x558A93A6)),
+                        _vr(),
+                        const Icon(Icons.undo, color: Color(0x558A93A6)),
+                        const Icon(Icons.redo, color: Color(0x558A93A6)),
+                        const Spacer(),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  // ---- chart + left toolbar ----
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          width: 46,
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              right:
+                                  BorderSide(color: Color(0xFF1C2230)),
+                            ),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 4),
+                                _toolIcon(Icons.add,
+                                    active: st?.crosshairMode == true,
+                                    onTap: () => st?.setState(() =>
+                                        st.crosshairMode =
+                                            !st.crosshairMode)),
+                                _toolIcon(Icons.show_chart,
+                                    active: st?.trendMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.trendMode = true)),
+                                _toolIcon(Icons.multiline_chart,
+                                    active: st?.channelMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.channelMode = true)),
+                                _toolIcon(Icons.crop_square,
+                                    active: st?.rectMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.rectMode = true)),
+                                _toolIcon(Icons.percent,
+                                    active: st?.fibMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.fibMode = true)),
+                                _toolIcon(Icons.brush,
+                                    active: st?.drawMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.drawMode = true)),
+                                _toolIcon(Icons.text_fields, enabled: false),
+                                _toolIcon(Icons.emoji_emotions_outlined,
+                                    enabled: false),
+                                const Divider(
+                                    color: Color(0xFF1C2230), height: 14),
+                                _toolIcon(Icons.straighten,
+                                    active: st?.rulerMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.rulerMode = true)),
+                                _toolIcon(Icons.zoom_in, enabled: false),
+                                const Divider(
+                                    color: Color(0xFF1C2230), height: 14),
+                                _toolIcon(Icons.vertical_align_center,
+                                    active: st?.magnetOn == true,
+                                    onTap: () => st?.setState(
+                                        () => st.magnetOn = !st.magnetOn)),
+                                _toolIcon(Icons.lock_outline, enabled: false),
+                                _toolIcon(Icons.remove_red_eye_outlined,
+                                    enabled: false),
+                                _toolIcon(Icons.add_alert,
+                                    active: st?.alertMode == true,
+                                    onTap: () =>
+                                        _mode((s) => s.alertMode = true)),
+                                if (widget.onReplay != null)
+                                  _toolIcon(Icons.play_circle_outline,
+                                      active: widget.replayOn,
+                                      onTap: widget.onReplay),
+                                _toolIcon(Icons.delete_outline,
+                                    onTap: () =>
+                                        st?.clearDrawingsConfirmed()),
+                                const SizedBox(height: 4),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: CandleChartPanel(
+                                  key: chartKey,
+                                  initialLayout: widget.initialLayout,
+                                  marketUpdates: widget.marketUpdates,
+                                  marketSnapshot: widget.marketSnapshot,
+                                  loader: widget.loader,
+                                  onAlertPrice: widget.onAlertPrice,
+                                  onReplay: widget.onReplay,
+                                  replayOn: widget.replayOn,
+                                  livePrice: widget.livePrice,
+                                  expand: true,
+                                  chromeless: true,
+                                  rangeMode: widget.rangeMode,
+                                ),
+                              ),
+                              // symbol + price overlay
+                              Positioned(
+                                top: 8,
+                                left: 10,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'GOLD · ${st?.interval.label ?? ''}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (widget.livePrice != null)
+                                      Text(
+                                        CandlePainter.fmtAxisPrice(
+                                            widget.livePrice!),
+                                        style: const TextStyle(
+                                          color: Color(0xFF26A69A),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              // floating SELL/BUY pills
+                              if (widget.onTradeSide != null &&
+                                  bid != null &&
+                                  ask != null)
+                                Positioned(
+                                  top: 56,
+                                  left: 10,
+                                  child: Row(
+                                    children: [
+                                      _tradePill('SELL', bid,
+                                          const Color(0xFFE5486C)),
+                                      if (spread != null)
+                                        Padding(
+                                          padding: const EdgeInsets
+                                              .symmetric(horizontal: 8),
+                                          child: Text(
+                                            spread.toStringAsFixed(2),
+                                            style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12),
+                                          ),
+                                        ),
+                                      _tradePill('BUY', ask,
+                                          const Color(0xFF26A69A)),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  // ---- bottom bar: Date Range | clock | auto ----
+                  SizedBox(
+                    height: 40,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 10),
+                        PopupMenuButton<String>(
+                          onSelected: (code) {
+                            st?.applyChartSelection(range: true, code: code);
+                            setState(() {});
+                          },
+                          itemBuilder: (_) => [
+                            for (final r in tradeRanges)
+                              PopupMenuItem(
+                                  value: r.code, child: Text(r.label)),
+                          ],
+                          child: const Row(
+                            children: [
+                              Text('Date Range',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                              Icon(Icons.arrow_drop_down,
+                                  color: Colors.white70),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          _clockText(),
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        const Text('auto',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 13)),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _vr() =>
+      const VerticalDivider(width: 12, color: Color(0xFF1C2230));
+
+  PopupMenuItem<String> _indItem(String v, String label, bool? on) =>
+      PopupMenuItem(
+        value: v,
+        child: Row(
+          children: [
+            Icon(on == true ? Icons.check_box : Icons.check_box_outline_blank,
+                size: 18, color: on == true ? Colors.tealAccent : _dim),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
+      );
+
+  Widget _tradePill(String side, double price, Color color) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          _pop();
+          widget.onTradeSide!(side.toLowerCase());
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          child: Column(
+            children: [
+              Text(
+                CandlePainter.fmtAxisPrice(price),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
                 ),
               ),
-              Positioned(
-                top: 14,
-                right: 14,
-                child: InkWell(
-                  onTap: () =>
-                      Navigator.of(context)
-                          .pop(chartKey.currentState?.layoutSnapshot()),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF232A35),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.fullscreen_exit,
-                      size: 20,
-                      color: Colors.white,
-                    ),
-                  ),
+              Text(
+                side,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
                 ),
               ),
             ],

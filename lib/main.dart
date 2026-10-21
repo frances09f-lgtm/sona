@@ -1716,6 +1716,7 @@ class _TradeTabState extends State<TradeTab> {
             _toggleReplay();
           },
           replayOn: _replay != null || _pickingReplayStart,
+          onTradeSide: (side) => selectSide(side),
           initialLayout: st.layoutSnapshot(),
           marketUpdates: app,
           marketSnapshot: st.widget.marketSnapshot,
