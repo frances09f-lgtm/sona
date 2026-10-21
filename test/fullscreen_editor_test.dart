@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sona/strategy.dart';
 import 'package:sona/chart/candle_chart.dart';
 import 'package:sona/chart/chart_tools.dart';
 import 'package:sona/market_data/models.dart';
@@ -128,6 +129,53 @@ void main() {
     // Persists on-device.
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('sona_chart_templates'), contains('Scalp setup'));
+  });
+
+  testWidgets(
+      'v1.2.3: open-trade levels stay, strategy markers gone (golden)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await StrategyStore.save([
+      PriceActionStrategy(id: 's1', name: 'Hourly high/low', notes: 'demo'),
+    ]);
+    await loadFonts();
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    final data = fakeCandles(120);
+    final last = data.last.close;
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: FullscreenChartPage(
+          loader: (iv) async => data,
+          livePrice: last + 1.2,
+          rangeMode: true,
+          marketSnapshot: () => ChartMarketSnapshot(
+            price: last,
+            fresh: true,
+            bid: last - 0.18,
+            ask: last + 0.17,
+            positions: [
+              ChartPosition(
+                buy: true,
+                entry: last + 4,
+                quantity: 1,
+                stop: last - 9,
+                target: last + 22,
+                pnl: -3,
+              ),
+            ],
+          ),
+          onTradeSide: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(FullscreenChartPage),
+      matchesGoldenFile('goldens/fullscreen_editor_positions.png'),
+    );
   });
 
   testWidgets('fullscreen editor renders like the broker reference (golden)',

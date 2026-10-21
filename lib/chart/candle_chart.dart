@@ -3227,59 +3227,9 @@ class CandlePainter extends CustomPainter {
       drawLine(bands!.$3, 20, const Color(0xFF52B788));
     }
 
-    // custom strategy levels (user request): 1H high/low markers, each
-    // segment ending where price broke the level. Clipped to the plot:
-    // levels outside the visible price range are skipped entirely so they
-    // never draw over the header (real-phone report, v1.0.97).
-    final levelLabelYs = <double>[];
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
-    for (final seg in strategySegments) {
-      if (seg.endIdx < fv0 || seg.startIdx >= iEnd) continue;
-      final x1 = stepI * (seg.startIdx - fv0 + 0.5);
-      final x2 = math.min(stepI * (seg.endIdx - fv0 + 0.5), plotW);
-      final yy = y(seg.price);
-      if (yy < 0 || yy > plotH) continue;
-      final col = seg.isHigh
-          ? const Color(0xFFF48FB1)
-          : const Color(0xFF80DEEA);
-      final p = Paint()
-        ..color = seg.broken ? col.withValues(alpha: 0.45) : col
-        ..strokeWidth = 1;
-      double dx = math.max(x1, 0.0);
-      while (dx < x2) {
-        canvas.drawLine(
-          Offset(dx, yy),
-          Offset(math.min(dx + 3, x2), yy),
-          p,
-        );
-        dx += 6;
-      }
-      if (!seg.broken) {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: seg.price.toStringAsFixed(2),
-            style: TextStyle(
-              color: col,
-              fontSize: 8,
-              fontFamily: 'Roboto',
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        // keep labels readable: drop one that would collide with a label
-        // already drawn at nearly the same height
-        if (levelLabelYs.any((v) => (v - yy).abs() < tp.height + 2)) {
-          continue;
-        }
-        levelLabelYs.add(yy);
-        final lx = (math.max(x1, 0) + 2)
-            .clamp(0.0, math.max(0.0, plotW - tp.width - 2))
-            .toDouble();
-        tp.paint(canvas, Offset(lx, yy - tp.height - 1));
-      }
-    }
-    canvas.restore();
+    // Strategy level markers intentionally not painted (user request,
+    // v1.2.3: "keep only the white line" - computed strategy levels are not
+    // his own drawings; open-trade entry/SL/TP and hand-drawn lines stay).
 
     // MT5 free crosshair: vertical+horizontal lines at the finger, price
     // tag on the right axis, bar date/time tag on the bottom axis.

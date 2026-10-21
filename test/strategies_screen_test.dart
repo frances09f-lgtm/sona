@@ -76,7 +76,9 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('chart shows 1H strategy levels (golden)', (t) async {
+  testWidgets(
+      'strategy levels stay off the chart (v1.2.3 clean-chart directive, golden)',
+      (t) async {
     SharedPreferences.setMockInitialValues({});
     await StrategyStore.save([
       PriceActionStrategy(id: 's1', name: 'Hourly high/low', notes: 'demo'),
@@ -108,7 +110,7 @@ void main() {
     await t.pumpAndSettle();
     await expectLater(
       find.byType(CandleChartPanel),
-      matchesGoldenFile('goldens/chart_strategy_levels.png'),
+      matchesGoldenFile('goldens/chart_strategy_levels.png'), // now: clean chart, no strategy lines
     );
     await t.runAsync(() => snap(key, '/tmp/sona-v1096-chart-levels.png'));
     expect(t.takeException(), isNull);

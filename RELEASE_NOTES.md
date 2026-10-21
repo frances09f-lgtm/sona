@@ -1,9 +1,2 @@
-- True black chart background and every dotted grid line removed (user request: clean chart). The last-price line stays, now solid white; the dashed ask line is gone (its axis pill remains).
-- Previous day/week levels and session shading now default OFF, with a one-time switch-off on existing installs. Settings toggles remain if you want them back.
-- Undo/redo for every drawing operation (lines, channels, rectangles, fibs, levels, deletes, clear-all), live in the fullscreen editor tool row.
-- Chart templates: save the current style/indicator/zoom setup under a name, apply or delete it later. Stored on-device.
-- Editor overlay shows the day-change figure (+2.06 (+0.05%) style) next to the price.
-- Candle-close countdown shows h:mm:ss past one hour; axis labels no longer collide with the price pill and countdown.
-- Interval labels now TradingView-style: 1m 5m 15m 30m 1h 4h - the 5-minute chart was always there as M5, now easy to find in the editor timeframe popup and Settings.
-- Switching timeframe or range resets to the default newest-60-bars view, so candle width is sane at every range.
-- Star and gear placeholders on the editor bottom bar.
+- Chart now shows only the lines that are yours: the solid white last-price line, your open trade's entry/stop/target, and anything you draw. App-computed strategy high/low markers no longer paint on the chart.
+- Includes 1.2.2: true-black chart, no dotted grid, previous day/week levels and session shading off by default (toggles in Settings), undo/redo, chart templates, day-change figure, 5m-style interval labels, h:mm:ss countdown.
