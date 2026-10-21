@@ -46,6 +46,17 @@ class TrendLine {
   const TrendLine(this.t1, this.p1, this.t2, this.p2);
 }
 
+/// A parallel channel: main line (t1,p1)-(t2,p2) plus a parallel line
+/// offset by [dp] price units. Anchored by candle time like trend lines.
+class Channel {
+  final DateTime t1;
+  final double p1;
+  final DateTime t2;
+  final double p2;
+  final double dp;
+  const Channel(this.t1, this.p1, this.t2, this.p2, this.dp);
+}
+
 class ChartInterval {
   final String code; // provider interval code
   final String label;
@@ -242,6 +253,12 @@ class CandleChartPanelState extends State<CandleChartPanel>
   double get debugPriceScale => _priceScale;
 
   @visibleForTesting
+  double debugSnapForTest(double price, int candleIdx) {
+    var (hi, lo) = _visiblePriceRange();
+    return _snapPrice(price, candleIdx, hi, lo);
+  }
+
+  @visibleForTesting
   void debugSetView({int? visibleCount, double? scroll}) {
     setState(() {
       visibleOverride = visibleCount;
@@ -300,8 +317,19 @@ class CandleChartPanelState extends State<CandleChartPanel>
   bool alertMode = false;
   bool drawMode = false;
   bool trendMode = false;
+  bool rectMode = false;
+  bool channelMode = false;
+  bool rulerMode = false;
   final List<DrawnLine> hLines = []; // user-drawn named price levels
   final List<TrendLine> trendLines = []; // user-drawn trend lines
+  final List<TrendLine> rects = []; // user-drawn rectangle zones
+  final List<Channel> channels = []; // user-drawn parallel channels
+  final List<TrendLine> rulers = []; // user-drawn measure tools
+  TrendLine? pendingRect;
+  Channel? pendingChannel;
+  int channelStage = 0; // 1 = first anchor placed, 2 = main line placed
+  TrendLine? pendingRuler;
+  bool magnetOn = true; // snap anchors to candle high/low
   TrendLine? pendingTrend; // first anchor set, waiting for the second tap
   bool fibMode = false;
   int? _dragLineIdx; // hLine being drag-moved in Draw mode
@@ -389,6 +417,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
     }
     widget.marketUpdates?.addListener(_syncSavedSelection);
     _loadLines();
+    _loadRects();
+    _loadChannels();
+    _loadRulers();
     _loadStrategies();
     _load();
     _armTimer();
@@ -521,6 +552,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     'bollinger': bollingerOn,
     'sessionShading': sessionShadingOn,
     'prevLevels': prevLevelsOn,
+    'magnet': magnetOn,
     'extraEmas': extraEmas.toList(),
     'visibleCount': visibleOverride,
     'scrollCandles': scrollCandles,
@@ -555,6 +587,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     bollingerOn = data['bollinger'] == true;
     sessionShadingOn = data['sessionShading'] != false;
     prevLevelsOn = data['prevLevels'] != false;
+    magnetOn = data['magnet'] != false;
     extraEmas
       ..clear()
       ..addAll(
@@ -807,6 +840,76 @@ class CandleChartPanelState extends State<CandleChartPanel>
     } catch (_) {}
   }
 
+  Future<void> _loadRects() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('tj_draw_rects');
+      if (raw == null) return;
+      final list = jsonDecode(raw) as List;
+      setState(() {
+        rects
+          ..clear()
+          ..addAll(
+            list.map(
+              (e) => TrendLine(
+                DateTime.fromMillisecondsSinceEpoch(e['t1'] as int),
+                (e['p1'] as num).toDouble(),
+                DateTime.fromMillisecondsSinceEpoch(e['t2'] as int),
+                (e['p2'] as num).toDouble(),
+              ),
+            ),
+          );
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadChannels() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('tj_draw_channels');
+      if (raw == null) return;
+      final list = jsonDecode(raw) as List;
+      setState(() {
+        channels
+          ..clear()
+          ..addAll(
+            list.map(
+              (e) => Channel(
+                DateTime.fromMillisecondsSinceEpoch(e['t1'] as int),
+                (e['p1'] as num).toDouble(),
+                DateTime.fromMillisecondsSinceEpoch(e['t2'] as int),
+                (e['p2'] as num).toDouble(),
+                (e['dp'] as num).toDouble(),
+              ),
+            ),
+          );
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadRulers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('tj_draw_rulers');
+      if (raw == null) return;
+      final list = jsonDecode(raw) as List;
+      setState(() {
+        rulers
+          ..clear()
+          ..addAll(
+            list.map(
+              (e) => TrendLine(
+                DateTime.fromMillisecondsSinceEpoch(e['t1'] as int),
+                (e['p1'] as num).toDouble(),
+                DateTime.fromMillisecondsSinceEpoch(e['t2'] as int),
+                (e['p2'] as num).toDouble(),
+              ),
+            ),
+          );
+      });
+    } catch (_) {}
+  }
+
   Future<void> _saveFibs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -814,6 +917,70 @@ class CandleChartPanelState extends State<CandleChartPanel>
         'tj_draw_fibs',
         jsonEncode(
           fibs
+              .map(
+                (e) => {
+                  't1': e.t1.millisecondsSinceEpoch,
+                  'p1': e.p1,
+                  't2': e.t2.millisecondsSinceEpoch,
+                  'p2': e.p2,
+                },
+              )
+              .toList(),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _saveRects() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'tj_draw_rects',
+        jsonEncode(
+          rects
+              .map(
+                (e) => {
+                  't1': e.t1.millisecondsSinceEpoch,
+                  'p1': e.p1,
+                  't2': e.t2.millisecondsSinceEpoch,
+                  'p2': e.p2,
+                },
+              )
+              .toList(),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _saveChannels() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'tj_draw_channels',
+        jsonEncode(
+          channels
+              .map(
+                (e) => {
+                  't1': e.t1.millisecondsSinceEpoch,
+                  'p1': e.p1,
+                  't2': e.t2.millisecondsSinceEpoch,
+                  'p2': e.p2,
+                  'dp': e.dp,
+                },
+              )
+              .toList(),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _saveRulers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'tj_draw_rulers',
+        jsonEncode(
+          rulers
               .map(
                 (e) => {
                   't1': e.t1.millisecondsSinceEpoch,
@@ -853,8 +1020,14 @@ class CandleChartPanelState extends State<CandleChartPanel>
       hLines.isNotEmpty ||
       trendLines.isNotEmpty ||
       fibs.isNotEmpty ||
+      rects.isNotEmpty ||
+      channels.isNotEmpty ||
+      rulers.isNotEmpty ||
       pendingTrend != null ||
-      pendingFib != null;
+      pendingFib != null ||
+      pendingRect != null ||
+      pendingChannel != null ||
+      pendingRuler != null;
 
   /// Clear ALL chart drawings at once (user request): every drawn level,
   /// trend line and fib, including a half-placed anchor. Persisted copies
@@ -864,13 +1037,23 @@ class CandleChartPanelState extends State<CandleChartPanel>
       hLines.clear();
       trendLines.clear();
       fibs.clear();
+      rects.clear();
+      channels.clear();
+      rulers.clear();
       pendingTrend = null;
       pendingFib = null;
+      pendingRect = null;
+      pendingChannel = null;
+      pendingRuler = null;
+      channelStage = 0;
       _dragLineIdx = null;
     });
     await _saveLines();
     await _saveTrends();
     await _saveFibs();
+    await _saveRects();
+    await _saveChannels();
+    await _saveRulers();
   }
 
   Future<void> _confirmClearAll() async {
@@ -1360,6 +1543,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           if (drawMode) {
                             trendMode = false;
                             fibMode = false;
+                            rectMode = false;
+                            channelMode = false;
+                            rulerMode = false;
                           }
                         }),
                       ),
@@ -1373,6 +1559,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           if (trendMode) {
                             drawMode = false;
                             fibMode = false;
+                            rectMode = false;
+                            channelMode = false;
+                            rulerMode = false;
                           }
                           pendingTrend = null;
                         }),
@@ -1387,6 +1576,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           if (fibMode) {
                             drawMode = false;
                             trendMode = false;
+                            rectMode = false;
+                            channelMode = false;
+                            rulerMode = false;
                           }
                           pendingFib = null;
                         }),
@@ -1404,6 +1596,64 @@ class CandleChartPanelState extends State<CandleChartPanel>
                         const Color(0xFFB78CFF),
                         () =>
                             setState(() => prevLevelsOn = !prevLevelsOn),
+                      ),
+                      _indChip(
+                        'Rect',
+                        rectMode,
+                        const Color(0xFF6FD3E0),
+                        () => setState(() {
+                          alertMode = false;
+                          rectMode = !rectMode;
+                          if (rectMode) {
+                            drawMode = false;
+                            trendMode = false;
+                            fibMode = false;
+                            channelMode = false;
+                            rulerMode = false;
+                          }
+                          pendingRect = null;
+                        }),
+                      ),
+                      _indChip(
+                        'Chan',
+                        channelMode,
+                        const Color(0xFF9B8CFF),
+                        () => setState(() {
+                          alertMode = false;
+                          channelMode = !channelMode;
+                          if (channelMode) {
+                            drawMode = false;
+                            trendMode = false;
+                            fibMode = false;
+                            rectMode = false;
+                            rulerMode = false;
+                          }
+                          pendingChannel = null;
+                          channelStage = 0;
+                        }),
+                      ),
+                      _indChip(
+                        'Ruler',
+                        rulerMode,
+                        const Color(0xFFF5C242),
+                        () => setState(() {
+                          alertMode = false;
+                          rulerMode = !rulerMode;
+                          if (rulerMode) {
+                            drawMode = false;
+                            trendMode = false;
+                            fibMode = false;
+                            rectMode = false;
+                            channelMode = false;
+                          }
+                          pendingRuler = null;
+                        }),
+                      ),
+                      _indChip(
+                        'Magnet',
+                        magnetOn,
+                        const Color(0xFF5EE0A0),
+                        () => setState(() => magnetOn = !magnetOn),
                       ),
                     ],
                   ),
@@ -1688,7 +1938,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                 )
               : null,
           onPanEnd: drawMode ? (_) => _dragLineEnd() : null,
-          onScaleStart: drawMode
+          onScaleStart: drawMode || rectMode || channelMode || rulerMode
               ? null
               : (d) {
                   _stopKinetic();
@@ -1709,7 +1959,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                       (_drawn.length - _vc - scrollCandles) +
                           frac0 * _vc;
                 },
-          onScaleUpdate: drawMode
+          onScaleUpdate: drawMode || rectMode || channelMode || rulerMode
               ? null
               : (d) {
                   final n = _drawn.length;
@@ -1763,7 +2013,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                     });
                   }
                 },
-          onScaleEnd: drawMode
+          onScaleEnd: drawMode || rectMode || channelMode || rulerMode
               ? null
               : (d) {
                   if (!_axisDrag && !crosshairMode && _gesturePointers == 1) {
@@ -1782,6 +2032,13 @@ class CandleChartPanelState extends State<CandleChartPanel>
               _trendAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
             } else if (fibMode) {
               _fibAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
+            } else if (rectMode) {
+              _rectAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
+            } else if (channelMode) {
+              _channelAt(
+                  d.localPosition, Size(cons.maxWidth, cons.maxHeight));
+            } else if (rulerMode) {
+              _rulerAt(d.localPosition, Size(cons.maxWidth, cons.maxHeight));
             } else {
               _pick(d.localPosition, cons.maxWidth);
             }
@@ -1793,6 +2050,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
             if (!drawMode &&
                 !trendMode &&
                 !fibMode &&
+                !rectMode &&
+                !channelMode &&
+                !rulerMode &&
                 !crosshairMode &&
                 !alertMode &&
                 d.localPosition.dx < cons.maxWidth - rightPad) {
@@ -1832,6 +2092,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
             if (!drawMode &&
                 !trendMode &&
                 !fibMode &&
+                !rectMode &&
+                !channelMode &&
+                !rulerMode &&
                 !alertMode &&
                 !_anyDrawingHit(
                     d.localPosition, Size(cons.maxWidth, cons.maxHeight))) {
@@ -1876,6 +2139,12 @@ class CandleChartPanelState extends State<CandleChartPanel>
               hLines: hLines,
               trendLines: trendLines,
               pendingTrend: pendingTrend,
+              rects: rects,
+              pendingRect: pendingRect,
+              channels: channels,
+              pendingChannel: pendingChannel,
+              rulers: rulers,
+              pendingRuler: pendingRuler,
               fibs: fibs,
               pendingFib: pendingFib,
               extraEmas: {for (final p in extraEmas) p: ema(candles, p)},
@@ -1992,6 +2261,116 @@ class CandleChartPanelState extends State<CandleChartPanel>
 
   /// Trend mode: first tap anchors one end (candle time + price), second
   /// tap completes the line. Anchored by time so it tracks the market.
+  /// Magnet snap: pull an anchor price to the nearest high/low of the
+  /// candle under it when close enough (TradingView magnet behavior).
+  double _snapPrice(double price, int candleIdx, double hi, double lo) {
+    if (!magnetOn || candleIdx < 0 || candleIdx >= candles.length) {
+      return price;
+    }
+    final range = hi - lo;
+    if (range <= 0) return price;
+    final threshold = range * 0.025;
+    final c = candles[candleIdx];
+    var best = price;
+    var bestD = threshold;
+    for (final cand in [c.high, c.low]) {
+      final d = (cand - price).abs();
+      if (d < bestD) {
+        bestD = d;
+        best = cand;
+      }
+    }
+    return best;
+  }
+
+  /// Shared anchor resolution for the two-anchor drawing tools: maps a tap
+  /// to (candle time, snapped price), or null when off the plot.
+  (DateTime, double)? _anchorAt(Offset pos, Size size) {
+    final plotW = size.width - rightPad;
+    const bottomPad = 16.0;
+    final paneH =
+        chartPaneHeight(size.height, _rsiHeight > 0, _macdHeight > 0);
+    final rsiH = _rsiHeight > 0 ? paneH : 0.0;
+    final macdH = _macdHeight > 0 ? paneH : 0.0;
+    final plotH = size.height - bottomPad - rsiH - macdH;
+    if (pos.dy < 0 || pos.dy > plotH || pos.dx < 0 || pos.dx > plotW) {
+      return null;
+    }
+    var (hi, lo) = _visiblePriceRange();
+    final pad = ((hi - lo) * 0.05).clamp(0.01, double.infinity);
+    hi += pad;
+    lo -= pad;
+    final scaled = _applyPriceScale(hi, lo);
+    hi = scaled.$1;
+    lo = scaled.$2;
+    var price = lo + (1 - pos.dy / plotH) * (hi - lo);
+    final n = candles.length;
+    var i = (_fv + (pos.dx / plotW) * _vc).floor();
+    if (i < 0) i = 0;
+    if (i > n - 1) i = n - 1;
+    price = _snapPrice(price, i, hi, lo);
+    return (candles[i].time, price);
+  }
+
+  void _rectAt(Offset pos, Size size) {
+    final a = _anchorAt(pos, size);
+    if (a == null) return;
+    setState(() {
+      final p = pendingRect;
+      if (p == null) {
+        pendingRect = TrendLine(a.$1, a.$2, a.$1, a.$2);
+      } else {
+        rects.add(TrendLine(p.t1, p.p1, a.$1, a.$2));
+        pendingRect = null;
+        _saveRects();
+      }
+    });
+  }
+
+  void _channelAt(Offset pos, Size size) {
+    final a = _anchorAt(pos, size);
+    if (a == null) return;
+    setState(() {
+      if (channelStage == 0) {
+        pendingChannel = Channel(a.$1, a.$2, a.$1, a.$2, 0);
+        channelStage = 1;
+      } else if (channelStage == 1) {
+        final p = pendingChannel!;
+        pendingChannel = Channel(p.t1, p.p1, a.$1, a.$2, 0);
+        channelStage = 2;
+      } else {
+        final p = pendingChannel!;
+        // Third tap: parallel line passes through this price at its time.
+        // dp is the price offset of the parallel line (constant in price).
+        final t1ms = p.t1.millisecondsSinceEpoch;
+        final t2ms = p.t2.millisecondsSinceEpoch;
+        final ams = a.$1.millisecondsSinceEpoch;
+        final onLine = t2ms == t1ms
+            ? p.p2
+            : p.p1 + (p.p2 - p.p1) * (ams - t1ms) / (t2ms - t1ms);
+        channels.add(Channel(p.t1, p.p1, p.t2, p.p2, a.$2 - onLine));
+        pendingChannel = null;
+        channelStage = 0;
+        _saveChannels();
+      }
+    });
+  }
+
+  void _rulerAt(Offset pos, Size size) {
+    final a = _anchorAt(pos, size);
+    if (a == null) return;
+    setState(() {
+      final p = pendingRuler;
+      if (p == null) {
+        pendingRuler = TrendLine(a.$1, a.$2, a.$1, a.$2);
+      } else {
+        rulers.add(TrendLine(p.t1, p.p1, a.$1, a.$2));
+        pendingRuler = null;
+        _saveRulers();
+      }
+    });
+  }
+
   void _trendAt(Offset pos, Size size) {
     if (candles.isEmpty) return;
     const bottomPad = 16.0;
@@ -2008,11 +2387,12 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final scaled = _applyPriceScale(hi, lo);
     hi = scaled.$1;
     lo = scaled.$2;
-    final price = lo + (1 - pos.dy / plotH) * (hi - lo);
+    var price = lo + (1 - pos.dy / plotH) * (hi - lo);
     final n = candles.length;
     var i = (_fv + (pos.dx / plotW) * _vc).floor();
     if (i < 0) i = 0;
     if (i > n - 1) i = n - 1;
+    price = _snapPrice(price, i, hi, lo);
     final t = candles[i].time;
     setState(() {
       final p = pendingTrend;
@@ -2061,11 +2441,12 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final scaled = _applyPriceScale(hi, lo);
     hi = scaled.$1;
     lo = scaled.$2;
-    final price = lo + (1 - pos.dy / plotH) * (hi - lo);
+    var price = lo + (1 - pos.dy / plotH) * (hi - lo);
     final n = candles.length;
     var i = (_fv + (pos.dx / plotW) * _vc).floor();
     if (i < 0) i = 0;
     if (i > n - 1) i = n - 1;
+    price = _snapPrice(price, i, hi, lo);
     final t = candles[i].time;
     setState(() {
       final p = pendingFib;
@@ -2202,6 +2583,12 @@ class CandlePainter extends CustomPainter {
   final List<DrawnLine> hLines;
   final List<TrendLine> trendLines;
   final TrendLine? pendingTrend;
+  final List<TrendLine> rects;
+  final TrendLine? pendingRect;
+  final List<Channel> channels;
+  final Channel? pendingChannel;
+  final List<TrendLine> rulers;
+  final TrendLine? pendingRuler;
   final List<TrendLine> fibs;
   final TrendLine? pendingFib;
   final Map<int, List<double>> extraEmas;
@@ -2237,6 +2624,12 @@ class CandlePainter extends CustomPainter {
     this.hLines = const [],
     this.trendLines = const [],
     this.pendingTrend,
+    this.rects = const [],
+    this.pendingRect,
+    this.channels = const [],
+    this.pendingChannel,
+    this.rulers = const [],
+    this.pendingRuler,
     this.fibs = const [],
     this.pendingFib,
     this.extraEmas = const {},
@@ -2834,6 +3227,158 @@ class CandlePainter extends CustomPainter {
         final py = y(p.p1);
         canvas.drawCircle(Offset(x, py), 3, tlPaint);
       }
+    }
+
+    // rectangle zones (teal, translucent fill)
+    if (n >= 2 && (rects.isNotEmpty || pendingRect != null)) {
+      final rBorder = Paint()
+        ..color = const Color(0xFF6FD3E0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      final rFill = Paint()..color = const Color(0x1A6FD3E0);
+      final t0 = candles.first.time.millisecondsSinceEpoch;
+      final tN = candles.last.time.millisecondsSinceEpoch;
+      double rIdx(DateTime t) =>
+          tN == t0 ? 0 : (t.millisecondsSinceEpoch - t0) / (tN - t0) * (n - 1);
+      final stepR = plotW / vc0;
+      void drawZone(TrendLine r) {
+        final x1 = stepR * (rIdx(r.t1) - fv0 + 0.5);
+        final x2 = stepR * (rIdx(r.t2) - fv0 + 0.5);
+        final rect = Rect.fromLTRB(
+          math.min(x1, x2),
+          y(math.max(r.p1, r.p2)),
+          math.max(x1, x2),
+          y(math.min(r.p1, r.p2)),
+        );
+        canvas.drawRect(rect, rFill);
+        canvas.drawRect(rect, rBorder);
+      }
+
+      for (final r in rects) {
+        drawZone(r);
+      }
+      if (pendingRect != null) drawZone(pendingRect!);
+    }
+
+    // parallel channels (violet): main line extended, parallel offset dp,
+    // translucent fill between the anchors
+    if (n >= 2 && (channels.isNotEmpty || pendingChannel != null)) {
+      final chPaint = Paint()
+        ..color = const Color(0xFF9B8CFF)
+        ..strokeWidth = 1.2;
+      final chFill = Paint()..color = const Color(0x149B8CFF);
+      final t0 = candles.first.time.millisecondsSinceEpoch;
+      final tN = candles.last.time.millisecondsSinceEpoch;
+      double cIdx(DateTime t) =>
+          tN == t0 ? 0 : (t.millisecondsSinceEpoch - t0) / (tN - t0) * (n - 1);
+      final stepC = plotW / vc0;
+      void drawChannel(Channel ch, bool pending) {
+        final x1 = stepC * (cIdx(ch.t1) - fv0 + 0.5);
+        final x2 = stepC * (cIdx(ch.t2) - fv0 + 0.5);
+        if ((x2 - x1).abs() < 1e-6) {
+          canvas.drawCircle(Offset(x1, y(ch.p1)), 3, chPaint);
+          return;
+        }
+        final y1 = y(ch.p1), y2 = y(ch.p2);
+        final m = (y2 - y1) / (x2 - x1);
+        final off = y(ch.p2 + ch.dp) - y(ch.p2);
+        canvas.drawLine(
+            Offset(0, y1 - m * x1), Offset(plotW, y1 + m * (plotW - x1)),
+            chPaint);
+        if (!pending || ch.dp != 0) {
+          canvas.drawLine(
+              Offset(0, y1 - m * x1 + off),
+              Offset(plotW, y1 + m * (plotW - x1) + off),
+              chPaint);
+          if (ch.dp != 0) {
+            final path = Path()
+              ..moveTo(x1, y1)
+              ..lineTo(x2, y2)
+              ..lineTo(x2, y2 + off)
+              ..lineTo(x1, y1 + off)
+              ..close();
+            canvas.drawPath(path, chFill);
+          }
+        }
+      }
+
+      for (final ch in channels) {
+        drawChannel(ch, false);
+      }
+      if (pendingChannel != null) drawChannel(pendingChannel!, true);
+    }
+
+    // rulers (gold dashed + delta label)
+    if (n >= 2 && (rulers.isNotEmpty || pendingRuler != null)) {
+      final rPaint = Paint()
+        ..color = const Color(0xFFF5C242)
+        ..strokeWidth = 1.2;
+      final t0 = candles.first.time.millisecondsSinceEpoch;
+      final tN = candles.last.time.millisecondsSinceEpoch;
+      double uIdx(DateTime t) =>
+          tN == t0 ? 0 : (t.millisecondsSinceEpoch - t0) / (tN - t0) * (n - 1);
+      final stepU = plotW / vc0;
+      void drawRuler(TrendLine r, bool pending) {
+        final x1 = stepU * (uIdx(r.t1) - fv0 + 0.5);
+        final x2 = stepU * (uIdx(r.t2) - fv0 + 0.5);
+        final y1 = y(r.p1), y2 = y(r.p2);
+        // dashed segment
+        final dx = x2 - x1, dy = y2 - y1;
+        final len = math.sqrt(dx * dx + dy * dy);
+        if (len < 2) {
+          canvas.drawCircle(Offset(x1, y1), 3, rPaint);
+          return;
+        }
+        final ux = dx / len, uy = dy / len;
+        var d = 0.0;
+        while (d < len) {
+          final e = math.min(d + 6, len);
+          canvas.drawLine(
+            Offset(x1 + ux * d, y1 + uy * d),
+            Offset(x1 + ux * e, y1 + uy * e),
+            rPaint,
+          );
+          d = e + 4;
+        }
+        if (pending) return;
+        final dp = r.p2 - r.p1;
+        final pct = r.p1 != 0 ? dp / r.p1 * 100 : 0.0;
+        final bars = (uIdx(r.t2) - uIdx(r.t1)).round().abs();
+        final span = r.t2.difference(r.t1).abs();
+        final spanTxt = span.inDays >= 1
+            ? '${span.inDays}d ${span.inHours % 24}h'
+            : '${span.inHours}h ${span.inMinutes % 60}m';
+        final label =
+            '${dp >= 0 ? '+' : ''}${dp.toStringAsFixed(2)} (${pct.toStringAsFixed(2)}%)  $bars bars  $spanTxt';
+        final tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(
+              color: Color(0xFF0F1115),
+              fontSize: 10,
+              fontFamily: 'Roboto',
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        final bx = (mx - tp.width / 2 - 6).clamp(0.0, plotW - tp.width - 12);
+        final by = (my - tp.height - 10).clamp(0.0, plotH - tp.height - 8);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(bx, by, tp.width + 12, tp.height + 8),
+            const Radius.circular(4),
+          ),
+          Paint()..color = const Color(0xE6F5C242),
+        );
+        tp.paint(canvas, Offset(bx + 6, by + 4));
+      }
+
+      for (final r in rulers) {
+        drawRuler(r, false);
+      }
+      if (pendingRuler != null) drawRuler(pendingRuler!, true);
     }
 
     // fibonacci retracements: horizontal levels between the two anchors,
