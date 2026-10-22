@@ -1756,6 +1756,9 @@ class _TradeTabState extends State<TradeTab> {
       _replayPlaying = false;
     });
     await chart.reload();
+    // The visible list just shrank to the replay window; drop any
+    // scrolled-back offset so the replay edge is on screen.
+    chart.jumpToLatest();
   }
 
   Future<void> _replayStep() async {

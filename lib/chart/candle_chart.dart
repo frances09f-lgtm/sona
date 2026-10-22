@@ -1464,6 +1464,15 @@ class CandleChartPanelState extends State<CandleChartPanel>
   /// external data refresh). Same path as the periodic refresh.
   Future<void> reload() => _load(quiet: true);
 
+  /// Snap the view to the newest bar without changing the zoom level.
+  /// Bar replay starts with a shortened candle list; a scrolled-back
+  /// offset would otherwise clamp the view to the oldest replay bars
+  /// and make stepping look frozen.
+  void jumpToLatest() {
+    if (scrollCandles == 0) return;
+    setState(() => scrollCandles = 0);
+  }
+
   Future<void> _load({bool quiet = false}) async {
     final loader = widget.loader;
     if (loader == null) return;

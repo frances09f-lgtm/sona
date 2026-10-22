@@ -81,4 +81,54 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('REPLAY'), findsNothing);
   });
+
+  testWidgets('Bar replay: start snaps a scrolled-back view to the edge',
+      (t) async {
+    final app = demoState();
+    t.view.physicalSize = const Size(390 * 2, 844 * 2);
+    t.view.devicePixelRatio = 2.0;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: AnimatedBuilder(
+          animation: app,
+          builder: (_, __) => Scaffold(
+            body: SafeArea(
+              child: TradeTab(app: app, candleLoaderOverride: testCandles),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+
+    // Scroll back through history before entering replay.
+    final panel = t.state(find.byType(CandleChartPanel)) as dynamic;
+    panel.debugSetView(visibleCount: 60, scroll: 100.0);
+    await t.pumpAndSettle();
+    expect(panel.scrollCandles, greaterThan(0),
+        reason: 'precondition: view scrolled back');
+
+    await t.tap(find.byIcon(Icons.fullscreen));
+    await t.pumpAndSettle();
+    await t.tap(find.byIcon(Icons.play_circle_outline));
+    await t.pumpAndSettle();
+
+    // Pick a candle in the scrolled-back view and start.
+    final chart = t.getRect(find.byType(CandleChartPanel));
+    await t.tapAt(Offset(chart.left + chart.width * 0.5, chart.top + 140));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Start'));
+    await t.pumpAndSettle();
+
+    // Without jumpToLatest the view stays clamped to the oldest replay
+    // bars and stepping looks frozen; start must snap to the replay edge.
+    expect(panel.scrollCandles, 0);
+    expect(find.text('REPLAY'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('replay-step')));
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+  });
 }
