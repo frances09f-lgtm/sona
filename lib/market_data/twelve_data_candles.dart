@@ -64,7 +64,10 @@ class TwelveDataCandleService implements HistoricalCandleService {
       // them as device-local), then toLocal() so axis labels read in the
       // user's clock and now-vs-candle comparisons stay correct.
       final raw = v['datetime']?.toString() ?? '';
-      final norm = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
+      var norm = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
+      // Daily and weekly intervals come back date-only ("2026-10-25");
+      // anchor them to UTC midnight like Twelve Data's own widgets do.
+      if (!norm.contains('T')) norm = '${norm}T00:00:00';
       final time = DateTime.tryParse(
         norm.endsWith('Z') ? norm : '${norm}Z',
       )?.toLocal();
