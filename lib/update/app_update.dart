@@ -29,6 +29,22 @@ class UpdateInfo {
   });
 }
 
+/// Outcome of an update check that separates "no newer version" from
+/// "the check itself failed" (offline, rate limit, unexpected payload), so a
+/// user-initiated check can say the check failed instead of claiming the app
+/// is up to date.
+enum UpdateCheckStatus { updateAvailable, upToDate, failed }
+
+class UpdateCheck {
+  final UpdateCheckStatus status;
+  final UpdateInfo? info;
+  const UpdateCheck._(this.status, this.info);
+  const UpdateCheck.available(UpdateInfo info)
+    : this._(UpdateCheckStatus.updateAvailable, info);
+  const UpdateCheck.upToDate() : this._(UpdateCheckStatus.upToDate, null);
+  const UpdateCheck.failed() : this._(UpdateCheckStatus.failed, null);
+}
+
 /// Numeric semver-ish compare: returns >0 when a > b. Ignores a leading v
 /// and any +build suffix; missing segments count as 0.
 int compareVersions(String a, String b) {
@@ -109,7 +125,15 @@ class UpdateChecker {
 
   /// Latest published release, or null when there is nothing newer or the
   /// check fails (offline, rate limit): callers treat null as "no update".
-  Future<UpdateInfo?> fetchLatest() async {
+  /// Use [fetchLatestDetailed] when the caller must tell a failed check
+  /// apart from "up to date".
+  Future<UpdateInfo?> fetchLatest() async =>
+      (await fetchLatestDetailed()).info;
+
+  /// Like [fetchLatest] but reports [UpdateCheckStatus.failed] when the
+  /// check itself did not complete, so a user-initiated check can say so
+  /// instead of claiming the app is up to date.
+  Future<UpdateCheck> fetchLatestDetailed() async {
     try {
       final res = await _client
           .get(
@@ -122,10 +146,10 @@ class UpdateChecker {
             },
           )
           .timeout(const Duration(seconds: 8));
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) return const UpdateCheck.failed();
       final j = jsonDecode(res.body) as Map<String, dynamic>;
       final tag = (j['tag_name'] as String? ?? '').trim();
-      if (tag.isEmpty) return null;
+      if (tag.isEmpty) return const UpdateCheck.failed();
       String? apk;
       for (final a in (j['assets'] as List? ?? const [])) {
         final name = (a as Map)['name'] as String? ?? '';
@@ -134,16 +158,18 @@ class UpdateChecker {
           break;
         }
       }
-      if (apk == null) return null;
+      if (apk == null) return const UpdateCheck.failed();
       final info = UpdateInfo(
         version: tag.replaceFirst(RegExp(r'^[vV]'), ''),
         notes: (j['body'] as String? ?? '').trim(),
         apkUrl: apk,
       );
       final current = await _currentVersion();
-      return compareVersions(info.version, current) > 0 ? info : null;
+      return compareVersions(info.version, current) > 0
+          ? UpdateCheck.available(info)
+          : const UpdateCheck.upToDate();
     } catch (_) {
-      return null;
+      return const UpdateCheck.failed();
     }
   }
 
@@ -230,8 +256,19 @@ Future<void> checkUpdateManually(
 }) async {
   if (Platform.environment['FLUTTER_TEST'] == 'true') return;
   final c = checker ?? UpdateChecker();
-  final info = await c.fetchLatest();
+  final result = await c.fetchLatestDetailed();
   if (!context.mounted) return;
+  if (result.status == UpdateCheckStatus.failed) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Couldn't check for updates. Check your connection and try again.",
+        ),
+      ),
+    );
+    return;
+  }
+  final info = result.info;
   if (info == null) {
     final v = await PackageInfo.fromPlatform()
         .then((p) => p.version)
