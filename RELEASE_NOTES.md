@@ -1,3 +1,11 @@
+# Sona 1.2.6
+
+## Fixed
+- Day, week, 3-month and 1-year charts showed "zero usable candles" instead of
+  a chart. Twelve Data sends daily and weekly bars as plain dates, and the app
+  dropped them. All 14 timeframe and range views now verified against the real
+  feed.
+
 # Sona 1.2.5
 
 ## Fixed
