@@ -2019,7 +2019,6 @@ class _TradeTabState extends State<TradeTab> {
                   rangeMode: true,
                   chromeless: true,
                   loader:
-
                       (_candles == null && widget.candleLoaderOverride == null)
                           ? null
                           : (iv) async {
@@ -2041,3 +2040,3962 @@ class _TradeTabState extends State<TradeTab> {
                               );
                               return trimTradeRange(data, iv);
                             },
+                  marketUpdates: app,
+                  onReplay: _toggleReplay,
+                  replayOn: _replay != null || _pickingReplayStart,
+                  marketSnapshot: () {
+                    final replay = _replay;
+                    if (replay != null) {
+                      return ChartMarketSnapshot(
+                        price: replay.price,
+                        fresh: false,
+                        positions: [
+                          for (final p in replay.open)
+                            ChartPosition(
+                              buy: p.buy,
+                              entry: p.entry,
+                              quantity: p.size,
+                              stop: p.stop,
+                              target: p.target,
+                              pnl: p.unrealized(replay.price),
+                            ),
+                        ],
+                      );
+                    }
+                    return ChartMarketSnapshot(
+                      price: app.chartBasis,
+                      fresh: app.priceFresh,
+                      bid: app.bid,
+                      ask: app.ask,
+                      liveTicks: app.liveTicks,
+                      positions: [
+                        for (final record in app.positions)
+                          if (ChartPosition.fromRecord(
+                                record,
+                                mark: app.exitSidePrice(
+                                  record['direction'] == 'buy' ? 'buy' : 'sell',
+                                ),
+                                fresh: app.priceFresh,
+                              )
+                            case final ChartPosition position)
+                            position,
+                      ],
+                    );
+                  },
+                  livePrice: _replay?.price ?? app.chartBasis,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () =>
+                            chartKey.currentState?.cycleChartStyle(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.candlestick_chart,
+                            size: 20,
+                            color: cDim,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            for (final r in tradeRanges)
+                              _rangeChip(r),
+                          ],
+                        ),
+                      ),
+                      InkWell(
+                        onTap: _openChartFullscreen,
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.fullscreen,
+                            size: 20,
+                            color: cDim,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_pickingReplayStart)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B2440),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF9B7BFF)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Tap the candle where replay should start',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF9B7BFF),
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _startReplay,
+                          child: const Text('Start'),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _pickingReplayStart = false),
+                          child: const Text('Cancel'),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (app.pendingOrders != null) ...[
+                  const SizedBox(height: 12),
+                  ...app.pendingOrders!.orders
+                      .where(
+                        (o) =>
+                            o.status == 'pending' ||
+                            o.status == 'needsReview' ||
+                            o.status == 'submitting',
+                      )
+                      .map(
+                        (o) => Card(
+                          child: ListTile(
+                            title: Text(
+                              '${o.side.toUpperCase()} ${lotsStr(o.qty)} ${o.above ? "at or above" : "at or below"} ${fmt(o.trigger)}',
+                            ),
+                            subtitle: Text(
+                              '${o.status} · ${o.gtc ? "GTC" : "expires at local midnight"} · fills only while Sona is open, needs internet${o.note == null ? "" : "\n${o.note}"}',
+                            ),
+                            trailing: o.status == 'pending'
+                                ? IconButton(
+                                    icon: const Icon(Icons.close),
+                                    tooltip: 'Cancel pending order',
+                                    onPressed: () async {
+                                      await app.pendingOrders!.cancel(o.id);
+                                      if (mounted) setState(() {});
+                                    },
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
+                ],
+                const SessionsStrip(),
+                const SizedBox(height: 10),
+                card(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Price alerts',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: alertCtrl,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Alert price',
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () =>
+                                setState(() => alertAbove = !alertAbove),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: cBorder),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                alertAbove ? 'Above' : 'Below',
+                                style: const TextStyle(
+                                  color: cDim,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () {
+                              final v = double.tryParse(alertCtrl.text.trim());
+                              if (v != null && v > 0) {
+                                app.addAlert(v, alertAbove);
+                                alertCtrl.clear();
+                              }
+                            },
+                            child: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                      if (app.alerts.isNotEmpty) const SizedBox(height: 8),
+                      ...app.alerts.map(
+                        (a) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Icon(
+                                a.triggered
+                                    ? Icons.notifications_active
+                                    : Icons.notifications_none,
+                                size: 14,
+                                color: a.triggered
+                                    ? const Color(0xFFF5C242)
+                                    : cDim,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${a.above ? 'Above' : 'Below'} ${fmt(a.level)}${a.triggered ? '  -  triggered' : ''}',
+                                  style: TextStyle(
+                                    color: a.triggered
+                                        ? const Color(0xFFF5C242)
+                                        : cDim,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => app.removeAlert(a.id),
+                                child: const Icon(
+                                  Icons.delete_outline,
+                                  size: 16,
+                                  color: cDim,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (app.alertBanner != null)
+                  card(
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.notifications_active,
+                          color: Color(0xFFF5C242),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Price alert: XAU/USD ${app.alertBanner!.above ? 'reached' : 'dropped to'} ${fmt(app.alertBanner!.level)}',
+                            style: const TextStyle(
+                              color: Color(0xFFF5C242),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: app.dismissAlertBanner,
+                          child: const Icon(Icons.close, color: cDim, size: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (!fresh)
+                  card(
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber,
+                          color: Colors.amber,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            app.priceOk
+                                ? 'Price looks stale - check internet before opening or closing.'
+                                : 'Cannot reach the price feed right now. You can still view, but open/close is paused.',
+                            style: const TextStyle(
+                              color: Colors.amber,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                card(
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Daily limits',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _editSlippage(context),
+                            icon: const Icon(
+                              Icons.speed,
+                              size: 14,
+                              color: cDim,
+                            ),
+                            label: Text(
+                              'Slippage: ${app.slippage.label}',
+                              style: const TextStyle(color: cDim, fontSize: 12),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _editDailyLimits(context),
+                            icon: const Icon(
+                              Icons.tune,
+                              size: 14,
+                              color: Color(0xFFF5C242),
+                            ),
+                            label: const Text(
+                              'Set',
+                              style: TextStyle(
+                                color: Color(0xFFF5C242),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _balRow(
+                              'Trades today',
+                              '${app.tradesToday()}${app.maxTradesDay > 0 ? ' / ${app.maxTradesDay}' : ''}',
+                              cDim,
+                            ),
+                          ),
+                          Expanded(
+                            child: _balRow(
+                              'P/L today',
+                              money(app.realizedToday(), sign: true) +
+                                  (app.maxDailyLoss > 0
+                                      ? ' / -${fmt(app.maxDailyLoss)}'
+                                      : ''),
+                              cls(app.realizedToday()),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (app.limitWarning() != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.warning_amber,
+                                color: Colors.amber,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  app.limitWarning()!,
+                                  style: const TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Block new trades at limit',
+                              style: TextStyle(fontSize: 12, color: cDim),
+                            ),
+                          ),
+                          Switch(
+                            value: app.blockOnLimit,
+                            activeTrackColor: cGreen,
+                            onChanged: (v) =>
+                                setState(() => app.setDailyLimits(block: v)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            key: const ValueKey('trade-actions-frame'),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF10182A),
+              border: Border(top: BorderSide(color: cBorder)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_replay != null)
+                  _replayControls()
+                else
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Material(
+                              color: const Color(0xFFDE1557),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => selectSide('sell'),
+                              child: SizedBox(
+                                height: 52,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'SELL',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      app.bid == null ? '--' : fmt(app.bid),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Material(
+                            color: const Color(0xFF2BBB97),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => selectSide('buy'),
+                              child: SizedBox(
+                                height: 52,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'BUY',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      app.ask == null ? '--' : fmt(app.ask),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0ECEA),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          app.spread == null ? '--' : fmt(app.spread),
+                          style: const TextStyle(
+                            color: Color(0xFF10182A),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Spread USD/oz · ${fresh ? 'Live quote' : 'Quote stale or unavailable'} · Tap a side to open the order sheet',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: cDim, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editSlippage(BuildContext context) async {
+    final customCtrl = TextEditingController(
+      text: app.slippage.custom > 0 ? app.slippage.custom.toString() : '',
+    );
+    String mode = app.slippage.mode;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setD) => AlertDialog(
+          backgroundColor: cCard,
+          title: const Text('Slippage', style: TextStyle(fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Optional paper-trading slippage. Makes your fills slightly worse, like a real broker. Applies to new fills only.',
+                style: TextStyle(color: cDim, fontSize: 12),
+              ),
+              RadioListTile<String>(
+                title: const Text(
+                  'Slippage: Off',
+                  style: TextStyle(fontSize: 14),
+                ),
+                dense: true,
+                value: 'off',
+                groupValue: mode,
+                onChanged: (v) => setD(() => mode = v!),
+              ),
+              RadioListTile<String>(
+                title: const Text(
+                  'Slippage: Low (\$0.05)',
+                  style: TextStyle(fontSize: 14),
+                ),
+                dense: true,
+                value: 'low',
+                groupValue: mode,
+                onChanged: (v) => setD(() => mode = v!),
+              ),
+              RadioListTile<String>(
+                title: const Text(
+                  'Slippage: Custom',
+                  style: TextStyle(fontSize: 14),
+                ),
+                dense: true,
+                value: 'custom',
+                groupValue: mode,
+                onChanged: (v) => setD(() => mode = v!),
+              ),
+              if (mode == 'custom')
+                TextField(
+                  controller: customCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Slippage \$ per oz',
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      app.setSlippage(mode, double.tryParse(customCtrl.text.trim()) ?? 0);
+    }
+  }
+
+  Future<void> _editDailyLimits(BuildContext context) async {
+    final tradesCtrl = TextEditingController(
+      text: app.maxTradesDay > 0 ? app.maxTradesDay.toString() : '',
+    );
+    final lossCtrl = TextEditingController(
+      text: app.maxDailyLoss > 0 ? fmt(app.maxDailyLoss) : '',
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Daily limits', style: TextStyle(fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: tradesCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Max trades/day (empty = off)',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: lossCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Max daily loss \$ (empty = off)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final t = int.tryParse(tradesCtrl.text.trim()) ?? 0;
+      final l = double.tryParse(lossCtrl.text.trim()) ?? 0;
+      setState(
+        () => app.setDailyLimits(trades: t < 0 ? 0 : t, loss: l < 0 ? 0 : l),
+      );
+    }
+  }
+
+  /// Stage (d): live risk readout for the order being composed.
+  /// Shows $ at risk from the stop distance, and a one-tap size that
+  /// risks 1% of the paper balance. Entry is the real side price.
+  Widget _riskRow() {
+    final entry = app.entrySidePrice(dir);
+    final lotsIn = parseNum(qtyCtrl.text);
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
+    final sl = parseNum(slCtrl.text);
+    if (entry == null) return const SizedBox.shrink();
+    final risk = (qty != null && sl != null) ? (entry - sl).abs() * qty : null;
+    final suggested = riskQty(app.balance * 0.01, entry, sl);
+    final pct = risk != null && app.balance > 0
+        ? risk / app.balance * 100
+        : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              risk == null
+                  ? (sl == null
+                        ? 'Add a stop loss to size by risk'
+                        : 'Enter size and stop to see risk')
+                  : 'Risk ${money(risk, sign: false)} (${pct!.toStringAsFixed(1)}% of balance)',
+              style: TextStyle(
+                color: risk == null ? cDim : (pct! > 2 ? cRed : Colors.amber),
+                fontSize: 12,
+              ),
+            ),
+          ),
+          if (suggested != null)
+            GestureDetector(
+              onTap: () => setState(
+                () => qtyCtrl.text = (suggested / 100).toStringAsFixed(2),
+              ),
+              child: Text(
+                '1% size: ${lotsStr(suggested)}',
+                style: const TextStyle(
+                  color: Color(0xFFF5C242),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _balRow(String label, String value, Color color) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(label, style: const TextStyle(color: cDim, fontSize: 13)),
+      Text(
+        value,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          color: color,
+        ),
+      ),
+    ],
+  );
+
+  Widget _segBtn(String label, Color color, bool on, VoidCallback tap) =>
+      GestureDetector(
+        onTap: tap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: on ? color.withValues(alpha: 0.2) : cBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: on ? color : cBorder,
+              width: on ? 1.5 : 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: on ? color : cDim,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+        ),
+      );
+}
+
+class PositionsTab extends StatefulWidget {
+  final AppState app;
+  const PositionsTab({super.key, required this.app});
+  @override
+  State<PositionsTab> createState() => _PositionsTabState();
+}
+
+class _PositionsTabState extends State<PositionsTab> {
+  bool showHistory = false;
+  final Set<String> _histExpanded = {};
+  // History filters (spec 26): time, result, direction.
+  String _timeFilter = 'today';
+  String _resultFilter = 'all';
+  String _dirFilter = 'all';
+
+  AppState get app => widget.app;
+
+  List<Map<String, dynamic>> _filteredHist(List<Map<String, dynamic>> hist) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+    final monthStart = DateTime(now.year, now.month);
+    return hist.where((t) {
+      if (_timeFilter != 'all') {
+        final d = DateTime.tryParse(t['closed_at']?.toString() ?? '')
+            ?.toLocal();
+        if (d == null) return false;
+        switch (_timeFilter) {
+          case 'today':
+            if (d.isBefore(todayStart) ||
+                !d.isBefore(todayStart.add(const Duration(days: 1))))
+              return false;
+            break;
+          case 'yesterday':
+            final y = todayStart.subtract(const Duration(days: 1));
+            if (d.isBefore(y) || !d.isBefore(todayStart)) return false;
+            break;
+          case 'week':
+            if (d.isBefore(weekStart)) return false;
+            break;
+          case 'month':
+            if (d.isBefore(monthStart)) return false;
+            break;
+        }
+      }
+      if (_resultFilter != 'all') {
+        final pnl = (t['pnl'] as num?)?.toDouble();
+        if (pnl == null) return false;
+        if (_resultFilter == 'win' && pnl <= 0) return false;
+        if (_resultFilter == 'loss' && pnl >= 0) return false;
+      }
+      if (_dirFilter != 'all' && t['direction'] != _dirFilter) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _fdrop(
+    String label,
+    String value,
+    Map<String, String> options,
+    String group,
+  ) {
+    return Expanded(
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue: value,
+        isDense: true,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: cDim, fontSize: 11),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 6,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: Color(0xFF2A3140)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: Color(0xFFF5C242)),
+          ),
+        ),
+        dropdownColor: const Color(0xFF1A1F2B),
+        style: const TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 12,
+          color: Colors.white,
+        ),
+        items: [
+          for (final e in options.entries)
+            DropdownMenuItem(value: e.key, child: Text(e.value)),
+        ],
+        onChanged: (v) => setState(() {
+          if (v == null) return;
+          if (group == 'time') {
+            _timeFilter = v;
+          } else if (group == 'result') {
+            _resultFilter = v;
+          } else {
+            _dirFilter = v;
+          }
+        }),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final open = app.positions.where((t) => t['status'] == 'open').toList();
+    final hist = app.positions.where((t) => t['status'] == 'closed').toList()
+      ..sort(
+        (a, b) => (b['closed_at'] ?? '').toString().compareTo(
+          (a['closed_at'] ?? '').toString(),
+        ),
+      );
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: _tabBtn(
+                  'Open Positions (${open.length})',
+                  !showHistory,
+                  () => setState(() => showHistory = false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _tabBtn(
+                  'History',
+                  showHistory,
+                  () => setState(() => showHistory = true),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showHistory)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    _fdrop('Time', _timeFilter, const {
+                      'all': 'All',
+                      'today': 'Today',
+                      'yesterday': 'Yesterday',
+                      'week': 'Week',
+                      'month': 'Month',
+                    }, 'time'),
+                    const SizedBox(width: 8),
+                    _fdrop('Result', _resultFilter, const {
+                      'all': 'All',
+                      'win': 'Winning',
+                      'loss': 'Losing',
+                    }, 'result'),
+                    const SizedBox(width: 8),
+                    _fdrop('Side', _dirFilter, const {
+                      'all': 'All',
+                      'buy': 'Buy',
+                      'sell': 'Sell',
+                    }, 'dir'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        if (!showHistory)
+          // User request: current gold price visible with the positions.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
+            child: Row(
+              children: [
+                const Text(
+                  'XAU/USD',
+                  style: TextStyle(color: cDim, fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: app.priceFresh ? Colors.white : cDim,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (app.bid != null && app.ask != null)
+                  Text(
+                    'Bid ${fmt(app.bid)} · Ask ${fmt(app.ask)}',
+                    style: const TextStyle(color: cDim, fontSize: 11),
+                  ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: showHistory
+              ? _historyList(_filteredHist(hist))
+              : _openList(open),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabBtn(String label, bool on, VoidCallback tap) => GestureDetector(
+    onTap: tap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: on ? cCard : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: on ? cBorder : Colors.transparent),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: on ? Colors.white : cDim,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+      ),
+    ),
+  );
+
+  Widget _openList(List<Map<String, dynamic>> open) {
+    if (open.isEmpty) {
+      return const Center(
+        child: Text('No open positions', style: TextStyle(color: cDim)),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+      itemCount: open.length + 1,
+      itemBuilder: (ctx, i) {
+        if (i == open.length) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'TP/SL edits stay on this device. Android background checks may be delayed or stopped; always-on server protection is not deployed.',
+              style: TextStyle(color: cDim, fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+        return _positionCard(open[i]);
+      },
+    );
+  }
+
+  Widget _positionCard(Map<String, dynamic> t) {
+    final id = t['id'].toString();
+    final buy = t['direction'] == 'buy';
+    final qty = (t['qty'] as num).toDouble();
+    final live = app.livePnl(t);
+    final isExpanded = app.expanded.contains(id);
+    final tp = app.effectiveLimit(t, 'tp');
+    final sl = app.effectiveLimit(t, 'sl');
+    final isClosing = app.closing.contains(id);
+    return card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            key: ValueKey('open-position-$id'),
+            onTap: () => setState(() {
+              isExpanded ? app.expanded.remove(id) : app.expanded.add(id);
+            }),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'GOLD',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            buy ? Icons.arrow_upward : Icons.arrow_downward,
+                            size: 13,
+                            color: buy ? cGreen : cRed,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${lotsStr(qty)}  ${buy ? 'BUY' : 'SELL'}',
+                            style: TextStyle(
+                              color: buy ? cGreen : cRed,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  money(live, sign: true),
+                  style: TextStyle(
+                    color: cls(live),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: cDim,
+                ),
+              ],
+            ),
+          ),
+          if (isExpanded) ...[
+            const SizedBox(height: 10),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: cRed,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: (!app.priceFresh || isClosing)
+                  ? null
+                  : () => _confirmClose(t),
+              child: Text(
+                isClosing
+                    ? 'Closing...'
+                    : 'Close Trade: ${money(live, sign: true)}',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TradeExplanationCard(
+              data: TradeExplanation(
+                entry: (t['entry'] as num).toDouble(),
+                qty: qty,
+                buy: buy,
+                stop: sl,
+                target: tp,
+                spread: app.spread,
+              ),
+              fresh: app.priceFresh,
+            ),
+            const Divider(color: cBorder, height: 24),
+            _row('Order ID', id),
+            _row('Instrument', 'GOLD'),
+            _row('Amount', '${fmt(qty)} Troy Ounce${qty == 1 ? '' : 's'}'),
+            _row('Direction', buy ? 'BUY' : 'SELL'),
+            _row('Open Price', fmt((t['entry'] as num).toDouble())),
+            _row('Current Price', app.priceOk ? fmt(app.price) : 'Unavailable'),
+            _row('PnL', money(live, sign: true), color: cls(live)),
+            _row('Price Move (%)', () {
+              final m = app.movePct(t);
+              return m == null
+                  ? '-'
+                  : '${m > 0 ? '+' : ''}${m.toStringAsFixed(3)}%';
+            }()),
+            _row('Time Opened', _fmtTime(t['opened_at']?.toString())),
+            _row(
+              'Take Profit / Stop Loss',
+              '${tp == null ? '-' : fmt(tp)} / ${sl == null ? '-' : fmt(sl)}',
+            ),
+            const SizedBox(height: 8),
+            _limitSwitch(t, 'tp', 'Take Profit', tp),
+            _limitSwitch(t, 'sl', 'Stop Loss', sl),
+          ],
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+    );
+  }
+
+  Widget _limitSwitch(
+    Map<String, dynamic> t,
+    String key,
+    String label,
+    double? v,
+  ) {
+    final on = v != null;
+    return InkWell(
+      onTap: () async {
+        if (on) {
+          setState(() => app.setLimit(t['id'].toString(), key, null));
+        } else {
+          await _askLimit(t, key, label);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 14)),
+                  Text(
+                    on
+                        ? '${fmt(v)}  ${money(pnlAtLevel(t, v), sign: true)}'
+                        : 'Off',
+                    style: TextStyle(
+                      color: on ? cls(pnlAtLevel(t, v)) : cDim,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: on,
+              activeTrackColor: cGreen,
+              onChanged: (nv) async {
+                if (!nv) {
+                  setState(() => app.setLimit(t['id'].toString(), key, null));
+                } else {
+                  await _askLimit(t, key, label);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _askLimit(
+    Map<String, dynamic> t,
+    String key,
+    String label,
+  ) async {
+    final buy = t['direction'] == 'buy';
+    final existing = t[key];
+    // User request: prefill with the live price so he nudges from there
+    // (existing value wins when one is already set), and show the open
+    // price for reference instead of a useless "e.g." placeholder.
+    final start = existing != null
+        ? fmt((existing as num).toDouble())
+        : (app.price != null ? fmt(app.price!) : '');
+    final ctrl = TextEditingController(text: start);
+    final open = (t['entry'] as num?)?.toDouble();
+    String? error;
+    final val = await showDialog<double>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: cCard,
+          title: Text(
+            '$label price (\$ per troy ounce)',
+            style: const TextStyle(fontSize: 16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (open != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Entry: ${fmt(open)} · Size: ${lotsStr((t['qty'] as num?)?.toDouble() ?? 0)}',
+                      style: const TextStyle(color: cDim, fontSize: 12),
+                    ),
+                  ),
+                ),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                onChanged: (_) => setD(() {}),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(),
+              ),
+              if (open != null)
+                Wrap(
+                  spacing: 8,
+                  children: [1, 3, 5, 10]
+                      .map(
+                        (offset) => ActionChip(
+                          label: Text('${key == "tp" ? "+" : "-"}$offset'),
+                          onPressed: () {
+                            final level = quickProtectionLevel(
+                              t,
+                              key,
+                              offset.toDouble(),
+                            );
+                            if (level != null) {
+                              ctrl.text = fmt(level);
+                              setD(() => error = null);
+                            }
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              Builder(
+                builder: (_) {
+                  final v = double.tryParse(ctrl.text.trim());
+                  final pnl = v == null ? null : pnlAtLevel(t, v);
+                  if (pnl == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Projected P/L at $label: ${money(pnl, sign: true)}',
+                        style: TextStyle(
+                          color: cls(pnl),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    error!,
+                    style: const TextStyle(color: cRed, fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final v = double.tryParse(ctrl.text.trim());
+                if (v == null || !v.isFinite || v <= 0) {
+                  setD(() => error = 'Enter a positive price');
+                  return;
+                }
+                final above = key == 'tp' ? buy : !buy;
+                if (app.priceFresh &&
+                    (above ? v <= app.price! : v >= app.price!)) {
+                  setD(
+                    () => error =
+                        'Choose a level ${above ? 'above' : 'below'} the current price',
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, v);
+              },
+              child: const Text('Set'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (val != null) setState(() => app.setLimit(t['id'].toString(), key, val));
+  }
+
+  Widget _row(String k, String v, {Color? color}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(k, style: const TextStyle(color: cDim, fontSize: 13)),
+        Flexible(
+          child: Text(
+            v,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color ?? Colors.white,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  String _fmtTime(String? iso) {
+    final d = DateTime.tryParse(iso ?? '')?.toLocal();
+    if (d == null) return '-';
+    String p(int n) => n.toString().padLeft(2, '0');
+    return '${p(d.day)}/${p(d.month)}/${p(d.year % 100)} ${p(d.hour)}:${p(d.minute)}:${p(d.second)}';
+  }
+
+  Future<void> _confirmClose(Map<String, dynamic> t) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cCard,
+        title: Text(
+          'Close this ${t['direction'].toString().toUpperCase()} at the live price?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: cRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final r = await app.closePaper(t);
+      if (!mounted) return;
+      if (r != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              r.startsWith('closed')
+                  ? 'Closed at ${fmt(app.price)}${r.contains(':') ? ' · ${r.split(':')[1]}' : ''}'
+                  : r,
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Stage (e): journal note editor for a closed paper trade.
+  Future<void> _editNote(
+    BuildContext context,
+    Map<String, dynamic> t,
+    String current,
+  ) async {
+    final ctrl = TextEditingController(text: current);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Journal note'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Why did you take this trade? What happened?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true) {
+      app.setTradeNote(t['id'].toString(), ctrl.text);
+    }
+  }
+
+  Widget _historyList(List<Map<String, dynamic>> hist) {
+    final summary = HistorySummary.from(hist);
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+      itemCount: hist.length + 1,
+      itemBuilder: (ctx, i) {
+        if (i == 0)
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(4, 20, 4, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: cDim.withValues(alpha: .45)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.swap_calls, color: cDim),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Realized P/L · USD',
+                            style: TextStyle(color: cDim, fontSize: 13),
+                          ),
+                          Text(
+                            summary.known == 0 && summary.missing > 0
+                                ? '--'
+                                : money(summary.total, sign: true),
+                            style: TextStyle(
+                              color: summary.known == 0
+                                  ? cDim
+                                  : cls(summary.total),
+                              fontSize: 25,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${hist.length} closed ${hist.length == 1 ? 'trade' : 'trades'} in selected filters${summary.missing > 0 ? ' · Partial: ${summary.missing} missing P/L' : ''}',
+                  style: const TextStyle(color: cDim, fontSize: 12),
+                ),
+                if (hist.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 28),
+                    child: Text(
+                      'No closed trades match',
+                      style: TextStyle(color: cDim),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        final t = hist[i - 1];
+        final buy = t['direction'] == 'buy';
+        final rawPnl = t['pnl'];
+        final pnl = rawPnl is num && rawPnl.toDouble().isFinite
+            ? rawPnl.toDouble()
+            : null;
+        final d = DateTime.tryParse(t['closed_at']?.toString() ?? '')
+            ?.toLocal();
+        final tid = t['id'].toString();
+        final isExp = _histExpanded.contains(tid);
+        // User request: collapsed dropdown rows - one summary line each,
+        // tap the chevron to open the full details.
+        return card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: () => setState(
+                  () => isExp
+                      ? _histExpanded.remove(tid)
+                      : _histExpanded.add(tid),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE8C75B),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.view_in_ar,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'GOLD',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                buy ? Icons.north_east : Icons.south_east,
+                                color: buy ? cGreen : cRed,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  '${fmt((t['qty'] as num).toDouble())} Troy Ounce(s)',
+                                  style: const TextStyle(
+                                    color: cDim,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      money(pnl, sign: true),
+                      style: TextStyle(
+                        color: cls(pnl),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Icon(
+                      isExp ? Icons.expand_less : Icons.expand_more,
+                      color: cDim,
+                    ),
+                  ],
+                ),
+              ),
+              if (isExp) ...[
+                const SizedBox(height: 8),
+                TradeExplanationCard(
+                  data: TradeExplanation(
+                    entry: (t['entry'] as num).toDouble(),
+                    qty: (t['qty'] as num).toDouble(),
+                    buy: buy,
+                    stop: (t['sl'] as num?)?.toDouble(),
+                    target: (t['tp'] as num?)?.toDouble(),
+                  ),
+                  fresh: false,
+                  historical: true,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Entry ${fmt((t['entry'] as num).toDouble())} → Exit ${t['exit'] == null ? '-' : fmt((t['exit'] as num).toDouble())}'
+                  '${t['reason'] != null && t['reason'].toString().isNotEmpty ? ' · ${t['reason']}' : ''}\n'
+                  '${d == null ? '' : '${d.day} ${_month(d.month)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'}',
+                  style: const TextStyle(
+                    color: cDim,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+              if (isExp)
+                Builder(
+                  builder: (ctx2) {
+                    final note = app.tradeNotes[t['id'].toString()] ?? '';
+                    return GestureDetector(
+                      onTap: () => _editNote(ctx2, t, note),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit_note, size: 14, color: cDim),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                note.isEmpty ? 'Add a journal note' : note,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: note.isEmpty ? cDim : Colors.white70,
+                                  fontSize: 11,
+                                  fontStyle: note.isEmpty
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _month(int m) => const [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][m - 1];
+}
+
+Widget _pill(String label, bool buy) => Container(
+  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+  decoration: BoxDecoration(
+    color: (buy ? cGreen : cRed).withValues(alpha: 0.15),
+    borderRadius: BorderRadius.circular(6),
+  ),
+  child: Text(
+    label,
+    style: TextStyle(
+      color: buy ? cGreen : cRed,
+      fontSize: 11,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+);
+
+class AddTab extends StatefulWidget {
+  final AppState app;
+  const AddTab({super.key, required this.app});
+  @override
+  State<AddTab> createState() => _AddTabState();
+}
+
+class _AddTabState extends State<AddTab> {
+  String dir = 'buy';
+  String editingId = '';
+  final instrumentCtrl = TextEditingController(text: 'XAU/USD');
+  final entryCtrl = TextEditingController();
+  final exitCtrl = TextEditingController();
+  final pnlCtrl = TextEditingController();
+  final tpCtrl = TextEditingController();
+  final slCtrl = TextEditingController();
+  final noteCtrl = TextEditingController();
+  final journalQty = TextEditingController();
+  final costsCtrl = TextEditingController(text: '0');
+  final setupCtrl = TextEditingController();
+  bool legacySizeUnknown = false;
+  @override
+  void dispose() {
+    for (final c in [
+      instrumentCtrl,
+      entryCtrl,
+      exitCtrl,
+      pnlCtrl,
+      tpCtrl,
+      slCtrl,
+      noteCtrl,
+      journalQty,
+      costsCtrl,
+      setupCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  DateTime when = DateTime.now();
+  bool pnlManual = false;
+  bool saving = false;
+  String err = '';
+
+  AppState get app => widget.app;
+
+  void autoPnl() {
+    if (pnlManual) return;
+    final en = double.tryParse(entryCtrl.text.trim());
+    final ex = double.tryParse(exitCtrl.text.trim());
+    final lotsIn = double.tryParse(journalQty.text.trim());
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
+    final costs = double.tryParse(costsCtrl.text.trim());
+    final value = en == null || ex == null || qty == null || costs == null
+        ? null
+        : journalNet(side: dir, entry: en, exit: ex, qty: qty, costs: costs);
+    pnlCtrl.text = value?.toString() ?? '';
+  }
+
+  void resetForm() {
+    setState(() {
+      editingId = '';
+      dir = 'buy';
+      instrumentCtrl.text = 'XAU/USD';
+      entryCtrl.clear();
+      exitCtrl.clear();
+      pnlCtrl.clear();
+      tpCtrl.clear();
+      slCtrl.clear();
+      noteCtrl.clear();
+      journalQty.clear();
+      costsCtrl.text = '0';
+      setupCtrl.clear();
+      legacySizeUnknown = false;
+      when = DateTime.now();
+      pnlManual = false;
+      err = '';
+    });
+  }
+
+  void editTrade(Map<String, dynamic> t) {
+    setState(() {
+      journalQty.text = t['qty'] == null
+          ? ''
+          : ((t['qty'] as num) / 100).toString(); // show lots
+      costsCtrl.text = t['costs']?.toString() ?? '0';
+      setupCtrl.text = t['setup']?.toString() ?? '';
+      legacySizeUnknown = t['qty'] == null;
+      editingId = t['id'].toString();
+      dir = t['direction']?.toString() ?? 'buy';
+      instrumentCtrl.text = t['instrument']?.toString() ?? 'XAU/USD';
+      entryCtrl.text = t['entry']?.toString() ?? '';
+      exitCtrl.text = t['exit']?.toString() ?? '';
+      pnlCtrl.text = t['pnl']?.toString() ?? '';
+      pnlManual = t['pnl_mode'] == 'manual' || t['schema'] != 2;
+      tpCtrl.text = t['tp']?.toString() ?? '';
+      slCtrl.text = t['sl']?.toString() ?? '';
+      noteCtrl.text = t['note']?.toString() ?? '';
+      when =
+          DateTime.tryParse(t['traded_at']?.toString() ?? '')?.toLocal() ??
+          DateTime.now();
+      err = '';
+    });
+  }
+
+  double? pn(String s) => s.trim().isEmpty ? null : double.tryParse(s.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        Text(
+          editingId.isEmpty ? 'Log a manual trade' : 'Edit trade',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 10),
+        card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _seg(
+                      'Buy',
+                      cGreen,
+                      dir == 'buy',
+                      () => setState(() {
+                        dir = 'buy';
+                        autoPnl();
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _seg(
+                      'Sell',
+                      cRed,
+                      dir == 'sell',
+                      () => setState(() {
+                        dir = 'sell';
+                        autoPnl();
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: instrumentCtrl,
+                decoration: const InputDecoration(labelText: 'Instrument'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: entryCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => autoPnl(),
+                      decoration: const InputDecoration(labelText: 'Entry'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: exitCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => autoPnl(),
+                      decoration: const InputDecoration(
+                        labelText: 'Exit (optional)',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: journalQty,
+                      onChanged: (_) {
+                        setState(() {
+                          pnlManual = false;
+                          autoPnl();
+                        });
+                      },
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity (lots · 1 lot = 100 oz)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: costsCtrl,
+                      onChanged: (_) => setState(autoPnl),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Total costs (USD)',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Use actual fill prices. Do not subtract spread twice. Costs cover commission and financing charges.',
+                style: TextStyle(color: cDim, fontSize: 11),
+              ),
+              if (legacySizeUnknown)
+                const Text(
+                  'Legacy size unknown. Recorded net PnL is preserved; enter size to recalculate.',
+                  style: TextStyle(color: Colors.amber, fontSize: 12),
+                ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: setupCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Setup tag (optional)',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => setState(() {
+                  pnlManual = false;
+                  autoPnl();
+                }),
+                child: const Text('Use calculated net PnL'),
+              ),
+              TextField(
+                controller: pnlCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                onChanged: (v) => setState(() => pnlManual = v.isNotEmpty),
+                decoration: const InputDecoration(
+                  labelText: 'Net PnL USD (auto; editable override)',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: tpCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'TP (optional)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: slCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'SL (optional)',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: noteCtrl,
+                decoration: const InputDecoration(labelText: 'Note (optional)'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: cBorder),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: const Icon(Icons.schedule, color: cDim, size: 18),
+                label: Text(
+                  '${when.day}/${when.month}/${when.year} ${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: context,
+                    initialDate: when,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                  );
+                  if (d == null || !mounted) return;
+                  final tm = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.fromDateTime(when),
+                  );
+                  if (tm == null) return;
+                  setState(
+                    () => when = DateTime(
+                      d.year,
+                      d.month,
+                      d.day,
+                      tm.hour,
+                      tm.minute,
+                    ),
+                  );
+                },
+              ),
+              if (err.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    err,
+                    style: const TextStyle(color: cRed, fontSize: 12),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: cGreen,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      onPressed: saving ? null : _save,
+                      child: Text(
+                        saving
+                            ? 'Saving...'
+                            : (editingId.isEmpty
+                                  ? 'Save trade'
+                                  : 'Update trade'),
+                      ),
+                    ),
+                  ),
+                  if (editingId.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: cBorder),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      onPressed: resetForm,
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: cDim),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Logged trades',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        if (app.trades.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(
+              child: Text(
+                'No trades logged yet',
+                style: TextStyle(color: cDim),
+              ),
+            ),
+          )
+        else
+          ...app.trades.map((t) => _tradeTile(t)),
+      ],
+    );
+  }
+
+  Widget _seg(
+    String label,
+    Color color,
+    bool on,
+    VoidCallback tap,
+  ) => GestureDetector(
+    onTap: tap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: BoxDecoration(
+        color: on ? color.withValues(alpha: 0.2) : cBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: on ? color : cBorder, width: on ? 1.5 : 1),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(color: on ? color : cDim, fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
+
+  Widget _tradeTile(Map<String, dynamic> t) {
+    final buy = t['direction'] == 'buy';
+    final rawPnl = t['pnl'];
+    final pnl = rawPnl is num && rawPnl.toDouble().isFinite
+        ? rawPnl.toDouble()
+        : null;
+    final sizeDescription = t['qty'] == null
+        ? 'Legacy size unknown · recorded PnL'
+        : '${lotsStr((t['qty'] as num?) ?? 0)} · costs ${money((t['costs'] as num?) ?? 0)}';
+    final d = DateTime.tryParse(t['traded_at']?.toString() ?? '')?.toLocal();
+    return card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  _pill(buy ? 'BUY' : 'SELL', buy),
+                  const SizedBox(width: 8),
+                  Text(
+                    t['instrument']?.toString() ?? 'XAU/USD',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              Text(
+                pnl == null ? 'open' : money(pnl, sign: true),
+                style: TextStyle(color: cls(pnl), fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            sizeDescription,
+            style: const TextStyle(color: cDim, fontSize: 12),
+          ),
+          if ((t['setup']?.toString() ?? '').isNotEmpty)
+            Chip(label: Text(t['setup'].toString())),
+          Text(
+            'Entry ${t['entry'] ?? '-'}'
+            '${t['exit'] != null ? ' → Exit ${t['exit']}' : ''}'
+            '${t['tp'] != null ? ' · TP ${t['tp']}' : ''}'
+            '${t['sl'] != null ? ' · SL ${t['sl']}' : ''}'
+            '${d != null ? '\n${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}' : ''}',
+            style: const TextStyle(color: cDim, fontSize: 12, height: 1.4),
+          ),
+          if (t['note'] != null && t['note'].toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                t['note'].toString(),
+                style: const TextStyle(fontSize: 12, color: cDim),
+              ),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => editTrade(t),
+                child: const Text(
+                  'Edit',
+                  style: TextStyle(color: cDim, fontSize: 12),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _del(t),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: cRed, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final en = pn(entryCtrl.text);
+    if (en == null || !en.isFinite || en <= 0) {
+      setState(() => err = 'Enter the entry price');
+      return;
+    }
+    autoPnl();
+    final pnl = pn(pnlCtrl.text);
+    final ex = pn(exitCtrl.text);
+    final lotsIn = pn(journalQty.text);
+    final qty = lotsIn == null ? null : lotsIn * 100; // input is lots
+    final costs = pn(costsCtrl.text);
+    if (costs == null ||
+        !costs.isFinite ||
+        costs < 0 ||
+        (journalQty.text.trim().isNotEmpty &&
+            (qty == null || !qty.isFinite || qty <= 0)) ||
+        (exitCtrl.text.trim().isNotEmpty &&
+            (ex == null || !ex.isFinite || ex <= 0)) ||
+        (pnlCtrl.text.trim().isNotEmpty && (pnl == null || !pnl.isFinite)) ||
+        (ex != null && !pnlManual && qty == null)) {
+      setState(
+        () => err = 'Use positive prices/size and non-negative costs. A closed calculated trade needs quantity.',
+      );
+      return;
+    }
+    for (final text in [tpCtrl.text, slCtrl.text]) {
+      final value = pn(text);
+      if (text.trim().isNotEmpty &&
+          (value == null || !value.isFinite || value <= 0)) {
+        setState(() => err = 'Use finite positive TP/SL prices.');
+        return;
+      }
+    }
+    final t = {
+      'id': editingId.isEmpty ? newJournalId() : editingId,
+      'instrument': instrumentCtrl.text.trim().isEmpty
+          ? 'XAU/USD'
+          : instrumentCtrl.text.trim(),
+      'direction': dir,
+      'qty': qty,
+      'costs': costs,
+      'setup': setupCtrl.text.trim(),
+      'schema': 2,
+      'pnl_mode': pnlManual ? 'manual' : 'calculated',
+      'entry': en,
+      'exit': ex,
+      'pnl': pnl,
+      'tp': pn(tpCtrl.text),
+      'sl': pn(slCtrl.text),
+      'note': noteCtrl.text.trim(),
+      'traded_at': when.toUtc().toIso8601String(),
+    };
+    setState(() {
+      saving = true;
+      err = '';
+    });
+    final r = await app.saveTrade(t);
+    if (!mounted) return;
+    if (r != null) {
+      setState(() {
+        err = r;
+        saving = false;
+      });
+    } else {
+      final wasEdit = editingId.isNotEmpty;
+      resetForm();
+      setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(wasEdit ? 'Trade updated' : 'Trade saved'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _del(Map<String, dynamic> t) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Delete this trade?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: cRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final r = await app.deleteTrade(t);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(r ?? 'Deleted'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      if (editingId == t['id'].toString()) resetForm();
+    }
+  }
+}
+
+class StatsTab extends StatefulWidget {
+  final AppState app;
+  const StatsTab({super.key, required this.app});
+  @override
+  State<StatsTab> createState() => _StatsTabState();
+}
+
+class _StatsTabState extends State<StatsTab> {
+  AppState get app => widget.app;
+  String source = 'paper';
+  int days = 0;
+  DateTimeRange? customRange;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final from =
+        customRange?.start ??
+        (days == 0 ? null : now.subtract(Duration(days: days)));
+    final through = customRange == null
+        ? null
+        : DateTime(
+            customRange!.end.year,
+            customRange!.end.month,
+            customRange!.end.day + 1,
+          ).subtract(const Duration(microseconds: 1));
+    final records = performanceRecords(
+      app.trades,
+      app.positions,
+      source: source,
+      from: from,
+      through: through,
+    );
+    final done = records.map((t) => t.pnl).toList();
+    final total = done.fold<double>(0, (a, b) => a + b);
+    final wins = done.where((x) => x > 0).length;
+    final pf = profitFactor(done);
+    final avgWin = avgOf(done.where((x) => x > 0));
+    final avgLoss = avgOf(done.where((x) => x < 0));
+    final mdd = maxDrawdown(source == 'manual' ? 0 : app.starting, done);
+    final streak = currentStreak(done);
+    final open = app.positions.where((t) => t['status'] == 'open').toList();
+    final unprotected = open
+        .where((t) => app.effectiveLimit(t, 'sl') == null)
+        .length;
+    final risk = open.fold<double>(
+      0,
+      (sum, t) =>
+          sum +
+          (TradeExplanation(
+                entry: (t['entry'] as num).toDouble(),
+                qty: (t['qty'] as num).toDouble(),
+                buy: t['direction'] == 'buy',
+                stop: app.effectiveLimit(t, 'sl'),
+              ).risk ??
+              0),
+    );
+    final count = records.length;
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        const Text(
+          'Performance',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Simulated'),
+              selected: source == 'paper',
+              onSelected: (_) => setState(() => source = 'paper'),
+            ),
+            ChoiceChip(
+              label: const Text('Manual journal'),
+              selected: source == 'manual',
+              onSelected: (_) => setState(() => source = 'manual'),
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final n in [0, 7, 30])
+              ChoiceChip(
+                label: Text(n == 0 ? 'All dates' : '$n days'),
+                selected: days == n && customRange == null,
+                onSelected: (_) => setState(() {
+                  days = n;
+                  customRange = null;
+                }),
+              ),
+            ActionChip(
+              label: Text(
+                customRange == null
+                    ? 'Date range'
+                    : '${customRange!.start.day}/${customRange!.start.month}–${customRange!.end.day}/${customRange!.end.month}',
+              ),
+              onPressed: () async {
+                final range = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2000),
+                  lastDate: now,
+                  initialDateRange: customRange,
+                );
+                if (range != null && mounted)
+                  setState(() => customRange = range);
+              },
+            ),
+          ],
+        ),
+        Text(
+          source == 'paper'
+              ? 'Simulated fills only. Manual journal excluded.'
+              : 'Manually logged results only. Simulated fills excluded.',
+          style: const TextStyle(color: cDim, fontSize: 12),
+        ),
+        if (records.any((r) => !r.sizeKnown))
+          Text(
+            '${records.where((r) => !r.sizeKnown).length} legacy record(s): size unknown; original reported PnL retained.',
+            style: const TextStyle(color: Colors.amber, fontSize: 12),
+          ),
+        if (source == 'manual')
+          card(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Performance by setup',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (records.isEmpty)
+                  const Text('No closed journal trades in this period.'),
+                for (final group in performanceBySetup(records).entries)
+                  _stat(
+                    group.key,
+                    money(group.value, sign: true),
+                    cls(group.value),
+                  ),
+              ],
+            ),
+          ),
+        if (source == 'paper')
+          card(
+            Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _stat(
+                        'Paper balance',
+                        money(app.balance),
+                        cls(app.balance - app.starting),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _editBalance(context),
+                      icon: const Icon(
+                        Icons.edit,
+                        size: 14,
+                        color: Color(0xFFF5C242),
+                      ),
+                      label: const Text(
+                        'Edit balance',
+                        style: TextStyle(
+                          color: Color(0xFFF5C242),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _stat('Starting', money(app.starting), cDim),
+                    ),
+                    TextButton(
+                      onPressed: () => _editStarting(context),
+                      child: const Text(
+                        'Edit',
+                        style: TextStyle(color: cDim, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                _stat(
+                  'Open PnL',
+                  app.priceOk ? money(app.floatPnl(), sign: true) : '-',
+                  cls(app.floatPnl()),
+                ),
+              ],
+            ),
+          ),
+        card(
+          Column(
+            children: [
+              _stat(
+                'Total PnL (closed)',
+                done.isEmpty ? '-' : '\$${fmt(total, sign: true)}',
+                done.isEmpty ? cDim : cls(total),
+              ),
+              _stat(
+                'Win rate',
+                done.isEmpty ? '-' : '${(wins / done.length * 100).round()}%',
+                cDim,
+              ),
+              _stat('Trades', '$count', cDim),
+              _stat(
+                'Best',
+                done.isEmpty
+                    ? '-'
+                    : '\$${fmt(done.reduce(math.max), sign: true)}',
+                done.isEmpty ? cDim : cls(done.reduce(math.max)),
+              ),
+              _stat(
+                'Worst',
+                done.isEmpty
+                    ? '-'
+                    : '\$${fmt(done.reduce(math.min), sign: true)}',
+                done.isEmpty ? cDim : cls(done.reduce(math.min)),
+              ),
+              _stat(
+                'Avg',
+                done.isEmpty
+                    ? '-'
+                    : '\$${fmt(total / done.length, sign: true)}',
+                done.isEmpty ? cDim : cls(total),
+              ),
+              _stat(
+                'Profit factor',
+                pf == null ? '-' : pf.toStringAsFixed(2),
+                cDim,
+              ),
+              _stat(
+                'Avg win',
+                avgWin == null ? '-' : '\$${fmt(avgWin, sign: true)}',
+                avgWin == null ? cDim : cls(avgWin),
+              ),
+              _stat(
+                'Avg loss',
+                avgLoss == null ? '-' : '\$${fmt(avgLoss, sign: true)}',
+                avgLoss == null ? cDim : cls(avgLoss),
+              ),
+              _stat(
+                'Max drawdown',
+                done.isEmpty ? '-' : '-\$${fmt(mdd)}',
+                done.isEmpty ? cDim : (mdd > 0 ? cRed : cDim),
+              ),
+              _stat(
+                'Streak',
+                streak == 0
+                    ? '-'
+                    : streak > 0
+                    ? '$streak wins'
+                    : '${-streak} losses',
+                streak == 0
+                    ? cDim
+                    : streak > 0
+                    ? cGreen
+                    : cRed,
+              ),
+              if (source == 'paper')
+                _stat(
+                  'Open risk at stops',
+                  unprotected > 0
+                      ? 'Uncapped · $unprotected no stop'
+                      : '-\$${fmt(risk)}',
+                  unprotected > 0 || risk > 0 ? Colors.amber : cDim,
+                ),
+            ],
+          ),
+        ),
+        Text(
+          source == 'paper'
+              ? 'Cumulative simulated PnL'
+              : 'Cumulative manual PnL',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 10),
+        card(
+          records.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Center(
+                    child: Text(
+                      'Close a trade to see the chart',
+                      style: TextStyle(color: cDim),
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  height: 200,
+                  child: CustomPaint(
+                    painter: EquityPainter(done),
+                    size: Size.infinite,
+                  ),
+                ),
+        ),
+        if (source == 'paper')
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: cRed),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => _reset(context),
+            child: const Text(
+              'Reset paper account',
+              style: TextStyle(color: cRed),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _editBalance(BuildContext context) async {
+    final ctrl = TextEditingController(text: fmt(app.balance));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Set current balance (USD)'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final a = double.tryParse(ctrl.text.trim());
+      if (a != null && a >= 0) {
+        final e = await app.setBalance(a);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e ?? 'Balance updated'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _editStarting(BuildContext context) async {
+    final ctrl = TextEditingController(text: app.starting.toStringAsFixed(0));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('New starting balance (\$)'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final a = double.tryParse(ctrl.text.trim());
+      if (a != null && a >= 0) {
+        final e = await app.setStarting(a);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e ?? 'Starting balance updated'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _stat(String label, String value, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: cDim, fontSize: 13)),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _reset(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Reset the paper account?'),
+        content: const Text(
+          'This deletes all paper trades and sets the balance back.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: cRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final ctrl = TextEditingController(text: '10000');
+    final ok2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cCard,
+        title: const Text('Starting balance after reset (\$)'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (ok2 == true) {
+      final a = double.tryParse(ctrl.text.trim());
+      if (a != null && a >= 0) {
+        final e = await app.resetPaper(a);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e ?? 'Paper account reset'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+}
+
+class EquityPainter extends CustomPainter {
+  final List<double> pnls;
+  EquityPainter(this.pnls);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pts = <double>[0];
+    double cum = 0;
+    for (final p in pnls) {
+      cum += p;
+      pts.add(cum);
+    }
+    final mn = math.min(0.0, pts.reduce(math.min));
+    final mx = math.max(0.0, pts.reduce(math.max));
+    final rg = (mx - mn) == 0 ? 1.0 : (mx - mn);
+    const pl = 52.0, pr = 14.0, pt = 16.0, pb = 26.0;
+    double x(int i) =>
+        pl +
+        (pts.length < 2 ? 0 : i * (size.width - pl - pr) / (pts.length - 1));
+    double y(double v) => pt + (mx - v) * (size.height - pt - pb) / rg;
+
+    final grid = Paint()
+      ..color = cBorder
+      ..strokeWidth = 1;
+    final label = TextPainter(textDirection: TextDirection.ltr);
+    for (int k = 0; k <= 4; k++) {
+      final v = mn + rg * k / 4;
+      final yy = y(v);
+      canvas.drawLine(Offset(pl, yy), Offset(size.width - pr, yy), grid);
+      label.text = TextSpan(
+        text: fmt(v),
+        style: const TextStyle(color: cDim, fontSize: 11, fontFamily: 'Roboto'),
+      );
+      label.layout();
+      label.paint(canvas, Offset(4, yy - 6));
+    }
+    canvas.drawLine(
+      Offset(pl, y(0)),
+      Offset(size.width - pr, y(0)),
+      Paint()..color = const Color(0xFF3A4150),
+    );
+
+    final up = pts.last >= 0;
+    final line = Paint()
+      ..color = up ? cGreen : cRed
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (int i = 0; i < pts.length; i++) {
+      if (i == 0) {
+        path.moveTo(x(i), y(pts[i]));
+      } else {
+        path.lineTo(x(i), y(pts[i]));
+      }
+    }
+    canvas.drawPath(path, line);
+    final dot = Paint()..color = up ? cGreen : cRed;
+    for (int i = 1; i < pts.length; i++) {
+      canvas.drawCircle(Offset(x(i), y(pts[i])), 3.5, dot);
+    }
+    label.text = const TextSpan(
+      text: 'trade #',
+      style: TextStyle(color: cDim, fontSize: 11, fontFamily: 'Roboto'),
+    );
+    label.layout();
+    label.paint(canvas, Offset(size.width / 2 - 16, size.height - 14));
+  }
+
+  @override
+  bool shouldRepaint(EquityPainter old) => true;
+}
+
+/// AI tab: Groq-brain auto-trade controls + full AI log. Every decision is
+/// visible; nothing trades unless the user switches Auto mode on.
+class AiTab extends StatefulWidget {
+  final dynamic app;
+  final VoidCallback? onExplainChart;
+  const AiTab({super.key, required this.app, this.onExplainChart});
+
+  @override
+  State<AiTab> createState() => _AiTabState();
+}
+
+class _AiTabState extends State<AiTab> {
+  AutoTradeStatus? _status;
+  List<AiLogEntry> _log = [];
+  bool _thinking = false;
+  bool _advising = false;
+  AdviceResult? _advice;
+  String? _adviceErr;
+  String? _adviceTrade; // result line when a sure advice enters a trade
+
+  /// Advice button (user request): the Groq brain reads support/
+  /// resistance + recent structure and says buy/sell/wait with reasons.
+  /// Advice only - this path can never place a trade.
+  Widget _pctChip(String label, int pct, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$label $pct%',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _getAdvice() async {
+    setState(() {
+      _advising = true;
+      _adviceErr = null;
+      _adviceTrade = null;
+    });
+    try {
+      final quote = await AutoTrade.liveQuote();
+      if (quote == null) {
+        setState(
+          () => _adviceErr = 'No live price right now - try again in a moment.',
+        );
+        return;
+      }
+      final candles = await TwelveDataCandleService(
+        apiKey: MarketDataConfig.apiKey,
+      ).fetchCandles(Instrument.xauUsd, interval: '15min', limit: 60);
+      // Levels the user drew on the chart, so the AI reads HIS S/R lines.
+      final prefs = await SharedPreferences.getInstance();
+      final levels = <double>[];
+      try {
+        final raw = prefs.getString('tj_draw_lines');
+        if (raw != null) {
+          for (final e in jsonDecode(raw) as List) {
+            final v = (e as Map)['price'];
+            if (v is num) levels.add(v.toDouble());
+          }
+        }
+      } catch (_) {}
+      final r = await GroqBrain().advise(
+        bid: quote.$1,
+        ask: quote.$2,
+        candles: candles,
+        drawnLevels: levels,
+      );
+      // User request: when the AI is SURE of a direction, start the trade
+      // immediately at market with TP/SL - no waiting for a start price.
+      String? tradeMsg;
+      if (r.sureTrade) tradeMsg = await _enterFromAdvice(r);
+      if (mounted) {
+        setState(() {
+          _advice = r;
+          _adviceTrade = tradeMsg;
+        });
+      }
+      await AiLog.add(
+        'decision',
+        'Advice: ${r.verdict.toUpperCase()} - ${r.reasons}',
+      );
+    } on BrainException catch (e) {
+      if (mounted) setState(() => _adviceErr = 'AI unavailable (${e.message})');
+    } catch (_) {
+      if (mounted) {
+        setState(() => _adviceErr = 'Could not get advice right now.');
+      }
+    } finally {
+      if (mounted) setState(() => _advising = false);
+    }
+  }
+
+  /// Opens a paper trade at the live side price when the advice brain is
+  /// sure. Reuses the manual-ticket path, so the same rails apply (fresh
+  /// price required, daily limits can block). Returns a user-facing line.
+  Future<String?> _enterFromAdvice(AdviceResult r) async {
+    final app = widget.app;
+    final dir = r.verdict; // 'buy' | 'sell'
+    if (app.positions.any((p) => p['status'] == 'open')) {
+      await AiLog.add(
+        'decision',
+        'Advice sure (${dir.toUpperCase()}) but a position is already open - no trade',
+      );
+      return 'AI is sure, but a position is already open - no new trade.';
+    }
+    final px = app.entrySidePrice(dir); // buy at ask, sell at bid
+    if (px == null || px <= 0) {
+      return 'AI is sure, but there is no fresh live price - not entered.';
+    }
+    var qty = (app.balance * r.sizePct / 100) / px;
+    if (qty < 1) qty = 1; // XM minimum: 0.01 lot = 1 oz
+    final err = await app.openPaper(dir, qty, r.tp, r.sl);
+    if (err != null) {
+      await AiLog.add('error', 'Advice trade not entered: $err');
+      return 'AI is sure, but the trade was not entered: $err';
+    }
+    final msg =
+        'AI sure - ${dir == 'buy' ? 'bought' : 'sold'} ${lotsStr(qty)} @ ${fmt(px)} - TP ${fmt(r.tp)}, SL ${fmt(r.sl)}';
+    await AiLog.add('trade', msg);
+    await showForegroundNotification('Sona AI traded', msg);
+    UsageReporter.report('trade_opened', {'src': 'advice'});
+    return msg;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final prefs = await SharedPreferences.getInstance();
+    final st = await AutoTrade.status(prefs);
+    if (mounted) {
+      setState(() {
+        _status = st;
+        _log = AiLog.read(prefs);
+      });
+    }
+  }
+
+  String _fmt(DateTime t) =>
+      '${t.day}/${t.month} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final st = _status;
+    if (st == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    const gold = Color(0xFFF5C242);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (widget.onExplainChart != null) ...[
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.lightbulb_outline),
+              title: const Text('Explain chart / position'),
+              subtitle: const Text(
+                'Explain the current Trade chart snapshot. Read-only; asks before sending data to Groq.',
+              ),
+              onTap: widget.onExplainChart,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        Card(
+          color: cCard,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lightbulb_outline, color: cDim, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'AI chart advice',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Reads support/resistance and recent structure, then advises buy, sell or wait. Possibilities from the chart data - not financial advice.',
+                  style: TextStyle(color: cDim, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _advising || !st.keyConfigured
+                        ? null
+                        : _getAdvice,
+                    icon: _advising
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.insights, size: 18),
+                    label: Text(
+                      _advising ? 'Reading the chart...' : 'Get advice',
+                    ),
+                  ),
+                ),
+                if (_adviceErr != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _adviceErr!,
+                    style: const TextStyle(color: cRed, fontSize: 12),
+                  ),
+                ],
+                if (_advice != null && _adviceErr == null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _advice!.verdict == 'buy'
+                              ? cGreen
+                              : _advice!.verdict == 'sell'
+                              ? cRed
+                              : gold,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _advice!.verdict.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _advice!.reasons,
+                          style: const TextStyle(fontSize: 12, height: 1.35),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_advice!.buyPct != null || _advice!.sellPct != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (_advice!.buyPct != null)
+                          _pctChip('BUY', _advice!.buyPct!, cGreen),
+                        if (_advice!.buyPct != null && _advice!.sellPct != null)
+                          const SizedBox(width: 8),
+                        if (_advice!.sellPct != null)
+                          _pctChip('SELL', _advice!.sellPct!, cRed),
+                      ],
+                    ),
+                  ],
+                  if (_adviceTrade != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _adviceTrade!,
+                      style: const TextStyle(
+                        color: cGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ] else if (_advice!.verdict != 'wait' &&
+                      _advice!.confidence != 'high') ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'AI is not sure enough - no trade, read only.',
+                      style: TextStyle(color: cDim, fontSize: 12),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Possibilities, not financial advice.',
+                    style: TextStyle(color: cDim, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Card(
+          color: cCard,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.smart_toy_outlined, color: cDim, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'AI auto-trade',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: st.enabled,
+                      onChanged: (v) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await AutoTrade.setEnabled(prefs, v);
+                        _refresh();
+                        if (v) {
+                          // User request: check right away on switch-on - a sure
+                          // signal enters immediately, not 15 minutes later.
+                          setState(() => _thinking = true);
+                          final result = await AutoTrade.think(
+                            prefs,
+                            manual: true,
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text(result)));
+                            setState(() => _thinking = false);
+                          }
+                          _refresh();
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  !st.keyConfigured
+                      ? 'Add your Groq key in API settings'
+                      : st.pausedReason != null
+                      ? 'Paused: ${st.pausedReason}'
+                      : st.enabled
+                      ? 'On - thinks every 15 min, enters at market with TP/SL when the AI is sure'
+                      : 'Off - nothing trades',
+                  style: TextStyle(
+                    color: !st.keyConfigured || st.pausedReason != null
+                        ? cRed
+                        : cDim,
+                    fontSize: 12,
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ApiKeysScreen()),
+                    );
+                    _refresh();
+                  },
+                  child: const Text('API settings'),
+                ),
+                if (st.keyConfigured)
+                  const Text(
+                    'Using your saved Groq key',
+                    style: TextStyle(color: cDim, fontSize: 11),
+                  ),
+                if (st.pausedReason != null && st.enabled) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await AutoTrade.resume(prefs);
+                      _refresh();
+                    },
+                    child: const Text('Resume'),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Text(
+                  'Today: ${st.tradesToday}/${AutoTrade.maxTradesPerDay} trades - loss streak ${st.consecutiveLosses} - last run ${st.lastRunAt == null ? 'never' : _fmt(st.lastRunAt!)}',
+                  style: const TextStyle(color: cDim, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text(
+                      'Size per trade',
+                      style: TextStyle(fontSize: 12, color: cDim),
+                    ),
+                    const SizedBox(width: 12),
+                    DropdownButton<double>(
+                      value: st.sizePct,
+                      dropdownColor: cCard,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 5.0,
+                          child: Text('5% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 10.0,
+                          child: Text('10% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 15.0,
+                          child: Text('15% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 20.0,
+                          child: Text('20% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 25.0,
+                          child: Text('25% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 50.0,
+                          child: Text('50% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 75.0,
+                          child: Text('75% of balance'),
+                        ),
+                        DropdownMenuItem(
+                          value: 100.0,
+                          child: Text('100% of balance'),
+                        ),
+                      ],
+                      onChanged: (v) async {
+                        if (v == null) return;
+                        final prefs = await SharedPreferences.getInstance();
+                        await AutoTrade.setSizePct(prefs, v);
+                        _refresh();
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _thinking || !st.enabled
+                        ? null
+                        : () async {
+                            setState(() => _thinking = true);
+                            final prefs = await SharedPreferences.getInstance();
+                            final result = await AutoTrade.think(
+                              prefs,
+                              manual: true,
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(result)));
+                            }
+                            setState(() => _thinking = false);
+                            _refresh();
+                          },
+                    icon: _thinking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.psychology, size: 18),
+                    label: Text(_thinking ? 'Thinking...' : 'Think now'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'AI log',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        if (_log.isEmpty)
+          const Text(
+            'No AI activity yet. Switch auto-trade on.',
+            style: TextStyle(color: cDim, fontSize: 12),
+          )
+        else
+          ..._log.map(
+            (e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    e.kind == 'trade'
+                        ? Icons.swap_vert
+                        : e.kind == 'pause'
+                        ? Icons.pause_circle_outline
+                        : e.kind == 'error'
+                        ? Icons.error_outline
+                        : Icons.psychology,
+                    size: 14,
+                    color: e.kind == 'error' || e.kind == 'pause' ? cRed : cDim,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(e.text, style: const TextStyle(fontSize: 12)),
+                  ),
+                  Text(
+                    _fmt(e.at),
+                    style: const TextStyle(color: cDim, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class ApiKeysScreen extends StatefulWidget {
+  const ApiKeysScreen({super.key});
+  @override
+  State<ApiKeysScreen> createState() => _ApiKeysScreenState();
+}
+
+class _ApiKeysScreenState extends State<ApiKeysScreen> {
+  final groq = TextEditingController(text: UserApiKeys.groq);
+  final candles = TextEditingController(text: UserApiKeys.candles);
+  @override
+  void dispose() {
+    groq.dispose();
+    candles.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('API settings')),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text(
+          'Paste your own keys here. They are stored securely on this phone, never built into the APK. Do not send keys in chat.',
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: groq,
+          obscureText: true,
+          enableSuggestions: false,
+          autocorrect: false,
+          decoration: const InputDecoration(labelText: 'Groq API key'),
+        ),
+        const Text(
+          'Create a key in your Groq console. Used for AI analysis, not required for manual paper trades.',
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: candles,
+          obscureText: true,
+          enableSuggestions: false,
+          autocorrect: false,
+          decoration: const InputDecoration(labelText: 'Twelve Data API key'),
+        ),
+        const Text(
+          'Get your own key from the Twelve Data account dashboard. Used for historical candles. Current Swissquote quotes do not need this key.',
+        ),
+        const SizedBox(height: 20),
+        FilledButton(
+          onPressed: () async {
+            await UserApiKeys.save(groq.text, candles.text);
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('API keys saved')));
+              Navigator.pop(context);
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
+
+class PaperOrderSheet extends StatefulWidget {
+  final AppState app;
+  final String side;
+  const PaperOrderSheet({super.key, required this.app, required this.side});
+  @override
+  State<PaperOrderSheet> createState() => _PaperOrderSheetState();
+}
+
+class _PaperOrderSheetState extends State<PaperOrderSheet> {
+  double? parseNum(String s) => double.tryParse(s.trim());
+  final quantity = TextEditingController(text: '0.01'); // lots
+  final tp = TextEditingController();
+  final sl = TextEditingController();
+  bool tpsl = false, sending = false;
+  bool pending = false, gtc = true;
+  final trigger = TextEditingController();
+  final riskBudget = TextEditingController(text: '1');
+  bool riskPercent = true;
+  double? selectedRiskBudget;
+  void sizeFromRisk() {
+    final input = parseNum(riskBudget.text);
+    final reference = pending
+        ? parseNum(trigger.text)
+        : widget.app.entrySidePrice(widget.side);
+    final budget = input == null
+        ? null
+        : riskPercent
+        ? widget.app.balance * input / 100
+        : input;
+    final result = budget == null || reference == null
+        ? null
+        : quantityForRisk(budget, widget.side, reference, parseNum(sl.text));
+    setState(() {
+      if (input == null ||
+          !input.isFinite ||
+          input <= 0 ||
+          (riskPercent && input > 100) ||
+          budget == null ||
+          budget > widget.app.balance ||
+          result == null) {
+        error = 'Use a positive risk within your paper balance and a stop on the correct side of entry.';
+      } else {
+        quantity.text = (result / 100).toStringAsFixed(2); // show lots
+        selectedRiskBudget = budget;
+        error = null;
+      }
+    });
+  }
+
+  String? error;
+  @override
+  void initState() {
+    super.initState();
+    widget.app.addListener(refresh);
+  }
+
+  void refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.app.removeListener(refresh);
+    quantity.dispose();
+    trigger.dispose();
+    riskBudget.dispose();
+    tp.dispose();
+    sl.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (sending) return;
+    final lotsIn = parseNum(quantity.text);
+    final q = lotsIn == null ? null : lotsIn * 100; // input is lots
+    if (q == null || !q.isFinite || q <= 0) {
+      setState(
+        () => error = 'Enter a positive quantity in lots (min 0.01 = 1 oz).',
+      );
+      return;
+    }
+    final take = tpsl ? parseNum(tp.text) : null,
+        stop = tpsl ? parseNum(sl.text) : null;
+    if (tpsl &&
+        ((tp.text.trim().isNotEmpty && (take == null || !take.isFinite)) ||
+            (sl.text.trim().isNotEmpty && (stop == null || !stop.isFinite)))) {
+      setState(
+        () => error = 'Enter valid TP and SL prices, or leave them empty.',
+      );
+      return;
+    }
+    final reference = pending
+        ? parseNum(trigger.text)
+        : widget.app.entrySidePrice(widget.side);
+    if (reference == null) {
+      setState(() => error = 'Wait for an executable quote.');
+      return;
+    }
+    final levelError = validateProtection(widget.side, reference, take, stop);
+    if (levelError != null) {
+      setState(() => error = levelError);
+      return;
+    }
+    if (selectedRiskBudget != null &&
+        (stop == null ||
+            (reference - stop).abs() * q > selectedRiskBudget! + .000001)) {
+      setState(
+        () => error = 'Price or stop changed. Calculate size from stop again to keep your risk cap.',
+      );
+      return;
+    }
+    if (pending) {
+      final price = parseNum(trigger.text);
+      final reference = widget.side == 'buy' ? widget.app.ask : widget.app.bid;
+      if (price == null ||
+          !price.isFinite ||
+          price <= 0 ||
+          reference == null ||
+          !widget.app.priceFresh) {
+        setState(
+          () => error =
+              'Enter a positive trigger price and wait for a fresh quote.',
+        );
+        return;
+      }
+      final store = widget.app.pendingOrders;
+      if (store == null) {
+        setState(
+          () => error = 'Pending storage is not ready. Try reopening Sona.',
+        );
+        return;
+      }
+      final now = DateTime.now();
+      setState(() => sending = true);
+      store.orders.add(
+        PendingPaperOrder(
+          id: now.microsecondsSinceEpoch.toString(),
+          side: widget.side,
+          qty: q,
+          trigger: price,
+          above: price >= reference,
+          gtc: gtc,
+          createdAt: now.millisecondsSinceEpoch,
+          expiresAt: DateTime(
+            now.year,
+            now.month,
+            now.day + 1,
+          ).millisecondsSinceEpoch,
+          tp: take,
+          sl: stop,
+        ),
+      );
+      try {
+        await store.save();
+      } catch (_) {
+        store.orders.removeLast();
+        if (mounted)
+          setState(() {
+            sending = false;
+            error = 'Could not save the pending order.';
+          });
+        return;
+      }
+      widget.app.notifyListeners();
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Paper pending order saved. Fills only while Sona is open, needs internet.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      sending = true;
+      error = null;
+    });
+    final r = await widget.app.openPaper(widget.side, q, take, stop);
+    if (!mounted) return;
+    if (r != null) {
+      setState(() {
+        sending = false;
+        error = r;
+      });
+      return;
+    }
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${widget.side.toUpperCase()} paper order opened · ${lotsStr(q)}',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    final px = widget.side == 'buy' ? app.ask : app.bid;
+    final lotsNow = parseNum(quantity.text);
+    final q = lotsNow == null ? null : lotsNow * 100; // input is lots
+    final fresh = app.priceFresh && px != null;
+    final previewEntry = pending
+        ? parseNum(trigger.text)
+        : app.entrySidePrice(widget.side);
+    final stop = tpsl ? parseNum(sl.text) : null;
+    final target = tpsl ? parseNum(tp.text) : null;
+    final preview =
+        previewEntry != null &&
+            q != null &&
+            q.isFinite &&
+            q > 0 &&
+            validateProtection(widget.side, previewEntry, target, stop) == null
+        ? OrderPreview(widget.side, previewEntry, q, stop, target)
+        : null;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          12,
+          24,
+          24 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cDim,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '${widget.side.toUpperCase()} GOLD · Paper order',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Chip(label: Text('Quantity (lots · 0.01 = 1 oz)')),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: sending
+                        ? null
+                        : () {
+                            selectedRiskBudget = null;
+                            quantity.text =
+                                ((parseNum(quantity.text) ?? .01) - .01)
+                                    .clamp(.01, 100000)
+                                    .toStringAsFixed(2);
+                            setState(() {});
+                          },
+                    icon: const Icon(Icons.remove_circle_outline, size: 36),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: quantity,
+                      onChanged: (_) =>
+                          setState(() => selectedRiskBudget = null),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: sending
+                        ? null
+                        : () {
+                            selectedRiskBudget = null;
+                            quantity.text =
+                                ((parseNum(quantity.text) ?? 0) + .01)
+                                    .toStringAsFixed(2);
+                            setState(() {});
+                          },
+                    icon: const Icon(Icons.add_circle_outline, size: 36),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Trade value ${px != null && q != null ? money(px * q) : "unavailable"}',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const Text(
+                'Quantity is lots, XM-style: 1 lot = 100 oz, min/step 0.01 lot = 1 oz. Estimated paper margin uses assumed 1:500, not broker/server margin. No liquidation model.',
+                style: TextStyle(color: cDim, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Estimated margin ${px != null && q != null ? money(px * q / PaperMargin.leverage) : "unavailable"} · available ${money(app.estimatedFreeMargin)}',
+                style: const TextStyle(fontSize: 12),
+              ),
+              const Text(
+                'Account refresh required at submit. Pending orders recheck at fill; no margin reserved. Multiple devices can race. Server may reject.',
+                style: TextStyle(color: cDim, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                app.protectionStatus,
+                style: const TextStyle(color: Colors.amber, fontSize: 12),
+              ),
+              if (app.uncertainCloses > 0)
+                Text(
+                  '${app.uncertainCloses} close outcome(s) need confirmation. No duplicate will be submitted.',
+                  style: const TextStyle(color: cRed, fontSize: 12),
+                ),
+              const SizedBox(height: 20),
+              SwitchListTile(
+                title: Text(
+                  '${widget.side == 'buy' ? "Buy" : "Sell"} When Price is',
+                ),
+                value: pending,
+                onChanged: sending
+                    ? null
+                    : (v) => setState(() {
+                        pending = v;
+                        if (trigger.text.isEmpty) trigger.text = fmt(px);
+                      }),
+                tileColor: const Color(0xFF34425A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              if (pending) ...[
+                TextField(
+                  controller: trigger,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Price'),
+                ),
+                Text('Current ${widget.side} price: ${fmt(px)}'),
+                SwitchListTile(
+                  title: const Text('Good Until Cancelled'),
+                  subtitle: Text(
+                    gtc
+                        ? 'Until cancelled or filled'
+                        : 'Expires at local midnight',
+                  ),
+                  value: gtc,
+                  onChanged: (v) => setState(() => gtc = v),
+                ),
+                const Text(
+                  'Fills only while Sona is open, needs internet. Execution is at the next available side quote, not guaranteed at the trigger price.',
+                  style: TextStyle(color: cDim, fontSize: 11),
+                ),
+                const SizedBox(height: 16),
+              ],
+              SwitchListTile(
+                title: const Text('TP / SL'),
+                value: tpsl,
+                onChanged: sending ? null : (v) => setState(() => tpsl = v),
+                tileColor: const Color(0xFF34425A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              if (tpsl) const Chip(label: Text('Price levels')),
+              if (tpsl)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: tp,
+                        onChanged: (_) => setState(() {}),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Take Profit Level (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: sl,
+                        onChanged: (_) => setState(() {}),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Stop Loss Level (optional)',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 14),
+              if (tpsl)
+                card(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Size by risk',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: riskBudget,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: InputDecoration(
+                                labelText: riskPercent
+                                    ? 'Risk % of balance'
+                                    : 'Risk amount (USD)',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          DropdownButton<bool>(
+                            value: riskPercent,
+                            items: const [
+                              DropdownMenuItem(value: true, child: Text('%')),
+                              DropdownMenuItem(
+                                value: false,
+                                child: Text('USD'),
+                              ),
+                            ],
+                            onChanged: sending
+                                ? null
+                                : (v) => setState(() => riskPercent = v!),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: sending ? null : sizeFromRisk,
+                        child: const Text('Calculate size from stop'),
+                      ),
+                    ],
+                  ),
+                ),
+              if (preview != null)
+                card(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Order preview · USD',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Size ${lotsStr(q!)} · Exposure ${money(preview.exposure)}',
+                      ),
+                      Text(
+                        'Loss at stop: ${preview.loss == null ? "No stop set" : money(preview.loss)}',
+                        style: const TextStyle(color: Colors.amber),
+                      ),
+                      Text(
+                        'Gain at target: ${money(preview.gain)} · Reward/risk ${preview.rewardRisk?.toStringAsFixed(2) ?? "—"}',
+                      ),
+                      const Text(
+                        'Estimates from fill prices. Gaps/slippage may exceed the stop risk. Fees/swap not included.',
+                        style: TextStyle(color: cDim, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+              if (error != null)
+                Text(error!, style: const TextStyle(color: cRed)),
+              if (!fresh)
+                const Text(
+                  'Quote stale or unavailable. Wait for a fresh quote.',
+                  style: TextStyle(color: cRed),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: !fresh || sending ? null : submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: widget.side == 'buy'
+                        ? const Color(0xFF2BBB97)
+                        : const Color(0xFFDE1557),
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                  ),
+                  child: Text(
+                    sending
+                        ? 'Placing...'
+                        : 'Place Order at ${pending ? trigger.text : fmt(px)}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                pending
+                    ? 'Pending paper order. Fills only while Sona is open, needs internet.'
+                    : 'Market paper order. Spread/slippage apply. TP/SL checks can be delayed when the app is closed.',
+                style: TextStyle(color: cDim, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
