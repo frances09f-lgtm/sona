@@ -63,6 +63,60 @@ void main() {
     );
   });
 
+  group('fetchLatestDetailed', () {
+    UpdateChecker checker(String body, int code, String current) =>
+        UpdateChecker(
+          client: MockClient((req) async => http.Response(body, code)),
+          currentVersion: () async => current,
+        );
+
+    const release = '''
+      {"tag_name":"v1.0.91","body":"notes",
+       "assets":[{"name":"Sona.apk","browser_download_url":"https://github.com/x/Sona.apk"}]}''';
+
+    test('available on newer release', () async {
+      final r = await checker(release, 200, '1.0.90').fetchLatestDetailed();
+      expect(r.status, UpdateCheckStatus.updateAvailable);
+      expect(r.info!.version, '1.0.91');
+    });
+
+    test('upToDate when nothing newer', () async {
+      final r = await checker(release, 200, '1.0.91').fetchLatestDetailed();
+      expect(r.status, UpdateCheckStatus.upToDate);
+      expect(r.info, isNull);
+    });
+
+    test('failed on non-200, bad payload, missing apk, offline', () async {
+      expect(
+        (await checker('rate limited', 403, '1.0.90').fetchLatestDetailed())
+            .status,
+        UpdateCheckStatus.failed,
+      );
+      expect(
+        (await checker('not json', 200, '1.0.90').fetchLatestDetailed())
+            .status,
+        UpdateCheckStatus.failed,
+      );
+      expect(
+        (await checker('{"tag_name":"v9.9.9","body":"","assets":[]}', 200,
+                    '1.0.90')
+                .fetchLatestDetailed())
+            .status,
+        UpdateCheckStatus.failed,
+      );
+      final offline = UpdateChecker(
+        client: MockClient((_) async => throw const SocketException('down')),
+        currentVersion: () async => '1.0.90',
+      );
+      expect(
+        (await offline.fetchLatestDetailed()).status,
+        UpdateCheckStatus.failed,
+      );
+      // Legacy contract unchanged: fetchLatest stays null on failure.
+      expect(await offline.fetchLatest(), isNull);
+    });
+  });
+
   group('autoCheck interval', () {
     test('skips within 6h, stamps even on failure', () async {
       SharedPreferences.setMockInitialValues({});
