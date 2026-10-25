@@ -146,6 +146,33 @@ void main() {
     });
   });
 
+  group('TwelveDataCandleService daily/weekly datetimes', () {
+    // Real api.twelvedata.com/time_series format for interval=1day/1week:
+    // date-only datetimes (captured from Twelve Data's own XAU/USD widget,
+    // 2026-10-25). Regression: these used to parse as null and produce
+    // "zero usable candles", killing D1/W1 and the 3M/1Y ranges.
+    const dailyFixture = '''
+{"meta":{"symbol":"XAU/USD","interval":"1day","currency_base":"Gold Spot"},
+ "values":[
+  {"datetime":"2026-10-23","open":"4111.5","high":"4130.2","low":"4101.1","close":"4120.4"},
+  {"datetime":"2026-10-24","open":"3993.62","high":"3993.80","low":"3993.56","close":"3993.68"},
+  {"datetime":"2026-10-25","open":"3993.61501","high":"3993.79632","low":"3993.55518","close":"3993.68466"}],
+ "status":"ok"}''';
+
+    test('date-only daily bars parse anchored to UTC midnight', () async {
+      final svc = TwelveDataCandleService(
+          apiKey: 'k', client: fakeClient(200, dailyFixture));
+      final candles = await svc.fetchCandles(Instrument.xauUsd,
+          interval: '1day', limit: 3);
+      expect(candles, hasLength(3));
+      // UTC midnight -> local: the instant equals 00:00 UTC on that date.
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 10, 25));
+      expect(candles.last.open, 3993.61501);
+      expect(candles.last.close, 3993.68466);
+      expect(candles.first.time.toUtc(), DateTime.utc(2026, 10, 23));
+    });
+  });
+
   group('Quote model', () {
     test('spread/mid/staleness', () {
       final q = Quote(
