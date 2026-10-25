@@ -1,9 +1,12 @@
-# Sona 1.2.4
+# Sona 1.2.5
 
 ## Fixed
-- Bar Replay: starting a replay after scrolling back through history no longer
-  leaves the chart pinned to the oldest bars - the view now snaps to the
-  replay edge so stepping and playing visibly advance.
+- Chart time axis: labels no longer repeat the same bare date ("10/6 10/6 10/6")
+  across multi-day views. The axis now shows clock times within a day and the
+  date only where the day rolls over, on both the trade chart and the
+  fullscreen chart editor.
 
-- Chart now shows only the lines that are yours: the solid white last-price line, your open trade's entry/stop/target, and anything you draw. App-computed strategy high/low markers no longer paint on the chart.
-- Includes 1.2.2: true-black chart, no dotted grid, previous day/week levels and session shading off by default (toggles in Settings), undo/redo, chart templates, day-change figure, 5m-style interval labels, h:mm:ss countdown.
+- Test harness now runs Bar Replay through the same candle-slicing path the
+  phone uses, so replay regressions cannot hide behind test-only data feeds.
+  Verified replay start snap, stepping, and the last-price line tracking the
+  replay price.
