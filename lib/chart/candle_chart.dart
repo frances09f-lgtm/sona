@@ -3723,17 +3723,21 @@ class CandlePainter extends CustomPainter {
       canvas.restore();
     }
 
-    // time labels
+    // time labels: TradingView-style - clock times within a day, the date
+    // only where the day rolls over (never the same bare date repeated).
     final tf = TextStyle(color: axis, fontSize: 9, fontFamily: 'Roboto');
+    bool diffDay(DateTime a, DateTime b) =>
+        a.year != b.year || a.month != b.month || a.day != b.day;
+    final spansDays = diffDay(candles[fv0].time, candles[iEnd - 1].time);
+    DateTime? prevTick;
     for (int t = 0; t < 4; t++) {
       final i = fv0 + ((vc0 - 1) * t / 3).round();
       final c = candles[i];
-      final sameDay =
-          c.time.day == candles.last.time.day &&
-          c.time.month == candles.last.time.month;
-      final s = sameDay
-          ? '${c.time.hour.toString().padLeft(2, '0')}:${c.time.minute.toString().padLeft(2, '0')}'
-          : '${c.time.month}/${c.time.day}';
+      final newDay = prevTick == null ? spansDays : diffDay(c.time, prevTick!);
+      prevTick = c.time;
+      final s = newDay
+          ? '${c.time.month}/${c.time.day}'
+          : '${c.time.hour.toString().padLeft(2, '0')}:${c.time.minute.toString().padLeft(2, '0')}';
       final tp = TextPainter(
         text: TextSpan(text: s, style: tf),
         textDirection: TextDirection.ltr,
