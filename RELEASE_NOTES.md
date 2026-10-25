@@ -1,3 +1,10 @@
+# Sona 1.2.7
+
+## Fixed
+- "Check for updates" no longer claims Sona is up to date when the check
+  itself failed, for example without internet or on a rate limit. It now
+  says the check could not be completed and to try again.
+
 # Sona 1.2.6
 
 ## Fixed
