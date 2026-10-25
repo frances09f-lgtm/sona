@@ -62,4 +62,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.2.5 "build/app/outputs/flutter-apk/Sona.apk" --target "$GITHUB_SHA" --title "Sona 1.2.5 - Chart time axis that reads right" --notes-file RELEASE_NOTES.md
+          gh release create v1.2.5 "build/app/outputs/flutter-apk/Sona.apk" --target "$GITHUB_SHA" --title "Sona v1.2.5" --notes-file RELEASE_NOTES.md
