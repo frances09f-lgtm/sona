@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,6 +39,7 @@ import 'sessions.dart';
 import 'slippage.dart';
 import 'watch_service.dart';
 import 'bridge.dart';
+import 'friday_orders.dart';
 import 'notifications.dart';
 import 'usage_reporter.dart';
 
@@ -1012,12 +1014,37 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
   int tab = 0;
   final tradeKey = GlobalKey<_TradeTabState>();
 
+  // Friday paper orders: Friday parks one confirmed order in the bridge
+  // provider and opens Sona; Sona runs it through its own openPaper /
+  // closePaper and then hands the screen back to Friday.
+  static const _fridayChannel = MethodChannel('oro/friday');
+  FridayOrders? _fridayOrders;
+
+  Future<void> _runFridayOrder() async {
+    for (var i = 0; i < 40 && app.prefs == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    final prefs = app.prefs;
+    if (prefs == null || !mounted) return;
+    _fridayOrders ??= FridayOrders(prefs, _AppPaperDesk(app));
+    if (await _fridayOrders!.processPending()) {
+      try {
+        await _fridayChannel.invokeMethod<void>('done');
+      } catch (_) {}
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (widget.testApp == null) {
       app.init();
+      _fridayChannel.setMethodCallHandler((call) async {
+        if (call.method == 'order') unawaited(_runFridayOrder());
+        return null;
+      });
+      unawaited(_runFridayOrder());
       // In-app self-update: check the latest GitHub release once per few
       // hours and prompt with release notes + in-app APK download.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1037,6 +1064,7 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
     if (s == AppLifecycleState.resumed) {
       app.fetchPrice();
       app.paperRefresh();
+      if (widget.testApp == null) unawaited(_runFridayOrder());
     }
   }
 
@@ -5998,4 +6026,34 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
       ),
     );
   }
+}
+
+/// AppState as seen by the Friday order runner: the same unlock state,
+/// quote freshness and manual open/close code the Sona screens use.
+class _AppPaperDesk implements PaperDesk {
+  _AppPaperDesk(this.app);
+  final AppState app;
+  @override
+  bool get unlocked => app.unlocked;
+  @override
+  bool get hasSavedPin =>
+      app.pin.isNotEmpty ||
+      app.unlocking ||
+      (app.prefs?.getString('tj_pin') ?? '').isNotEmpty;
+  @override
+  bool get priceFresh => app.priceFresh;
+  @override
+  List<Map<String, dynamic>> get positions => app.positions;
+  @override
+  Future<void> refreshPrice() => app.fetchPrice();
+  @override
+  Future<void> refreshAccount() => app.paperRefresh();
+  @override
+  Future<String?> openPaper(String dir, double qty, double? tp, double? sl) =>
+      app.openPaper(dir, qty, tp, sl);
+  @override
+  Future<String?> closePaper(Map<String, dynamic> t, {String? reason}) =>
+      app.closePaper(t, reason: reason);
+  @override
+  String? marketClosed() => marketClosedMessage();
 }

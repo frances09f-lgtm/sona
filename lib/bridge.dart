@@ -60,6 +60,7 @@ class OroBridge {
             .where((p) => p['status'] == 'open')
             .map(
               (p) => {
+                'id': p['id']?.toString(),
                 'dir': p['direction'],
                 'qty': p['qty'],
                 'entry': p['entry'],

@@ -1,3 +1,16 @@
+# Sona 1.2.8
+
+## New
+- Trade from Friday: say or type "buy gold 0.1 lot", "sell 0.05 lot SL 4150
+  TP 4080" or "close my trade" in Friday (v1.0.161+). Friday shows a
+  confirmation; after you confirm, Sona opens briefly, places or closes the
+  PAPER trade itself with your PIN session and all its usual checks (live
+  price, market hours, daily limits, margin, TP/SL sides), then hands the
+  screen back to Friday with the fill or the exact reason it refused.
+- Only Friday can send orders to Sona (checked by app identity), one at a
+  time, and each order runs once: an order older than 60 seconds is refused.
+  Friday never gets your PIN. Paper trading only - no broker, no real money.
+
 # Sona 1.2.7
 
 ## Fixed

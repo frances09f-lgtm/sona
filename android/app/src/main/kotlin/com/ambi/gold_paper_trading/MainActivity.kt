@@ -14,8 +14,24 @@ class MainActivity : FlutterActivity() {
     private val watchChannel = "oro/watch"
     private val updateChannel = "oro/update"
 
+    private var fridayChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Friday paper orders: the order itself waits in OroBridgeProvider
+        // (only Friday can write it); this channel just tells Dart to look,
+        // and lets Dart hand the screen back to Friday when it is done.
+        fridayChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oro/friday").also {
+            it.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "done" -> {
+                        moveTaskToBack(true)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, watchChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -86,5 +102,13 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("friday_trade", false)) {
+            fridayChannel?.invokeMethod("order", null)
+        }
     }
 }
