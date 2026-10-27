@@ -135,7 +135,7 @@ void main() {
 
     test('profitFactor divides gross wins by gross losses', () {
       // +20 and +10 win, 15 loss -> 30 / 15 = 2.0
-      final r = res([tr(100, 120, true), tr(100, 110, true), tr(100, 115, true)]);
+      final r = res([tr(100, 120, true), tr(100, 110, true), tr(100, 85, true)]);
       expect(r.profitFactor, closeTo(2.0, 1e-9));
     });
 
