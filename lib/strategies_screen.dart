@@ -341,6 +341,17 @@ class BacktestResultScreen extends StatelessWidget {
                 color: r.netPoints >= 0 ? _green : _red,
               ),
               _stat('Wins / losses', '${r.wins} / ${r.losses}'),
+              _stat(
+                'Profit factor',
+                r.profitFactor == null
+                    ? '-'
+                    : r.profitFactor!.toStringAsFixed(2),
+              ),
+              _stat(
+                'Max drawdown',
+                r.maxDrawdownPoints.toStringAsFixed(1),
+                color: r.maxDrawdownPoints > 0 ? _red : null,
+              ),
             ],
           ),
           const SizedBox(height: 16),

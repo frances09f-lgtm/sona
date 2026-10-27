@@ -1,3 +1,17 @@
+# Sona 1.2.9
+
+## New
+- Backtest results now show two more numbers: profit factor (gross winning
+  points / gross losing points, shown as a dash when there are no losses
+  instead of an invented "Infinity") and max drawdown (the deepest
+  peak-to-trough drop of the running points total). Both come from the same
+  simulated trades already shown; the backtest is still display-only and
+  never touches the paper account.
+
+## Includes all of 1.2.8
+- Trade from Friday with confirmation; honest update-check failures; daily
+  and weekly chart fixes.
+
 # Sona 1.2.8
 
 ## New

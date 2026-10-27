@@ -121,4 +121,38 @@ void main() {
     expect(r.trades.single.exitReason, 'end of data');
     expect(r.trades.single.exit, 117);
   });
+
+  group('BacktestResult stats', () {
+    BacktestTrade tr(double entry, double exit, bool long) => BacktestTrade(
+        long: long,
+        entryTime: DateTime.utc(2026, 10, 20, 9),
+        entry: entry,
+        exitTime: DateTime.utc(2026, 10, 20, 10),
+        exit: exit,
+        exitReason: 'TP');
+    BacktestResult res(List<BacktestTrade> ts) =>
+        BacktestResult(ts, DateTime.utc(2026, 10, 20), DateTime.utc(2026, 10, 21));
+
+    test('profitFactor divides gross wins by gross losses', () {
+      // +20 and +10 win, 15 loss -> 30 / 15 = 2.0
+      final r = res([tr(100, 120, true), tr(100, 110, true), tr(100, 115, true)]);
+      expect(r.profitFactor, closeTo(2.0, 1e-9));
+    });
+
+    test('profitFactor is null with no losing trades', () {
+      expect(res([tr(100, 120, true)]).profitFactor, isNull);
+      expect(res(const []).profitFactor, isNull);
+    });
+
+    test('maxDrawdownPoints is the deepest peak-to-trough drop', () {
+      // equity: +10 -> 10 (peak), -25 -> -15 (dd 25), +5 -> -10 (dd 20)
+      final r = res([tr(100, 110, true), tr(100, 75, true), tr(100, 105, true)]);
+      expect(r.maxDrawdownPoints, closeTo(25.0, 1e-9));
+    });
+
+    test('maxDrawdownPoints is 0 for a monotone winner and no trades', () {
+      expect(res([tr(100, 110, true), tr(100, 120, true)]).maxDrawdownPoints, 0);
+      expect(res(const []).maxDrawdownPoints, 0);
+    });
+  });
 }

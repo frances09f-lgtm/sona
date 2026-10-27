@@ -33,6 +33,32 @@ class BacktestResult {
       trades.fold(0.0, (a, t) => a + t.pnlPoints);
   double get winRate => trades.isEmpty ? 0 : wins / trades.length;
   List<double> get pnlSeries => trades.map((t) => t.pnlPoints).toList();
+
+  /// Gross winning points divided by gross losing points. Null when there
+  /// are no losing trades (or no trades) - shown as a dash, never
+  /// "Infinity", so the number is never invented.
+  double? get profitFactor {
+    var grossWin = 0.0, grossLoss = 0.0;
+    for (final t in trades) {
+      if (t.pnlPoints > 0) grossWin += t.pnlPoints;
+      if (t.pnlPoints < 0) grossLoss -= t.pnlPoints;
+    }
+    if (grossLoss <= 0) return null;
+    return grossWin / grossLoss;
+  }
+
+  /// Deepest peak-to-trough drop of the running points total, in points.
+  /// 0 when the equity line never dips below a prior peak.
+  double get maxDrawdownPoints {
+    var peak = 0.0, equity = 0.0, worst = 0.0;
+    for (final t in trades) {
+      equity += t.pnlPoints;
+      if (equity > peak) peak = equity;
+      final dd = peak - equity;
+      if (dd > worst) worst = dd;
+    }
+    return worst;
+  }
 }
 
 /// Runs the "1H high/low break" strategy over [candles] (any interval
