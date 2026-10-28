@@ -63,6 +63,15 @@ double? quantityForRisk(
   return quantity > 0 ? quantity : null;
 }
 
+/// Converts risk-sized ounces to the supported order step without rounding up.
+/// The order sheet accepts 0.01 lots, and one lot is 100 ounces, so the
+/// minimum executable step is one ounce.
+double? lotsForRiskQuantity(double quantityOz) {
+  if (!quantityOz.isFinite || quantityOz < 1) return null;
+  final wholeOunces = quantityOz.floor();
+  return wholeOunces / 100;
+}
+
 class OrderPreview {
   final double exposure;
   final double? loss;

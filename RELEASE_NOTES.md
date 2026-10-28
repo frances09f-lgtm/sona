@@ -1,4 +1,9 @@
-# Sona 1.2.9
+# Sona 1.2.10
+
+## Fixed
+- Risk-based order sizing now floors to the supported 1 oz (0.01-lot) step, so the displayed order size stays within the selected stop-risk budget. Budgets below the 1 oz minimum are rejected.
+
+## Includes all of 1.2.9
 
 ## New
 - Backtest results now show two more numbers: profit factor (gross winning

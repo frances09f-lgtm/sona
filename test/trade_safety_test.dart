@@ -9,6 +9,19 @@ void main() {
     final q = quantityForRisk(10, 'buy', 4000, 3997)!;
     expect(q * 3, lessThanOrEqualTo(10));
   });
+  test('risk sizing floors to supported 1 oz lot steps', () {
+    expect(lotsForRiskQuantity(10.989), 0.1);
+    expect(lotsForRiskQuantity(1.99), 0.01);
+    expect(lotsForRiskQuantity(1), 0.01);
+    expect(lotsForRiskQuantity(0.999), isNull);
+    expect(lotsForRiskQuantity(double.nan), isNull);
+    expect(lotsForRiskQuantity(double.infinity), isNull);
+    final rawOz = quantityForRisk(10, 'buy', 4001, 4000.09)!;
+    final executableOz = lotsForRiskQuantity(rawOz)! * 100;
+    expect(executableOz, lessThanOrEqualTo(rawOz));
+    expect((4001 - 4000.09) * executableOz, lessThanOrEqualTo(10));
+  });
+
   test('unusable risk inputs fail closed', () {
     for (final amount in [double.nan, double.infinity, -1.0, 0.0]) {
       expect(quantityForRisk(amount, 'buy', 4000, 3990), isNull);

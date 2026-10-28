@@ -5534,6 +5534,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
     final result = budget == null || reference == null
         ? null
         : quantityForRisk(budget, widget.side, reference, parseNum(sl.text));
+    final lots = result == null ? null : lotsForRiskQuantity(result);
     setState(() {
       if (input == null ||
           !input.isFinite ||
@@ -5541,10 +5542,14 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
           (riskPercent && input > 100) ||
           budget == null ||
           budget > widget.app.balance ||
-          result == null) {
-        error = 'Use a positive risk within your paper balance and a stop on the correct side of entry.';
+          result == null ||
+          lots == null) {
+        selectedRiskBudget = null;
+        error = result != null && lots == null
+            ? 'Risk budget is too small for the 1 oz minimum trade size.'
+            : 'Use a positive risk within your paper balance and a stop on the correct side of entry.';
       } else {
-        quantity.text = (result / 100).toStringAsFixed(2); // show lots
+        quantity.text = lots.toStringAsFixed(2); // floor to 0.01-lot steps
         selectedRiskBudget = budget;
         error = null;
       }

@@ -101,6 +101,33 @@ void main() {
     },
   );
   testWidgets(
+    'risk sizing floors to the 1 oz trade step and stays within budget',
+    (t) async {
+      final app = PreviewAccount()
+        ..bid = 4000
+        ..ask = 4001
+        ..balance = 1000;
+      final key = await mount(t, PaperOrderSheet(app: app, side: 'buy'));
+      await t.tap(find.byType(Switch).last);
+      await t.pumpAndSettle();
+      await t.enterText(field('Take Profit Level (optional)'), '4005');
+      await t.enterText(field('Stop Loss Level (optional)'), '4000.09');
+      await t.ensureVisible(find.text('Calculate size from stop'));
+      await t.tap(find.text('Calculate size from stop'));
+      await t.pumpAndSettle();
+      expect(
+        t.widget<TextField>(find.byType(TextField).first).controller!.text,
+        '0.10',
+      );
+      expect(find.text('Loss at stop: \$9.10'), findsOneWidget);
+      expect(find.textContaining('Price or stop changed'), findsNothing);
+      await t.ensureVisible(find.text('Order preview · USD'));
+      await capture(t, key, 'risk-budget-safe');
+      expect(t.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'journal captures size/cost/tag and saves correctly sized net at 390px',
     (t) async {
       final app = PreviewAccount();
