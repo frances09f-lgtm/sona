@@ -38,6 +38,12 @@ class IndicatorVote {
   const IndicatorVote(this.name, this.vote, this.detail);
 }
 
+/// Total indicators the summary can ever use: 7 oscillators + 6 SMA + 6
+/// EMA. Indicators whose period exceeds the loaded candle count do not
+/// vote and are counted in [TechnicalSummary.skippedCount] so the UI can
+/// say exactly how many contributed.
+const int kTechSummaryMaxIndicators = 19;
+
 class TechnicalSummary {
   final TechRating rating;
 
@@ -45,6 +51,11 @@ class TechnicalSummary {
   final double score;
   final List<IndicatorVote> oscillators;
   final List<IndicatorVote> movingAverages;
+
+  /// Indicators that could not vote because their period exceeds the
+  /// loaded candle count (e.g. SMA-200 on 60 candles). Transparently
+  /// excluded - never filled with a neutral vote.
+  final int skippedCount;
 
   /// Set when there were too few candles to compute anything; the UI shows
   /// this instead of a rating rather than guessing.
@@ -56,6 +67,7 @@ class TechnicalSummary {
     required this.oscillators,
     required this.movingAverages,
     this.insufficientReason,
+    this.skippedCount = 0,
   });
 
   int get buyCount =>
@@ -174,6 +186,7 @@ TechnicalSummary computeTechnicalSummary(List<Candle> candles) {
     score: score,
     oscillators: osc,
     movingAverages: mas,
+    skippedCount: kTechSummaryMaxIndicators - votes.length,
   );
 }
 
