@@ -1,3 +1,30 @@
+# Sona 1.2.12
+
+## Fixed
+- Stop loss and take profit on trades Sona places itself (AI auto-trade and a
+  sure Advice trade) were far too wide. The old rule forced every stop to at
+  least 0.3% of price and used 0.6% by default: on gold at 4,038 that is a
+  $12-24 stop and an $18-36+ target, 2-4x a 15-minute ATR. Now the stop is
+  1.2x the 15-minute ATR(14), never more than 0.5% of price, and the target is
+  1.5x the stop. Gold at 4,038 with a $8 ATR: SL $9.60 away, TP $14.40 away.
+- A tighter stop the AI places just past a chart level is kept (when it is at
+  least half an ATR away); a wider AI stop never widens the trade. The AI's
+  own target is replaced by your reward:risk.
+- Buy: SL below entry, TP above. Sell: SL above, TP below. Prices are rounded
+  to the 0.01 gold tick.
+
+## New
+- Settings > Stop loss & take profit: choose ATR-based or % of price, the ATR
+  multiple, the fallback %, the maximum stop % and the reward:risk, with a live
+  gold example. The AI card shows the rule in use.
+
+## Unchanged
+- Paper trading only. Manual orders keep the TP/SL you type. Open positions
+  keep their existing TP/SL (edit or close them yourself if you want the new
+  distances).
+
+## Includes all of 1.2.10
+
 # Sona 1.2.10
 
 ## Fixed

@@ -9,12 +9,13 @@ void main() {
         '{"action":"buy","confidence":"high","stop_loss":3980.0,"take_profit":4050.0,"size_pct":12,"reason":"uptrend with momentum"}',
         buyRef: 4000.0,
         sellRef: 3999.5,
+        atr: 20, // rule 1.2x ATR = 24: the AI's tighter 20 stop is kept
       );
       expect(d.action, 'buy');
       expect(d.confidence, 'high');
       expect(d.isTrade, isTrue);
       expect(d.sl, 3980.0);
-      expect(d.tp, 4050.0);
+      expect(d.tp, 4030.0); // TP = 1.5R of the 20 stop, not the AI's 4050
       expect(d.sizePct, 12);
     });
 
@@ -32,21 +33,21 @@ void main() {
       expect(d.isTrade, isFalse);
     });
 
-    test('wild stop loss is clamped into 0.3-2.0%', () {
+    test('wild stop loss never widens the rule stop (v1.2.11)', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"size_pct":50,"reason":"yolo"}',
           buyRef: 4000, sellRef: 3999);
-      expect(d.sl, 4000 * 0.98); // clamped to max 2% distance
+      expect(d.sl, 3990.0); // no ATR: 0.25% of price
       expect(d.sizePct, 25); // clamped to max
-      expect(d.tp! - 4000, greaterThanOrEqualTo(1.5 * (4000 - d.sl!)));
+      expect(d.tp, 4015.0); // 1.5R
     });
 
     test('missing SL/TP gets sane defaults for a sell', () {
       final d = parseDecision(
           '{"action":"sell","confidence":"medium","size_pct":10,"reason":"breakdown"}',
           buyRef: 4000, sellRef: 3999);
-      expect(d.sl, closeTo(3999 * 1.006, 0.01));
-      expect(d.tp, closeTo(3999 - 1.5 * (3999 * 0.006), 0.01));
+      expect(d.sl, closeTo(3999 * 1.0025, 0.01));
+      expect(d.tp, closeTo(3999 - 1.5 * (3999 * 0.0025), 0.01));
     });
 
     test('wrong-side TP is replaced', () {
@@ -111,8 +112,8 @@ void main() {
           '"stop_loss":3000,"take_profit":5000,"size_pct":40,"reasons":"Strong breakout."}',
           buyRef: 4000, sellRef: 3999);
       expect(r.sureTrade, isTrue);
-      expect(r.sl, 4000 * 0.98); // clamped into 0.3-2.0%
-      expect(r.tp! - 4000, greaterThanOrEqualTo(1.5 * (4000 - r.sl!)));
+      expect(r.sl, 3990.0); // rule stop: 0.25% of price without ATR
+      expect(r.tp, 4015.0); // 1.5R
       expect(r.sizePct, 25); // clamped to max
     });
     test('low-confidence direction stays read-only', () {
