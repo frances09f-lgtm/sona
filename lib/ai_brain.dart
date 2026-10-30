@@ -227,8 +227,11 @@ const _systemPrompt =
 /// With [atr14] (the 15-minute ATR the model also sees) the stop band is
 /// volatility-relative: 0.8x..2.5x ATR, default 1.2x ATR, so stops track
 /// the market's actual range (user report: the old fixed 0.3%..2.0% band
-/// sat far too wide at gold's current price). Without ATR the legacy
-/// 0.3%..2.0% band applies.
+/// sat far too wide at gold's current price). Absolute sanity rails hold
+/// every ATR-derived distance inside 0.02%..2% of price, so a bad candle
+/// (spike, freeze, NaN) can never produce an absurd stop. Without a usable
+/// ATR the legacy 0.3%..2.0% band applies - acknowledged: that fallback
+/// still produces the original wide levels.
 (double, double) clampTargets({
   required bool dirUp,
   required double ref,
@@ -236,10 +239,11 @@ const _systemPrompt =
   double? tp,
   double? atr14,
 }) {
-  final useAtr = atr14 != null && atr14 > 0;
-  final minDist = useAtr ? 0.8 * atr14 : 0.003 * ref;
-  final maxDist = useAtr ? 2.5 * atr14 : 0.02 * ref;
-  final defDist = useAtr ? 1.2 * atr14 : 0.006 * ref;
+  final useAtr = atr14 != null && atr14.isFinite && atr14 > 0;
+  double sane(double d) => d.clamp(0.0002 * ref, 0.02 * ref);
+  final minDist = useAtr ? sane(0.8 * atr14) : 0.003 * ref;
+  final maxDist = useAtr ? sane(2.5 * atr14) : 0.02 * ref;
+  final defDist = useAtr ? sane(1.2 * atr14) : 0.006 * ref;
   double defaultStop() => dirUp ? ref - defDist : ref + defDist;
   if (sl == null || (dirUp ? sl >= ref : sl <= ref)) {
     sl = defaultStop();
