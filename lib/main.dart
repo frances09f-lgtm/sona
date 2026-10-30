@@ -11,6 +11,7 @@ import 'user_api_keys.dart';
 import 'pending_orders.dart';
 import 'paper_margin.dart';
 import 'chart_explanation.dart';
+import 'technical_summary_card.dart';
 import 'learn_screen.dart';
 
 import 'dart:convert';
@@ -5079,6 +5080,15 @@ class _AiTabState extends State<AiTab> {
           ),
           const SizedBox(height: 14),
         ],
+
+        const Card(
+          color: cCard,
+          child: Padding(
+            padding: EdgeInsets.all(14),
+            child: TechnicalSummaryCard(),
+          ),
+        ),
+        const SizedBox(height: 14),
 
         Card(
           color: cCard,
