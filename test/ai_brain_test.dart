@@ -203,6 +203,26 @@ void main() {
       expect(d.sl, closeTo(3899.5 + 1.2 * 9.5, 0.001));
       expect(d.tp, closeTo(3899.5 - 1.5 * 1.2 * 9.5, 0.001));
     });
+    test('invalid ATR (NaN, infinite, zero, negative) uses legacy band', () {
+      for (final bad in [double.nan, double.infinity, 0.0, -5.0]) {
+        final d = parseDecision(
+            '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
+            buyRef: 3900, sellRef: 3899.5, atr14: bad);
+        expect(d.sl, closeTo(3900 * (1 - 0.006), 0.001));
+      }
+    });
+    test('outlier ATR is capped at 2% of price (old hard cap)', () {
+      final d = parseDecision(
+          '{"action":"buy","confidence":"high","stop_loss":1000,"take_profit":5000,"size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 500);
+      expect(d.sl, closeTo(3900 * 0.98, 0.001));
+    });
+    test('tiny ATR is floored at 0.02% of price (inside-spread guard)', () {
+      final d = parseDecision(
+          '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 0.1);
+      expect(d.sl, closeTo(3900 - 0.0002 * 3900, 0.001));
+    });
     test('advice sure-trade uses the same ATR band', () {
       final r = parseAdvice(
           '{"verdict":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"reasons":"Strong."}',
