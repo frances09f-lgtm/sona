@@ -99,13 +99,13 @@ void main() {
   final cardCases = <String, TechnicalSummaryCardView>{
     'card-buy-forming': TechnicalSummaryCardView(
       chip: '15m',
-      summary: fixture(TechRating.buy, 0.3),
+      summary: fixture(TechRating.buy, 0.3, buy: 10, neutral: 3, sell: 6),
       asOf: DateTime(2026, 10, 30, 19, 15),
       now: () => fixedNow,
     ),
     'card-strong-sell-completed': TechnicalSummaryCardView(
       chip: '15m',
-      summary: fixture(TechRating.strongSell, -0.8, buy: 2, sell: 13),
+      summary: fixture(TechRating.strongSell, -0.8, buy: 2, neutral: 3, sell: 14),
       asOf: DateTime(2026, 10, 30, 18, 45),
       now: () => fixedNow,
     ),
@@ -118,7 +118,7 @@ void main() {
     ),
     'card-market-quiet': TechnicalSummaryCardView(
       chip: '15m',
-      summary: fixture(TechRating.sell, -0.3, buy: 4, sell: 10),
+      summary: fixture(TechRating.sell, -0.3, buy: 4, neutral: 3, sell: 12),
       asOf: DateTime(2026, 10, 30, 21, 45),
       marketQuiet: true,
       now: () => DateTime(2026, 10, 31, 10, 0), // Saturday
@@ -127,7 +127,7 @@ void main() {
       chip: '15m',
       error:
           'DISCONNECTED - twelvedata error: API credits exhausted for the day. Showing the last read.',
-      summary: fixture(TechRating.buy, 0.2),
+      summary: fixture(TechRating.buy, 0.2, buy: 10, neutral: 3, sell: 6),
       asOf: DateTime(2026, 10, 30, 19, 0),
       now: () => fixedNow,
     ),
