@@ -7,11 +7,19 @@ import 'package:sona/technical_summary.dart';
 import 'package:sona/technical_summary_card.dart';
 
 /// Visual-capture aid, NOT a release gate: renders the gauge and the full
-/// technical-summary card (as placed in the AI tab: cCard container, 14
-/// padding) across its real states so the build pipeline can upload the
-/// PNGs for pixel inspection and user preview. Runs only with
+/// technical-summary card across its real states so the build pipeline can
+/// upload the PNGs for pixel inspection and user preview. Runs only with
 /// GAUGE_CAPTURE=1 (a CI step passes --update-goldens); in the normal
 /// suite every test here is a no-op so nothing gates on golden files.
+///
+/// The card shell reproduces the AI tab in lib/main.dart exactly: a
+/// ListView with padding 16 (scrollable, so tall error/quiet states are
+/// never clipped - they scroll), a cCard Card with padding 14. The
+/// surface is 390x844 logical px, a common Android size, so the content
+/// width is the real app width: 390 - 32 - 8 - 28 = 322 px.
+const Color cCard = Color(0xFF171A21);
+const Color cDim = Color(0xFF8A93A5);
+
 void main() {
   final capture = Platform.environment['GAUGE_CAPTURE'] == '1';
   final fixedNow = DateTime(2026, 10, 30, 19, 25);
@@ -33,25 +41,34 @@ void main() {
     );
   }
 
-  Widget cardShell(TechnicalSummaryCardView view) {
+  Widget phoneShell(List<Widget> children) {
     return MaterialApp(
       theme: ThemeData.dark(),
       home: Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: SizedBox(
-            width: 360,
-            child: Card(
-              color: const Color(0xFF171A21),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: view,
-              ),
-            ),
-          ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: children,
         ),
       ),
     );
+  }
+
+  Widget gaugeCardContainer(Widget child) {
+    return Card(
+      color: cCard,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: child,
+      ),
+    );
+  }
+
+  Future<void> pumpPhone(
+      WidgetTester tester, List<Widget> children) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(phoneShell(children));
   }
 
   final cardCases = <String, TechnicalSummaryCardView>{
@@ -83,7 +100,8 @@ void main() {
     ),
     'card-disconnected': TechnicalSummaryCardView(
       chip: '15m',
-      error: 'DISCONNECTED - twelvedata error: API credits exhausted for the day. Showing the last read.',
+      error:
+          'DISCONNECTED - twelvedata error: API credits exhausted for the day. Showing the last read.',
       summary: fixture(TechRating.buy, 0.2),
       asOf: DateTime(2026, 10, 30, 19, 0),
       now: () => fixedNow,
@@ -109,18 +127,59 @@ void main() {
   for (final entry in cardCases.entries) {
     testWidgets('capture ${entry.key}', (tester) async {
       if (!capture) return;
-      // Taller than the default 800x600 surface so tall states (error +
-      // as-of + quiet note) lay out fully; the golden frames the card view
-      // itself, so surface size does not change the image.
-      await tester.binding.setSurfaceSize(const Size(420, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(cardShell(entry.value));
+      await pumpPhone(tester, [gaugeCardContainer(entry.value)]);
       await expectLater(
         find.byType(TechnicalSummaryCardView),
         matchesGoldenFile('goldens/${entry.key}.png'),
       );
     });
   }
+
+  // The card in its real AI-section context: the production card widget
+  // above the 'AI chart advice' card (same colors, paddings and title as
+  // lib/main.dart), framed exactly as a 390x844 phone shows the tab top.
+  testWidgets('capture ai-section-context', (tester) async {
+    if (!capture) return;
+    await pumpPhone(tester, [
+      gaugeCardContainer(cardCases['card-buy-forming']!),
+      const SizedBox(height: 14),
+      const Card(
+        color: cCard,
+        child: Padding(
+          padding: EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.lightbulb_outline, color: cDim, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'AI chart advice',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Reads support/resistance and recent structure, then advises buy, sell or wait. Possibilities from the chart data - not financial advice.',
+                style: TextStyle(color: cDim, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ]);
+    await expectLater(
+      find.byType(ListView),
+      matchesGoldenFile('goldens/ai-section-context.png'),
+    );
+  });
 
   // Isolated arcs at all five ratings (needle positions).
   final gaugeCases = <(String, TechRating, double)>[
