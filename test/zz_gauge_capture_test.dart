@@ -24,6 +24,13 @@ void main() {
   final capture = Platform.environment['GAUGE_CAPTURE'] == '1';
   final fixedNow = DateTime(2026, 10, 30, 19, 25);
 
+  setUpAll(() async {
+    if (!capture) return;
+    // Real Roboto + MaterialIcons from the SDK; without these, flutter
+    // test renders every glyph as an unreadable Ahem block.
+    await loadMaterialFonts();
+  });
+
   TechnicalSummary fixture(TechRating r, double score,
       {int buy = 9, int neutral = 3, int sell = 5, int skipped = 0}) {
     final votes = <IndicatorVote>[
