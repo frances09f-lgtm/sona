@@ -16,6 +16,7 @@ import 'usage_reporter.dart';
 
 import 'chart/indicators.dart';
 import 'market_data/models.dart';
+import 'protection.dart';
 
 class AiConfig {
   /// Groq API key from user-supplied encrypted storage,
@@ -210,7 +211,9 @@ const _systemPrompt =
     '{"action":"buy"|"sell"|"hold","confidence":"low"|"medium"|"high",'
     '"stop_loss":number,"take_profit":number,"size_pct":number,"reason":"one short sentence"}. '
     'stop_loss and take_profit are absolute prices for the suggested side. '
-    'Keep the stop within about 0.8x to 2.5x ATR14 of entry. '
+    'Keep stops tight: stop_loss just beyond the nearest swing level, '
+    'normally no more than about 1.2x ATR14 from entry; the app caps the '
+    'stop with the user\'s rule and sets take_profit from his reward:risk. '
     'size_pct is the share of the paper balance to use as notional (1-25). '
     'Trades execute IMMEDIATELY at the live market price with your stop_loss '
     'and take_profit attached - never hold off for a better entry level; if '
@@ -219,46 +222,33 @@ const _systemPrompt =
     'and low result in no trade. This is a paper account for learning to '
     'trade. Never invent data.';
 
-/// Clamp stop/targets for a trade at [ref] (a real side price): the stop
-/// lands on the correct side within a sane distance, the target is at
-/// least 1.5x the risk distance on the correct side. Missing or wrong-side
-/// values get defaults so a trade ALWAYS carries TP and SL - never fake
-/// numbers, everything derives from the live reference price.
-/// With [atr14] (the 15-minute ATR the model also sees) the stop band is
-/// volatility-relative: 0.8x..2.5x ATR, default 1.2x ATR, so stops track
-/// the market's actual range (user report: the old fixed 0.3%..2.0% band
-/// sat far too wide at gold's current price). Absolute sanity rails hold
-/// every ATR-derived distance inside 0.02%..2% of price, so a bad candle
-/// (spike, freeze, NaN) can never produce an absurd stop. Without a usable
-/// ATR the legacy 0.3%..2.0% band applies - acknowledged: that fallback
-/// still produces the original wide levels.
+/// Stop/targets for a trade at [ref] (a real side price), from the user's
+/// SL/TP rule (lib/protection.dart): stop = ATR multiple (or % of price),
+/// capped at a max % of price; an AI stop on the correct side is used only
+/// when it is tighter than the rule; TP = reward:risk x the stop distance.
+/// Buy: SL below, TP above. Sell: SL above, TP below. Every number derives
+/// from the live reference price - never fake numbers.
+///
+/// Before v1.2.12 this floored the stop at 0.3% of price and defaulted to
+/// 0.6% (gold 4,038: $12-24 stop, $18-36+ target) - far wider than a
+/// 15-minute ATR, which is what "SL and TP too high" was.
 (double, double) clampTargets({
   required bool dirUp,
   required double ref,
   double? sl,
   double? tp,
-  double? atr14,
+  double? atr,
+  ProtectionSettings settings = ProtectionSettings.defaults,
 }) {
-  final useAtr = atr14 != null && atr14.isFinite && atr14 > 0;
-  double sane(double d) => d.clamp(0.0002 * ref, 0.02 * ref);
-  final minDist = useAtr ? sane(0.8 * atr14) : 0.003 * ref;
-  final maxDist = useAtr ? sane(2.5 * atr14) : 0.02 * ref;
-  final defDist = useAtr ? sane(1.2 * atr14) : 0.006 * ref;
-  double defaultStop() => dirUp ? ref - defDist : ref + defDist;
-  if (sl == null || (dirUp ? sl >= ref : sl <= ref)) {
-    sl = defaultStop();
-  } else {
-    final dist = (ref - sl).abs();
-    if (dist < minDist) sl = dirUp ? ref - minDist : ref + minDist;
-    if (dist > maxDist) sl = dirUp ? ref - maxDist : ref + maxDist;
-  }
-  final riskDist = (ref - sl).abs();
-  if (tp == null ||
-      (dirUp ? tp <= ref : tp >= ref) ||
-      (tp - ref).abs() < 1.5 * riskDist) {
-    tp = dirUp ? ref + 1.5 * riskDist : ref - 1.5 * riskDist;
-  }
-  return (sl, tp);
+  final p = computeProtection(
+    buy: dirUp,
+    entry: ref,
+    atr: atr,
+    aiStop: sl,
+    settings: settings,
+    tick: tickSizeFor(Instrument.xauUsd.symbol, price: ref),
+  );
+  return (p.sl, p.tp);
 }
 
 /// Parse + validate + clamp the model output against real prices.
@@ -267,7 +257,8 @@ AiDecision parseDecision(
   String content, {
   required double buyRef,
   required double sellRef,
-  double? atr14,
+  double? atr,
+  ProtectionSettings settings = ProtectionSettings.defaults,
 }) {
   String jsonText;
   final start = content.indexOf('{');
@@ -310,7 +301,8 @@ AiDecision parseDecision(
     ref: ref,
     sl: (j['stop_loss'] as num?)?.toDouble(),
     tp: (j['take_profit'] as num?)?.toDouble(),
-    atr14: atr14,
+    atr: atr,
+    settings: settings,
   );
 
   return AiDecision(
@@ -337,8 +329,10 @@ const _adviceSystemPrompt =
     'When you are SURE (verdict buy or sell with confidence high), the app '
     'opens the trade IMMEDIATELY at the live market price with your '
     'stop_loss and take_profit attached, so always include them then as '
-    'absolute prices for the suggested side, the stop within about '
-    '0.8x to 2.5x ATR14 of entry; size_pct is the share of the '
+    'absolute prices for the suggested side (stop_loss just beyond the '
+    'nearest swing level, normally no more than about 1.2x ATR14 from entry - '
+    'the app caps the stop and sets take_profit from the user\'s '
+    'reward:risk); size_pct is the share of the '
     'paper balance to use as notional (1-25). Entries are market orders - '
     'never advise waiting for a price level. When you are not sure, set '
     'confidence low or verdict wait and nothing trades. '
@@ -411,7 +405,8 @@ AdviceResult parseAdvice(
   String content, {
   double? buyRef,
   double? sellRef,
-  double? atr14,
+  double? atr,
+  ProtectionSettings settings = ProtectionSettings.defaults,
 }) {
   final start = content.indexOf('{');
   final end = content.lastIndexOf('}');
@@ -444,7 +439,8 @@ AdviceResult parseAdvice(
       ref: ref,
       sl: sl,
       tp: tp,
-      atr14: atr14,
+      atr: atr,
+      settings: settings,
     );
     sl = csl;
     tp = ctp;
@@ -478,7 +474,10 @@ class GroqBrain {
   final http.Client _client;
   GroqBrain({http.Client? client}) : _client = client ?? http.Client();
 
-  Future<AiDecision> decide(MarketSnapshot s) async {
+  Future<AiDecision> decide(
+    MarketSnapshot s, {
+    ProtectionSettings? protection,
+  }) async {
     if (AiConfig.groqApiKey.isEmpty) {
       throw const BrainException('Add your Groq key in API settings');
     }
@@ -495,7 +494,8 @@ class GroqBrain {
       content,
       buyRef: s.ask,
       sellRef: s.bid,
-      atr14: atr(s.candles, 14),
+      atr: atr(s.candles, 14),
+      settings: protection ?? await ProtectionSettings.load(),
     );
   }
 
@@ -508,6 +508,7 @@ class GroqBrain {
     required double ask,
     required List<Candle> candles,
     List<double> drawnLevels = const [],
+    ProtectionSettings? protection,
   }) async {
     if (AiConfig.groqApiKey.isEmpty) {
       throw const BrainException('Add your Groq key in API settings');
@@ -535,7 +536,8 @@ class GroqBrain {
       content,
       buyRef: ask,
       sellRef: bid,
-      atr14: atr(candles, 14),
+      atr: atr(candles, 14),
+      settings: protection ?? await ProtectionSettings.load(),
     );
   }
 

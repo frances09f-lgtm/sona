@@ -13,6 +13,8 @@ import 'paper_margin.dart';
 import 'chart_explanation.dart';
 import 'technical_summary_card.dart';
 import 'learn_screen.dart';
+import 'protection.dart';
+import 'protection_screen.dart';
 
 import 'dart:convert';
 import 'dart:math' as math;
@@ -1216,6 +1218,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
   String _intervalCode = '15min';
   String _rangeCode = 'range:1D';
   bool _showAsk = false;
+  ProtectionSettings _protection = ProtectionSettings.defaults;
 
   @override
   void initState() {
@@ -1223,6 +1226,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
     SharedPreferences.getInstance().then((prefs) {
       if (!mounted) return;
       setState(() {
+        _protection = ProtectionSettings.read(prefs);
         _mode = prefs.getString(kChartModePref) ?? _mode;
         _intervalCode = prefs.getString(kChartIntervalPref) ?? _intervalCode;
         _rangeCode = prefs.getString(kChartRangePref) ?? _rangeCode;
@@ -1321,6 +1325,25 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => StrategiesScreen(app: widget.app)),
           ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.shield_outlined),
+          title: const Text('Stop loss & take profit'),
+          subtitle: Text(
+            'For AI and Advice trades - now: ${_protection.describe()}',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ProtectionSettingsScreen(
+                  examplePrice: widget.app.ask,
+                ),
+              ),
+            );
+            final p = await ProtectionSettings.load();
+            if (mounted) setState(() => _protection = p);
+          },
         ),
         SwitchListTile(
           secondary: const Icon(Icons.show_chart),
@@ -4979,6 +5002,7 @@ class _AiTabState extends State<AiTab> {
         ask: quote.$2,
         candles: candles,
         drawnLevels: levels,
+        protection: ProtectionSettings.read(prefs),
       );
       // User request: when the AI is SURE of a direction, start the trade
       // immediately at market with TP/SL - no waiting for a start price.
@@ -5365,6 +5389,26 @@ class _AiTabState extends State<AiTab> {
                       },
                     ),
                   ],
+                ),
+                FutureBuilder<ProtectionSettings>(
+                  future: ProtectionSettings.load(),
+                  builder: (context, snap) => InkWell(
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ProtectionSettingsScreen(),
+                        ),
+                      );
+                      _refresh();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'SL/TP: ${(snap.data ?? ProtectionSettings.defaults).describe()} - tap to change',
+                        style: const TextStyle(fontSize: 12, color: cDim),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 SizedBox(

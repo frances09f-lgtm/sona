@@ -9,12 +9,13 @@ void main() {
         '{"action":"buy","confidence":"high","stop_loss":3980.0,"take_profit":4050.0,"size_pct":12,"reason":"uptrend with momentum"}',
         buyRef: 4000.0,
         sellRef: 3999.5,
+        atr: 20, // rule 1.2x ATR = 24: the AI's tighter 20 stop is kept
       );
       expect(d.action, 'buy');
       expect(d.confidence, 'high');
       expect(d.isTrade, isTrue);
       expect(d.sl, 3980.0);
-      expect(d.tp, 4050.0);
+      expect(d.tp, 4030.0); // TP = 1.5R of the 20 stop, not the AI's 4050
       expect(d.sizePct, 12);
     });
 
@@ -32,21 +33,21 @@ void main() {
       expect(d.isTrade, isFalse);
     });
 
-    test('wild stop loss is clamped into 0.3-2.0%', () {
+    test('wild stop loss never widens the rule stop (v1.2.11)', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"size_pct":50,"reason":"yolo"}',
           buyRef: 4000, sellRef: 3999);
-      expect(d.sl, 4000 * 0.98); // clamped to max 2% distance
+      expect(d.sl, 3990.0); // no ATR: 0.25% of price
       expect(d.sizePct, 25); // clamped to max
-      expect(d.tp! - 4000, greaterThanOrEqualTo(1.5 * (4000 - d.sl!)));
+      expect(d.tp, 4015.0); // 1.5R
     });
 
     test('missing SL/TP gets sane defaults for a sell', () {
       final d = parseDecision(
           '{"action":"sell","confidence":"medium","size_pct":10,"reason":"breakdown"}',
           buyRef: 4000, sellRef: 3999);
-      expect(d.sl, closeTo(3999 * 1.006, 0.01));
-      expect(d.tp, closeTo(3999 - 1.5 * (3999 * 0.006), 0.01));
+      expect(d.sl, closeTo(3999 * 1.0025, 0.01));
+      expect(d.tp, closeTo(3999 - 1.5 * (3999 * 0.0025), 0.01));
     });
 
     test('wrong-side TP is replaced', () {
@@ -111,8 +112,8 @@ void main() {
           '"stop_loss":3000,"take_profit":5000,"size_pct":40,"reasons":"Strong breakout."}',
           buyRef: 4000, sellRef: 3999);
       expect(r.sureTrade, isTrue);
-      expect(r.sl, 4000 * 0.98); // clamped into 0.3-2.0%
-      expect(r.tp! - 4000, greaterThanOrEqualTo(1.5 * (4000 - r.sl!)));
+      expect(r.sl, 3990.0); // rule stop: 0.25% of price without ATR
+      expect(r.tp, 4015.0); // 1.5R
       expect(r.sizePct, 25); // clamped to max
     });
     test('low-confidence direction stays read-only', () {
@@ -175,60 +176,63 @@ void main() {
     });
   });
 
-  group('ATR-relative stop bands (user: SL/TP too far)', () {
+  group('ATR-relative stops (user: SL/TP too far) - v1.2.13 rule', () {
+    // Instinct's ATR-band scenarios, checked against the shipped rule
+    // (lib/protection.dart): stop 1.2x ATR, AI stop kept only when tighter
+    // and >= 0.5x ATR, cap 0.5% of price, TP 1.5R, 0.01 gold tick.
     test('defaults land at 1.2x ATR with TP at 1.5x risk', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+          buyRef: 3900, sellRef: 3899.5, atr: 9.5);
       expect(d.sl, closeTo(3900 - 1.2 * 9.5, 0.001));
       expect(d.tp, closeTo(3900 + 1.5 * 1.2 * 9.5, 0.001));
     });
-    test('model stop tighter than 0.8x ATR is lifted to the floor', () {
+    test('model stop closer than half an ATR is replaced by the rule', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","stop_loss":3898.0,"take_profit":3920.0,"size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
-      expect(d.sl, closeTo(3900 - 0.8 * 9.5, 0.001));
+          buyRef: 3900, sellRef: 3899.5, atr: 9.5);
+      expect(d.sl, closeTo(3900 - 1.2 * 9.5, 0.001));
     });
-    test('wild stop is capped at 2.5x ATR, not 2%', () {
+    test('wild model stop never widens the trade', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
-      expect(d.sl, closeTo(3900 - 2.5 * 9.5, 0.001));
-      expect(d.tp! - 3900, greaterThanOrEqualTo(1.5 * (3900 - d.sl!)));
+          buyRef: 3900, sellRef: 3899.5, atr: 9.5);
+      expect(d.sl, closeTo(3900 - 1.2 * 9.5, 0.001));
+      expect(d.tp! - 3900, closeTo(1.5 * (3900 - d.sl!), 0.011));
     });
-    test('sell side mirrors: stop above entry within the ATR band', () {
+    test('sell side mirrors: stop above entry, target below', () {
       final d = parseDecision(
           '{"action":"sell","confidence":"high","size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+          buyRef: 3900, sellRef: 3899.5, atr: 9.5);
       expect(d.sl, closeTo(3899.5 + 1.2 * 9.5, 0.001));
       expect(d.tp, closeTo(3899.5 - 1.5 * 1.2 * 9.5, 0.001));
     });
-    test('invalid ATR (NaN, infinite, zero, negative) uses legacy band', () {
+    test('invalid ATR (NaN, infinite, zero, negative) uses the % fallback', () {
       for (final bad in [double.nan, double.infinity, 0.0, -5.0]) {
         final d = parseDecision(
             '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
-            buyRef: 3900, sellRef: 3899.5, atr14: bad);
-        expect(d.sl, closeTo(3900 * (1 - 0.006), 0.001));
+            buyRef: 3900, sellRef: 3899.5, atr: bad);
+        expect(d.sl, closeTo(3900 * (1 - 0.0025), 0.001));
       }
     });
-    test('outlier ATR is capped at 2% of price (old hard cap)', () {
+    test('outlier ATR is capped at 0.5% of price', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","stop_loss":1000,"take_profit":5000,"size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 500);
-      expect(d.sl, closeTo(3900 * 0.98, 0.001));
+          buyRef: 3900, sellRef: 3899.5, atr: 500);
+      expect(d.sl, closeTo(3900 * 0.995, 0.001));
     });
     test('tiny ATR is floored at 0.02% of price (inside-spread guard)', () {
       final d = parseDecision(
           '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 0.1);
+          buyRef: 3900, sellRef: 3899.5, atr: 0.1);
       expect(d.sl, closeTo(3900 - 0.0002 * 3900, 0.001));
     });
-    test('advice sure-trade uses the same ATR band', () {
+    test('advice sure-trade uses the same rule', () {
       final r = parseAdvice(
           '{"verdict":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"reasons":"Strong."}',
-          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+          buyRef: 3900, sellRef: 3899.5, atr: 9.5);
       expect(r.sureTrade, isTrue);
-      expect(r.sl, closeTo(3900 - 2.5 * 9.5, 0.001));
+      expect(r.sl, closeTo(3900 - 1.2 * 9.5, 0.001));
     });
   });
 }

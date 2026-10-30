@@ -14,6 +14,7 @@ import 'usage_reporter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_brain.dart';
+import 'protection.dart';
 import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
@@ -341,7 +342,10 @@ class AutoTrade {
     );
     AiDecision d;
     try {
-      d = await (brain ?? GroqBrain()).decide(snapshot);
+      d = await (brain ?? GroqBrain()).decide(
+        snapshot,
+        protection: ProtectionSettings.read(prefs),
+      );
       await prefs.setInt(_brainFailKey, 0);
     } on BrainException catch (e) {
       // One bad call (rate limit, a 3 AM network blip) must NOT latch

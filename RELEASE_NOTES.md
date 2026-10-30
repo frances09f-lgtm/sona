@@ -1,3 +1,58 @@
+# Sona 1.2.13
+
+This build carries both lines of work: the Instinct branch
+(feature/technical-summary-gauge) and the 1.2.12 stop loss / take profit fix
+from main. Install it over 1.2.11 (Instinct test build) or 1.2.12.
+
+## New (from the Instinct branch)
+- Technical summary gauge on the AI tab: a buy/sell rating from moving
+  averages and oscillators, shown as a gauge with the vote counts, forming vs
+  completed candle labels, and the data provider's error text when quotes are
+  missing.
+- Flat-market fix: tiny EMA float drift no longer votes "sell".
+
+## Fixed (from 1.2.12)
+- Stop loss and take profit on trades Sona places itself (AI auto-trade and a
+  sure Advice trade) are sized from the 15-minute ATR: stop 1.2x ATR(14),
+  never more than 0.5% of price (and never less than 0.02% when the ATR reads
+  near zero), take profit 1.5x the stop. Gold at 4,038 with an $8 ATR: SL
+  $9.60 away, TP $14.40 away (was $24 / $36).
+- Settings > Stop loss & take profit lets you change the mode, ATR multiple,
+  fallback %, max stop % and reward:risk.
+
+## Unchanged
+- Paper trading only. Manual orders keep the TP/SL you type. Open positions
+  keep their existing TP/SL.
+
+## Includes all of 1.2.12
+
+# Sona 1.2.12
+
+## Fixed
+- Stop loss and take profit on trades Sona places itself (AI auto-trade and a
+  sure Advice trade) were far too wide. The old rule forced every stop to at
+  least 0.3% of price and used 0.6% by default: on gold at 4,038 that is a
+  $12-24 stop and an $18-36+ target, 2-4x a 15-minute ATR. Now the stop is
+  1.2x the 15-minute ATR(14), never more than 0.5% of price, and the target is
+  1.5x the stop. Gold at 4,038 with a $8 ATR: SL $9.60 away, TP $14.40 away.
+- A tighter stop the AI places just past a chart level is kept (when it is at
+  least half an ATR away); a wider AI stop never widens the trade. The AI's
+  own target is replaced by your reward:risk.
+- Buy: SL below entry, TP above. Sell: SL above, TP below. Prices are rounded
+  to the 0.01 gold tick.
+
+## New
+- Settings > Stop loss & take profit: choose ATR-based or % of price, the ATR
+  multiple, the fallback %, the maximum stop % and the reward:risk, with a live
+  gold example. The AI card shows the rule in use.
+
+## Unchanged
+- Paper trading only. Manual orders keep the TP/SL you type. Open positions
+  keep their existing TP/SL (edit or close them yourself if you want the new
+  distances).
+
+## Includes all of 1.2.10
+
 # Sona 1.2.10
 
 ## Fixed
