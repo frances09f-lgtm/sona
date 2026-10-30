@@ -109,6 +109,11 @@ void main() {
   for (final entry in cardCases.entries) {
     testWidgets('capture ${entry.key}', (tester) async {
       if (!capture) return;
+      // Taller than the default 800x600 surface so tall states (error +
+      // as-of + quiet note) lay out fully; the golden frames the card view
+      // itself, so surface size does not change the image.
+      await tester.binding.setSurfaceSize(const Size(420, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(cardShell(entry.value));
       await expectLater(
         find.byType(TechnicalSummaryCardView),
