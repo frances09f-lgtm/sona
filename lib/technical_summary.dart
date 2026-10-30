@@ -162,18 +162,27 @@ TechnicalSummary computeTechnicalSummary(List<Candle> candles) {
   }
 
   // ---- Moving averages: price above the average = buy, below = sell ----
+  // Comparisons use a relative epsilon: long EMAs accumulate float error
+  // (~1e-12 at gold prices), which otherwise votes "sell" on a perfectly
+  // flat tape. The epsilon is far below any real tick.
+  int dirVote(double avg) {
+    final eps = price.abs() * 1e-9;
+    final d = price - avg;
+    return d > eps ? 1 : (d < -eps ? -1 : 0);
+  }
+
   for (final period in const [10, 20, 30, 50, 100, 200]) {
     final s = sma(candles, period);
     if (s.isNotEmpty) {
       final v = s.last;
-      mas.add(IndicatorVote('SMA($period)', price > v ? 1 : (price < v ? -1 : 0),
-          'Price ${f(price)} vs SMA ${f(v)}'));
+      mas.add(IndicatorVote(
+          'SMA($period)', dirVote(v), 'Price ${f(price)} vs SMA ${f(v)}'));
     }
     final e = ema(candles, period);
     if (e.isNotEmpty) {
       final v = e.last;
-      mas.add(IndicatorVote('EMA($period)', price > v ? 1 : (price < v ? -1 : 0),
-          'Price ${f(price)} vs EMA ${f(v)}'));
+      mas.add(IndicatorVote(
+          'EMA($period)', dirVote(v), 'Price ${f(price)} vs EMA ${f(v)}'));
     }
   }
 
