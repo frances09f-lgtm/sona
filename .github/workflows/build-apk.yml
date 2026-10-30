@@ -37,6 +37,12 @@ jobs:
           GP
       - run: flutter pub get
       - run: flutter test
+      - name: Render gauge capture images (visual verification aid, not a gate)
+        run: GAUGE_CAPTURE=1 flutter test test/zz_gauge_capture_test.dart --update-goldens
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gauge-captures
+          path: test/goldens/
       - run: flutter build apk --release --target-platform android-arm64 -v
       - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Sona.apk"
       - name: Verify production APK identity and certificate
@@ -50,7 +56,7 @@ jobs:
           CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
           test "$CERT_SHA" = '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
-          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='111' versionName='1.2.10'" /tmp/badging.txt
+          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='112' versionName='1.2.11'" /tmp/badging.txt
           grep -F "application-label:'Sona'" /tmp/badging.txt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
