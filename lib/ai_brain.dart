@@ -210,6 +210,7 @@ const _systemPrompt =
     '{"action":"buy"|"sell"|"hold","confidence":"low"|"medium"|"high",'
     '"stop_loss":number,"take_profit":number,"size_pct":number,"reason":"one short sentence"}. '
     'stop_loss and take_profit are absolute prices for the suggested side. '
+    'Keep the stop within about 0.8x to 2.5x ATR14 of entry. '
     'size_pct is the share of the paper balance to use as notional (1-25). '
     'Trades execute IMMEDIATELY at the live market price with your stop_loss '
     'and take_profit attached - never hold off for a better entry level; if '
@@ -219,24 +220,33 @@ const _systemPrompt =
     'trade. Never invent data.';
 
 /// Clamp stop/targets for a trade at [ref] (a real side price): the stop
-/// lands in 0.3%..2.0% of entry on the correct side, the target is at
+/// lands on the correct side within a sane distance, the target is at
 /// least 1.5x the risk distance on the correct side. Missing or wrong-side
 /// values get defaults so a trade ALWAYS carries TP and SL - never fake
 /// numbers, everything derives from the live reference price.
+/// With [atr14] (the 15-minute ATR the model also sees) the stop band is
+/// volatility-relative: 0.8x..2.5x ATR, default 1.2x ATR, so stops track
+/// the market's actual range (user report: the old fixed 0.3%..2.0% band
+/// sat far too wide at gold's current price). Without ATR the legacy
+/// 0.3%..2.0% band applies.
 (double, double) clampTargets({
   required bool dirUp,
   required double ref,
   double? sl,
   double? tp,
+  double? atr14,
 }) {
-  const minStop = 0.003, maxStop = 0.02;
-  double defaultStop() => dirUp ? ref * (1 - 0.006) : ref * (1 + 0.006);
+  final useAtr = atr14 != null && atr14 > 0;
+  final minDist = useAtr ? 0.8 * atr14 : 0.003 * ref;
+  final maxDist = useAtr ? 2.5 * atr14 : 0.02 * ref;
+  final defDist = useAtr ? 1.2 * atr14 : 0.006 * ref;
+  double defaultStop() => dirUp ? ref - defDist : ref + defDist;
   if (sl == null || (dirUp ? sl >= ref : sl <= ref)) {
     sl = defaultStop();
   } else {
-    final dist = (ref - sl).abs() / ref;
-    if (dist < minStop) sl = dirUp ? ref * (1 - minStop) : ref * (1 + minStop);
-    if (dist > maxStop) sl = dirUp ? ref * (1 - maxStop) : ref * (1 + maxStop);
+    final dist = (ref - sl).abs();
+    if (dist < minDist) sl = dirUp ? ref - minDist : ref + minDist;
+    if (dist > maxDist) sl = dirUp ? ref - maxDist : ref + maxDist;
   }
   final riskDist = (ref - sl).abs();
   if (tp == null ||
@@ -253,6 +263,7 @@ AiDecision parseDecision(
   String content, {
   required double buyRef,
   required double sellRef,
+  double? atr14,
 }) {
   String jsonText;
   final start = content.indexOf('{');
@@ -295,6 +306,7 @@ AiDecision parseDecision(
     ref: ref,
     sl: (j['stop_loss'] as num?)?.toDouble(),
     tp: (j['take_profit'] as num?)?.toDouble(),
+    atr14: atr14,
   );
 
   return AiDecision(
@@ -321,7 +333,8 @@ const _adviceSystemPrompt =
     'When you are SURE (verdict buy or sell with confidence high), the app '
     'opens the trade IMMEDIATELY at the live market price with your '
     'stop_loss and take_profit attached, so always include them then as '
-    'absolute prices for the suggested side; size_pct is the share of the '
+    'absolute prices for the suggested side, the stop within about '
+    '0.8x to 2.5x ATR14 of entry; size_pct is the share of the '
     'paper balance to use as notional (1-25). Entries are market orders - '
     'never advise waiting for a price level. When you are not sure, set '
     'confidence low or verdict wait and nothing trades. '
@@ -390,7 +403,12 @@ String buildAdvicePrompt({
 
 /// Parse the advice reply. Anything malformed becomes a wait with an
 /// honest note - the UI never shows invented analysis.
-AdviceResult parseAdvice(String content, {double? buyRef, double? sellRef}) {
+AdviceResult parseAdvice(
+  String content, {
+  double? buyRef,
+  double? sellRef,
+  double? atr14,
+}) {
   final start = content.indexOf('{');
   final end = content.lastIndexOf('}');
   Map<String, dynamic>? j;
@@ -422,6 +440,7 @@ AdviceResult parseAdvice(String content, {double? buyRef, double? sellRef}) {
       ref: ref,
       sl: sl,
       tp: tp,
+      atr14: atr14,
     );
     sl = csl;
     tp = ctp;
@@ -468,7 +487,12 @@ class GroqBrain {
     if (content == null) {
       throw const BrainException('Groq call failed or rate-limited');
     }
-    return parseDecision(content, buyRef: s.ask, sellRef: s.bid);
+    return parseDecision(
+      content,
+      buyRef: s.ask,
+      sellRef: s.bid,
+      atr14: atr(s.candles, 14),
+    );
   }
 
   /// Chart advice for the Advice button. Real model call, real data.
@@ -503,7 +527,12 @@ class GroqBrain {
     if (content == null) {
       throw const BrainException('Groq call failed or rate-limited');
     }
-    return parseAdvice(content, buyRef: ask, sellRef: bid);
+    return parseAdvice(
+      content,
+      buyRef: ask,
+      sellRef: bid,
+      atr14: atr(candles, 14),
+    );
   }
 
   Future<String?> _call(
