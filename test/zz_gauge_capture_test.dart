@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sona/technical_gauge.dart';
 import 'package:sona/technical_summary.dart';
@@ -27,8 +29,24 @@ void main() {
   setUpAll(() async {
     if (!capture) return;
     // Real Roboto + MaterialIcons from the SDK; without these, flutter
-    // test renders every glyph as an unreadable Ahem block.
-    await loadMaterialFonts();
+    // test renders every glyph as an unreadable Ahem block. Load whatever
+    // the SDK ships (names differ across versions, so scan the dir).
+    final root = Platform.environment['FLUTTER_ROOT'];
+    if (root == null) return;
+    final dir = Directory('$root/bin/cache/artifacts/material_fonts');
+    if (!dir.existsSync()) return;
+    final roboto = FontLoader('Roboto');
+    final icons = FontLoader('MaterialIcons');
+    for (final f in dir.listSync().whereType<File>()) {
+      final name = f.uri.pathSegments.last;
+      final data = ByteData.view(f.readAsBytesSync().buffer);
+      if (name.startsWith('Roboto')) roboto.addFont(Future.value(data));
+      if (name.startsWith('MaterialIcons')) {
+        icons.addFont(Future.value(data));
+      }
+    }
+    await roboto.load();
+    await icons.load();
   });
 
   TechnicalSummary fixture(TechRating r, double score,
