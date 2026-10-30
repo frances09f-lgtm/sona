@@ -174,4 +174,41 @@ void main() {
       expect(r.sellPct, 38);
     });
   });
+
+  group('ATR-relative stop bands (user: SL/TP too far)', () {
+    test('defaults land at 1.2x ATR with TP at 1.5x risk', () {
+      final d = parseDecision(
+          '{"action":"buy","confidence":"high","size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+      expect(d.sl, closeTo(3900 - 1.2 * 9.5, 0.001));
+      expect(d.tp, closeTo(3900 + 1.5 * 1.2 * 9.5, 0.001));
+    });
+    test('model stop tighter than 0.8x ATR is lifted to the floor', () {
+      final d = parseDecision(
+          '{"action":"buy","confidence":"high","stop_loss":3898.0,"take_profit":3920.0,"size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+      expect(d.sl, closeTo(3900 - 0.8 * 9.5, 0.001));
+    });
+    test('wild stop is capped at 2.5x ATR, not 2%', () {
+      final d = parseDecision(
+          '{"action":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+      expect(d.sl, closeTo(3900 - 2.5 * 9.5, 0.001));
+      expect(d.tp! - 3900, greaterThanOrEqualTo(1.5 * (3900 - d.sl!)));
+    });
+    test('sell side mirrors: stop above entry within the ATR band', () {
+      final d = parseDecision(
+          '{"action":"sell","confidence":"high","size_pct":10,"reason":"x"}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+      expect(d.sl, closeTo(3899.5 + 1.2 * 9.5, 0.001));
+      expect(d.tp, closeTo(3899.5 - 1.5 * 1.2 * 9.5, 0.001));
+    });
+    test('advice sure-trade uses the same ATR band', () {
+      final r = parseAdvice(
+          '{"verdict":"buy","confidence":"high","stop_loss":3000,"take_profit":5000,"reasons":"Strong."}',
+          buyRef: 3900, sellRef: 3899.5, atr14: 9.5);
+      expect(r.sureTrade, isTrue);
+      expect(r.sl, closeTo(3900 - 2.5 * 9.5, 0.001));
+    });
+  });
 }
