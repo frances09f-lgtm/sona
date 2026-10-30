@@ -1,0 +1,28 @@
+name: Gauge captures only (visual aid)
+
+# Fast, targeted visual-verification loop for the technical-summary gauge:
+# renders the capture goldens and uploads them, without the full test
+# suite or the APK build. Manual dispatch only; nothing here publishes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  captures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          cache: true
+      - run: flutter pub get
+      - name: Render gauge capture images (visual verification aid, not a gate)
+        run: GAUGE_CAPTURE=1 flutter test test/zz_gauge_capture_test.dart --update-goldens
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gauge-captures
+          path: test/goldens/
+          if-no-files-found: error
