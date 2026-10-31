@@ -13,6 +13,7 @@ import 'indicators.dart';
 import '../strategy.dart' as strat;
 import 'chart_tools.dart';
 import 'session_levels.dart';
+import '../chart_diagnostics.dart';
 import '../practice_screen.dart';
 
 /// Chart selection persisted from Sona Settings (user request: interval
@@ -1638,6 +1639,16 @@ class CandleChartPanelState extends State<CandleChartPanel>
                             );
                             return;
                           }
+                          if (v == 'diagnostics') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ChartDiagnosticsScreen(
+                                  snapshot: market,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           setState(() {
                             switch (v) {
                               case 'SMA20':
@@ -1670,6 +1681,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           const PopupMenuItem(
                             value: 'practice',
                             child: Text('Practice replay'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'diagnostics',
+                            child: Text('Chart diagnostics'),
                           ),
                           const PopupMenuItem(
                             value: 'configure',

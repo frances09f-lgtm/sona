@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'candle_debug.dart';
 import 'market_data_provider.dart';
 import 'swissquote_provider.dart';
 import 'models.dart';
@@ -42,6 +43,7 @@ class TwelveDataCandleService implements HistoricalCandleService {
     });
     final res = await client.get(uri).timeout(const Duration(seconds: 15));
     if (res.statusCode != 200) {
+      CandleDebugSink.recordError(name, 'HTTP ${res.statusCode}', secret: apiKey);
       throw MarketDataException('HTTP ${res.statusCode} from $name');
     }
     final body = jsonDecode(res.body);
@@ -49,13 +51,17 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException('unexpected candle payload from $name');
     }
     if (body['status'] == 'error') {
+      CandleDebugSink.recordError(
+          name, '${body['message'] ?? 'unknown'}', secret: apiKey);
       throw MarketDataException(
           '$name error: ${body['message'] ?? 'unknown'}');
     }
     final values = body['values'];
     if (values is! List) {
+      CandleDebugSink.recordError(name, 'no candle values', secret: apiKey);
       throw MarketDataException('no candle values from $name');
     }
+    CandleDebugSink.recordFetch(sourceName: name, values: values);
     final out = <Candle>[];
     for (final v in values) {
       if (v is! Map<String, dynamic>) continue;
