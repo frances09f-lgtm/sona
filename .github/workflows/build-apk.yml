@@ -57,7 +57,9 @@ jobs:
           CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
           test "$CERT_SHA" = '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0'
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
-          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='114' versionName='1.2.13'" /tmp/badging.txt
+          VNAME="$(grep -E '^version: ' pubspec.yaml | sed 's/^version: //; s/+.*//')"
+          VCODE="$(grep -E '^version: ' pubspec.yaml | sed 's/.*+//')"
+          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='${VCODE}' versionName='${VNAME}'" /tmp/badging.txt
           grep -F "application-label:'Sona'" /tmp/badging.txt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
