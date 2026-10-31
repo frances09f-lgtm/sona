@@ -75,4 +75,39 @@ void main() {
     );
     expect(CandleDebugSink.lastError, contains('429'));
   });
+
+  test('raw payload fields echoing the key or URLs are redacted', () async {
+    final values = [
+      {
+        'datetime': '2026-10-31 00:00:00',
+        'open': '3875.31',
+        'high': '3875.50',
+        'low': '3875.28',
+        'close': '3875.44',
+        'debug': 'echo secretkey1234567890123456789012345',
+        'link': 'https://evil.example/x?apikey=abc',
+      },
+      for (var i = 1; i < 6; i++)
+        {
+          'datetime': '2026-10-31 0$i:00:00',
+          'open': '3875.31',
+          'high': '3875.50',
+          'low': '3875.28',
+          'close': '3875.44',
+        },
+    ];
+    final svc = TwelveDataCandleService(
+      apiKey: 'secretkey1234567890123456789012345',
+      client: fakeClient({'status': 'ok', 'values': values}),
+    );
+    await svc.fetchCandles(Instrument.xauUsd);
+    final shown = CandleDebugSink.rawHead.join('\n');
+    expect(shown.contains('secretkey1234567890123456789012345'), isFalse);
+    expect(shown.contains('https://'), isFalse);
+    expect(shown.contains('[redacted]'), isTrue);
+    expect(shown.contains('[url]'), isTrue);
+    // Legitimate OHLC fields survive redaction intact.
+    expect(shown.contains('3875.31'), isTrue);
+    expect(shown.contains('2026-10-31 00:00:00'), isTrue);
+  });
 }

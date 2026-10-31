@@ -26,14 +26,20 @@ class CandleDebugSink {
   static void recordFetch({
     required String sourceName,
     required List<dynamic> values,
+    String secret = '',
   }) {
     source = sourceName;
     fetchAtUtc = DateTime.now().toUtc();
     totalValues = values.length;
     lastError = null;
+    // Raw provider values pass through the same redaction as errors: a
+    // misbehaving payload must never surface keys or URLs in the panel.
     List<String> encode(Iterable<dynamic> items) => [
           for (final v in items)
-            const JsonEncoder.withIndent('  ').convert(v),
+            sanitize(
+              const JsonEncoder.withIndent('  ').convert(v),
+              secret: secret,
+            ),
         ];
     rawHead = encode(values.take(3));
     rawTail =
