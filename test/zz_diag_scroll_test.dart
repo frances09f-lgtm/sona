@@ -19,7 +19,7 @@ void main() {
       appName: 'Sona',
       packageName: 'com.ambi.gold_paper_trading',
       version: '1.2.15',
-      buildNumber: '116',
+      buildNumber: '117',
       buildSignature: '',
     );
     SharedPreferences.setMockInitialValues({});
