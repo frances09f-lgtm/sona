@@ -13,6 +13,8 @@ import 'paper_margin.dart';
 import 'chart_explanation.dart';
 import 'technical_summary_card.dart';
 import 'learn_screen.dart';
+import 'practice_screen.dart';
+import 'chart_diagnostics.dart';
 import 'protection.dart';
 import 'protection_screen.dart';
 
@@ -1314,6 +1316,30 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _pick(true),
+        ),
+        ListTile(
+          leading: const Icon(Icons.school_outlined),
+          title: const Text('Practice replay'),
+          subtitle: const Text(
+            'Replay real candles fast and call up or down - training only',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PracticeScreen()),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.troubleshoot_outlined),
+          title: const Text('Chart diagnostics'),
+          subtitle: const Text(
+            'Test-build facts: raw provider bars, quote freshness, build id',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const ChartDiagnosticsScreen(snapshot: null),
+            ),
+          ),
         ),
         ListTile(
           leading: const Icon(Icons.psychology_outlined),

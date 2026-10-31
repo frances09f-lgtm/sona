@@ -17,7 +17,7 @@ import 'market_data/candle_debug.dart';
 /// sanitizes), nothing is written to disk here, and nothing leaves the
 /// device unless the user taps Copy.
 class ChartDiagnosticsScreen extends StatelessWidget {
-  final ChartMarketSnapshot snapshot;
+  final ChartMarketSnapshot? snapshot;
 
   const ChartDiagnosticsScreen({super.key, required this.snapshot});
 
@@ -59,13 +59,21 @@ class ChartDiagnosticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foldActive = snapshot.fresh &&
-        (snapshot.price?.isFinite ?? false) &&
-        (snapshot.price ?? 0) > 0;
-    final foldReason = foldActive
-        ? 'active: quote fresh, forming bar folds live ticks'
-        : 'inactive: quote stale/unavailable, provider bars untouched';
-    final ticks = snapshot.liveTicks?.length ?? 0;
+    final snap = snapshot;
+    final foldActive = (snap?.fresh ?? false) &&
+        (snap?.price?.isFinite ?? false) &&
+        (snap?.price ?? 0) > 0;
+    final foldReason = snap == null
+        ? 'unknown from this screen - open the chart for the live state'
+        : (foldActive
+            ? 'active: quote fresh, forming bar folds live ticks'
+            : 'inactive: quote stale/unavailable, provider bars untouched');
+    final ticksText = snap == null
+        ? 'unknown from this screen'
+        : '${snap.liveTicks?.length ?? 0}';
+    final quoteText = snap == null
+        ? 'unknown from this screen - stored quote time below'
+        : 'bid ${snap.bid ?? '-'} / ask ${snap.ask ?? '-'}';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chart diagnostics')),
@@ -82,9 +90,8 @@ class ChartDiagnosticsScreen extends StatelessWidget {
                 'fetch at (UTC): ${CandleDebugSink.fetchAtUtc?.toIso8601String() ?? 'none yet'}')
             ..writeln('payload bars: ${CandleDebugSink.totalValues}')
             ..writeln('fold: $foldReason')
-            ..writeln(
-                'quote: bid ${snapshot.bid ?? '-'} / ask ${snapshot.ask ?? '-'}')
-            ..writeln('live ticks buffered: $ticks')
+            ..writeln('quote: $quoteText')
+            ..writeln('live ticks buffered: $ticksText')
             ..writeln(
                 'last error: ${CandleDebugSink.lastError ?? 'none'}')
             ..writeln('raw first bars:')
@@ -103,14 +110,13 @@ class ChartDiagnosticsScreen extends StatelessWidget {
               ),
               _row('Payload bars', '${CandleDebugSink.totalValues}'),
               _row('Forming-bar fold', foldReason),
-              _row('Quote',
-                  'bid ${snapshot.bid ?? '-'} / ask ${snapshot.ask ?? '-'}'),
+              _row('Quote', quoteText),
               FutureBuilder<String>(
                 future: _quoteAge(),
                 builder: (context, q) =>
                     _row('Quote stamped', q.data ?? '…'),
               ),
-              _row('Live ticks buffered', '$ticks'),
+              _row('Live ticks buffered', ticksText),
               _row('Last fetch error', CandleDebugSink.lastError ?? 'none'),
               const SizedBox(height: 12),
               const Text('Raw first bars (pre-parse):',
