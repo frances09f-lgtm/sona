@@ -13,6 +13,7 @@ import 'indicators.dart';
 import '../strategy.dart' as strat;
 import 'chart_tools.dart';
 import 'session_levels.dart';
+import '../practice_screen.dart';
 
 /// Chart selection persisted from Sona Settings (user request: interval
 /// and range pickers live in Settings, not on the chart card).
@@ -1629,6 +1630,14 @@ class CandleChartPanelState extends State<CandleChartPanel>
                             configureIndicators();
                             return;
                           }
+                          if (v == 'practice') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const PracticeScreen(),
+                              ),
+                            );
+                            return;
+                          }
                           setState(() {
                             switch (v) {
                               case 'SMA20':
@@ -1658,6 +1667,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           });
                         },
                         itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'practice',
+                            child: Text('Practice replay'),
+                          ),
                           const PopupMenuItem(
                             value: 'configure',
                             child: Text('Indicator settings…'),
