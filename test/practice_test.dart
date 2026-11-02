@@ -59,6 +59,72 @@ void main() {
     });
   });
 
+
+  group('practicePauseIndexFor', () {
+    List<Candle> mixed() {
+      // Mirrors the real Twelve Data XAU/USD fetch: active Friday bars
+      // (span ~5-30) followed by flat weekend placeholder bars (~0.23).
+      final t0 = DateTime.utc(2026, 10, 30, 0, 0);
+      return [
+        for (var i = 0; i < 300; i++)
+          i < 100
+              ? Candle(
+                  time: t0.add(Duration(minutes: 15 * i)),
+                  open: 3900 + (i % 7).toDouble(),
+                  high: 3908 + (i % 9).toDouble(),
+                  low: 3896 - (i % 5).toDouble(),
+                  close: 3902 + (i % 6).toDouble())
+              : Candle(
+                  time: t0.add(Duration(minutes: 15 * i)),
+                  open: 3875.35,
+                  high: 3875.53,
+                  low: 3875.30,
+                  close: 3875.41),
+      ];
+    }
+
+    test('never picks a pause whose window is flat feed bars', () {
+      final cs = mixed();
+      for (var seed = 0; seed < 50; seed++) {
+        final p = practicePauseIndexFor(cs, Random(seed))!;
+        var lo = double.infinity, hi = -double.infinity;
+        for (var i = p - practiceWindow; i < p; i++) {
+          if (cs[i].low < lo) lo = cs[i].low;
+          if (cs[i].high > hi) hi = cs[i].high;
+        }
+        expect(hi - lo, greaterThan(1.0), reason: 'seed $seed pause $p');
+      }
+    });
+
+    test('falls back to any valid index when the whole fetch is flat', () {
+      final t0 = DateTime.utc(2026, 10, 31);
+      final flat = [
+        for (var i = 0; i < 200; i++)
+          Candle(
+              time: t0.add(Duration(minutes: 15 * i)),
+              open: 3875.35,
+              high: 3875.53,
+              low: 3875.30,
+              close: 3875.41),
+      ];
+      final p = practicePauseIndexFor(flat, Random(3));
+      expect(p, isNotNull);
+      expect(p!, greaterThanOrEqualTo(practiceWindow));
+      expect(p, lessThanOrEqualTo(200 - practiceHorizon));
+    });
+
+    test('null when history is too short', () {
+      expect(practicePauseIndexFor(const [], Random(1)), isNull);
+      final short = [
+        for (var i = 0; i < 60; i++)
+          Candle(
+              time: DateTime.utc(2026, 10, 30).add(Duration(minutes: 15 * i)),
+              open: 1, high: 2, low: 0.5, close: 1.5),
+      ];
+      expect(practicePauseIndexFor(short, Random(1)), isNull);
+    });
+  });
+
   testWidgets('round replays, stops, answers and scores', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final candles = fakeCandles(120);
