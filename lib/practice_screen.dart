@@ -45,6 +45,40 @@ int? practicePauseIndex(
   return window + rng.nextInt(max - window + 1);
 }
 
+/// Picks a pause index whose visible window shows real price movement.
+///
+/// Some feeds emit flat placeholder bars while the market is closed (the
+/// Twelve Data XAU/USD 15-minute feed returns near-zero-range bars pinned at
+/// Friday's close all weekend). A random pause can land inside such a
+/// stretch, where the auto-scaled chart blows tiny wicks up to full height
+/// and the round is untradeable. This prefers windows whose span clears an
+/// activity bar derived from the fetch itself (3x the median bar range), and
+/// falls back to any valid index when the whole fetch is quiet, so behavior
+/// only changes when an active window actually exists.
+int? practicePauseIndexFor(
+  List<Candle> candles,
+  Random rng, {
+  int window = practiceWindow,
+  int horizon = practiceHorizon,
+}) {
+  final max = candles.length - horizon;
+  if (max < window) return null;
+  final ranges = candles.map((c) => c.high - c.low).toList()..sort();
+  final minSpan = 3 * ranges[ranges.length ~/ 2];
+  final good = <int>[];
+  for (var pause = window; pause <= max; pause++) {
+    var lo = double.infinity;
+    var hi = -double.infinity;
+    for (var i = pause - window; i < pause; i++) {
+      if (candles[i].low < lo) lo = candles[i].low;
+      if (candles[i].high > hi) hi = candles[i].high;
+    }
+    if (hi - lo >= minSpan) good.add(pause);
+  }
+  if (good.isEmpty) return window + rng.nextInt(max - window + 1);
+  return good[rng.nextInt(good.length)];
+}
+
 /// Practice mode: replays real historical XAU/USD 15-minute candles fast,
 /// stops on its own and asks up or down. Pure training - it never touches
 /// the paper balance, positions, orders or the AI.
@@ -128,7 +162,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   void _startRound() {
     final cs = _candles;
     if (cs == null) return;
-    final pause = practicePauseIndex(cs.length, _rng);
+    final pause = practicePauseIndexFor(cs, _rng);
     if (pause == null) {
       setState(() => _error =
           'Not enough candle history for a practice round (${cs.length} candles).');
@@ -262,27 +296,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
                       style: TextStyle(color: _kDim),
                     ),
                   ),
-                if (_phase == _Phase.question)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _AskBar(
-                      onUp: () => _answer('up'),
-                      onDown: () => _answer('down'),
-                    ),
-                  ),
-                if (_phase == _Phase.result && _verdict != null)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _ResultBar(outcome: _verdict!, move: _move),
-                  ),
               ],
             ),
           ),
         ),
+        if (_phase == _Phase.question)
+          _AskBar(
+            onUp: () => _answer('up'),
+            onDown: () => _answer('down'),
+          ),
+        if (_phase == _Phase.result && _verdict != null)
+          _ResultBar(outcome: _verdict!, move: _move),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -512,6 +536,14 @@ class _PracticeChartPainter extends CustomPainter {
       if (c.high > hi) hi = c.high;
     }
     final rng = (hi - lo) == 0 ? 1.0 : (hi - lo);
+    // Label precision follows the visible range: with a tiny range a fixed
+    // 1-decimal label repeats the same value on adjacent gridlines (seen
+    // on-device as duplicate axis labels). Pick enough decimals for the
+    // gridline step to show, capped at 5, never less than 1.
+    var labelDecimals = 1;
+    while (labelDecimals < 5 && rng / 5 < _minStep(labelDecimals)) {
+      labelDecimals++;
+    }
     double y(double p) => padT + ch * (1 - (p - lo) / rng);
 
     final grid = Paint()
@@ -523,7 +555,7 @@ class _PracticeChartPainter extends CustomPainter {
       final gy = padT + ch * i / 5;
       canvas.drawLine(Offset(padL, gy), Offset(size.width - padR, gy), grid);
       final price = lo + rng * (1 - i / 5);
-      _text(canvas, price.toStringAsFixed(1), labelStyle,
+      _text(canvas, price.toStringAsFixed(labelDecimals), labelStyle,
           Offset(size.width - padR + 6, gy - 6));
     }
 
@@ -555,7 +587,7 @@ class _PracticeChartPainter extends CustomPainter {
             Offset(min(x + 5, size.width - padR), ly), dash);
         x += 9;
       }
-      _text(canvas, last.toStringAsFixed(2),
+      _text(canvas, last.toStringAsFixed(labelDecimals < 2 ? 2 : labelDecimals),
           const TextStyle(
               color: _kGold, fontSize: 11, fontFamily: 'Roboto'),
           Offset(size.width - padR + 6, ly - 6));
@@ -582,6 +614,12 @@ class _PracticeChartPainter extends CustomPainter {
     )..layout();
     tp.paint(canvas, at);
   }
+
+
+  /// Smallest gridline step that stays distinguishable at [decimals].
+  static double _minStep(int decimals) =>
+      {1: 0.1, 2: 0.01, 3: 0.001, 4: 0.0001}[decimals] ??
+      0.00001;
 
   @override
   bool shouldRepaint(_PracticeChartPainter old) =>
