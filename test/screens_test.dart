@@ -183,7 +183,7 @@ void main() {
       await t.pump();
       expect(find.text('SELL'), findsOneWidget);
       expect(find.textContaining('(selected)'), findsNothing);
-      expect(find.text('SELL GOLD · Paper order'), findsOneWidget);
+      expect(find.text('Sell GOLD · PAPER'), findsOneWidget);
       expect(app.positions.length, count);
       await t.pumpAndSettle();
       expect(find.text('New order'), findsNothing);
@@ -212,11 +212,16 @@ void main() {
     await t.pump();
     await t.tap(find.text('BUY'));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Buy When Price is'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Buy When Price is'));
     await t.pumpAndSettle();
-    await t.tap(find.text('TP / SL'));
+    await t.ensureVisible(find.text('TP/SL'));
     await t.pumpAndSettle();
-    expect(find.text('QUANTITY · LOTS'), findsOneWidget);
+    await t.tap(find.text('TP/SL'));
+    await t.pumpAndSettle();
+    expect(find.text('Lot(s)'), findsOneWidget);
+    expect(find.textContaining('Required Margin'), findsOneWidget);
     expect(find.text('New order'), findsNothing);
     await t.runAsync(() async {
       final image =
