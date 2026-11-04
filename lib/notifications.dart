@@ -1,3 +1,4 @@
+import 'notification_claims.dart';
 import 'execution_ledger.dart';
 import 'trade_safety.dart';
 import 'market_data/swissquote_provider.dart';
@@ -35,14 +36,29 @@ const String _sbKey = 'sb_publishable_oNw5xcfdpesEihrdmFXfgQ_HKgsVYAi';
 
 final FlutterLocalNotificationsPlugin _fln = FlutterLocalNotificationsPlugin();
 
-/// Shared "already notified" store (tj_notified): one JSON map of
-/// eventKey -> ISO time, written by the app AND the background worker so a
-/// close/alert is never notified twice. Pruned to 7 days.
+/// Shared "already notified" store: one prefs key per event
+/// (tj_notified:<eventKey> -> ISO time), written by the app AND the
+/// background worker so a close/alert is never notified twice.
+///
+/// Per-key storage (not one JSON map) because the app and the WorkManager
+/// isolate each cache SharedPreferences: read-modify-write on a shared map
+/// lost the other isolate's keys, which is what made closed positions
+/// re-notify. Callers that need fresh cross-isolate state must
+/// `await prefs.reload()` first. The legacy tj_notified map is still read
+/// so events marked before this change are not repeated.
+String _notifiedKey(String key) => 'tj_notified:$key';
+
 bool notifiedHas(SharedPreferences prefs, String key) {
+  if (prefs.getString(_notifiedKey(key)) != null) return true;
   try {
-    final raw = prefs.getString('tj_notified');
+    final raw = prefs.getString('tj_notified'); // legacy shared map
     if (raw == null) return false;
-    return (jsonDecode(raw) as Map).containsKey(key);
+    final map = jsonDecode(raw) as Map;
+    if (!map.containsKey(key)) return false;
+    final t = DateTime.tryParse(map[key]?.toString() ?? '');
+    // Legacy entries were pruned after 7 days; honor the same window.
+    return t != null &&
+        t.isAfter(DateTime.now().subtract(const Duration(days: 7)));
   } catch (_) {
     return false;
   }
@@ -50,18 +66,117 @@ bool notifiedHas(SharedPreferences prefs, String key) {
 
 Future<void> notifiedAdd(SharedPreferences prefs, String key) async {
   try {
-    final raw = prefs.getString('tj_notified');
-    final map = <String, dynamic>{
-      if (raw != null) ...Map<String, dynamic>.from(jsonDecode(raw) as Map),
-    };
-    map[key] = DateTime.now().toIso8601String();
-    final cutoff = DateTime.now().subtract(const Duration(days: 7));
-    map.removeWhere((_, v) {
-      final t = DateTime.tryParse(v?.toString() ?? '');
-      return t == null || t.isBefore(cutoff);
-    });
-    await prefs.setString('tj_notified', jsonEncode(map));
+    await prefs.setString(_notifiedKey(key), DateTime.now().toIso8601String());
   } catch (_) {}
+}
+
+/// A reload is only a compatibility check; SQLite serializes the actual
+/// claim across isolates at the persistence boundary.
+Future<bool> claimNotification(SharedPreferences prefs, String key) async {
+  await prefs.reload();
+  if (notifiedHas(prefs, key)) return false;
+  if (!await NotificationClaims.claim(key)) return false;
+  await notifiedAdd(prefs, key);
+  return true;
+}
+
+/// Drop per-key dedupe marks older than 30 days. With open-only position
+/// snapshots a close can only be reported once, so pruning cannot cause
+/// repeats; it just bounds storage.
+Future<void> notifiedPrune(SharedPreferences prefs) async {
+  try {
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    for (final k in prefs.getKeys()) {
+      if (!k.startsWith('tj_notified:')) continue;
+      final t = DateTime.tryParse(prefs.getString(k) ?? '');
+      if (t == null || t.isBefore(cutoff)) await prefs.remove(k);
+    }
+  } catch (_) {}
+}
+
+/// Open-position snapshot for the worker's next run (tj_bg_positions).
+/// OPEN positions only: older builds stored the full position history,
+/// and every long-closed position then looked like it "just disappeared",
+/// producing a "position closed" notification again and again.
+String encodeOpenPositionsSnapshot(List<Map<String, dynamic>> positions) =>
+    jsonEncode(
+      positions
+          .where((p) => p['status'] == 'open')
+          .map(
+            (p) => {
+              'id': p['id'],
+              'status': p['status'],
+              'direction': p['direction'],
+              'qty': p['qty'],
+              'tp': p['tp'],
+              'sl': p['sl'],
+            },
+          )
+          .toList(),
+    );
+
+/// Server timestamps: Supabase returns UTC, sometimes without a suffix.
+DateTime? parseServerTs(Object? raw) {
+  if (raw == null) return null;
+  var s = raw.toString();
+  if (s.isEmpty) return null;
+  final hasZone = s.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+  if (!hasZone) s = '${s}Z';
+  return DateTime.tryParse(s);
+}
+
+/// How far before the last check a close may be stamped and still count
+/// as new (stale fetch / server clock skew tolerance).
+const newCloseGrace = Duration(minutes: 10);
+
+/// Previous-snapshot entries that genuinely closed since [lastRun].
+/// A candidate must still exist in the current position list with
+/// status closed AND a closed_at AFTER the last successful check;
+/// positions already closed at snapshot time (stored by older builds)
+/// are never reported again. Duplicate ids collapse to one entry.
+List<Map<String, dynamic>> newlyClosedPositions({
+  required List<Map<String, dynamic>> prev,
+  required List<Map<String, dynamic>> positions,
+  required Set<String> closedIds,
+  required DateTime? lastRun,
+}) {
+  final byId = {for (final p in positions) p['id'].toString(): p};
+  final seen = <String>{};
+  final out = <Map<String, dynamic>>[];
+  for (final p in prev) {
+    final id = p['id']?.toString() ?? '';
+    if (id.isEmpty || !seen.add(id)) continue;
+    if (closedIds.contains(id)) continue; // closed by this worker just now
+    if (p['status'] == 'closed') continue; // was already closed at snapshot
+    final cur = byId[id];
+    if (cur == null) continue; // gone from history - cannot verify, skip
+    if (cur['status'] != 'closed') continue; // not a verified close
+    final closedAt = parseServerTs(cur['closed_at']);
+    if (p['status'] != 'open' && lastRun != null && closedAt != null) {
+      // Grace: a stale fetch or clock skew can stamp a genuine close
+      // slightly before lastRun; only clearly-old closes are old news.
+      // Repeats are impossible either way (dedupe marks), so the grace
+      // can only recover delayed closes, never double-notify.
+      final cutoff = lastRun.toUtc().subtract(newCloseGrace);
+      if (!closedAt.toUtc().isAfter(cutoff)) {
+        continue; // closed well before the last check: old news
+      }
+    }
+    out.add(p);
+  }
+  return out;
+}
+
+/// Entries of [pending] whose dedupe key is not yet marked, checked
+/// against freshly reloaded prefs. Guards the read-check-post race
+/// between the app isolate and this worker: an event marked by either
+/// side after the first check is dropped here instead of double-posted.
+Future<List<(String, int, String, String)>> unnotifiedOnly(
+  SharedPreferences prefs,
+  List<(String, int, String, String)> pending,
+) async {
+  await prefs.reload();
+  return pending.where((e) => !notifiedHas(prefs, e.$1)).toList();
 }
 
 Future<void> _initPlugin() async {
@@ -249,6 +364,10 @@ Future<List<Map<String, dynamic>>> _fetchPositions(String pin) async {
 Future<void> _bgCheck() async {
   await _initPlugin();
   final prefs = await SharedPreferences.getInstance();
+  // The app isolate writes dedupe marks (manual closes, foreground alerts)
+  // that this isolate's cache has not seen; reload or closes get re-notified.
+  await prefs.reload();
+  await notifiedPrune(prefs);
   final pin = prefs.getString('tj_pin') ?? '';
   if (pin.isEmpty) return; // not unlocked on this device
 
@@ -336,21 +455,27 @@ Future<void> _bgCheck() async {
     }
   }
 
-  // --- TP/SL fallback (position disappeared since last check, e.g.
-  // closed from another device) ---
+  // --- TP/SL fallback (position closed since the last successful check,
+  // e.g. from another device). Only VERIFIED new closes: a candidate must
+  // be closed now with a closed_at after the last check, and it must not
+  // have been closed already when the snapshot was taken. Older snapshots
+  // stored the full history, so without this every old close re-notified.
   final prevRaw = prefs.getString('tj_bg_positions');
   if (prevRaw != null) {
     try {
-      final prev = List<Map<String, dynamic>>.from(jsonDecode(prevRaw));
-      final openIds = positions
-          .where((p) => p['status'] == 'open')
-          .map((p) => p['id'].toString())
-          .toSet();
+      final prev = List<Map<String, dynamic>>.from(
+        (jsonDecode(prevRaw) as List).map(
+          (e) => Map<String, dynamic>.from(e as Map),
+        ),
+      );
       var nid = 1;
-      for (final p in prev) {
+      for (final p in newlyClosedPositions(
+        prev: prev,
+        positions: positions,
+        closedIds: closedIds,
+        lastRun: lastRun,
+      )) {
         final id = p['id'].toString();
-        if (openIds.contains(id)) continue;
-        if (closedIds.contains(id)) continue; // already notified above
         final dir = p['direction'] == 'buy' ? 'Buy' : 'Sell';
         const why = 'closed; refresh history for the recorded fill and reason';
         final closeKey = 'close:$id';
@@ -366,19 +491,7 @@ Future<void> _bgCheck() async {
   }
   await prefs.setString(
     'tj_bg_positions',
-    jsonEncode(
-      positions
-          .map(
-            (p) => {
-              'id': p['id'],
-              'direction': p['direction'],
-              'qty': p['qty'],
-              'tp': p['tp'],
-              'sl': p['sl'],
-            },
-          )
-          .toList(),
-    ),
+    encodeOpenPositionsSnapshot(positions),
   );
 
   // --- Price alerts ---
@@ -422,6 +535,21 @@ Future<void> _bgCheck() async {
   // was killed/asleep (no stale-notification bursts). Every event is still
   // marked notified so nothing repeats.
   if (pending.isNotEmpty) {
+    // Cross-isolate same-event guard: the app may have closed and marked
+    // the same position while this worker was fetching. Re-check marks
+    // against fresh prefs, then claim BEFORE posting so the other path's
+    // read sees the claim even while posts are still going out.
+    final fresh = <(String, int, String, String)>[];
+    for (final e in pending) {
+      if (await claimNotification(prefs, e.$1)) fresh.add(e);
+    }
+    if (fresh.length != pending.length) {
+      pending
+        ..clear()
+        ..addAll(fresh);
+    }
+  }
+  if (pending.isNotEmpty) {
     if (catchUp && pending.length > 1) {
       final closes = pending.where((e) => e.$1.startsWith('close:')).length;
       final alertsN = pending.length - closes;
@@ -438,9 +566,6 @@ Future<void> _bgCheck() async {
       for (final e in pending) {
         await _notify(e.$2, e.$3, e.$4);
       }
-    }
-    for (final e in pending) {
-      await notifiedAdd(prefs, e.$1);
     }
   }
   if (quote != null) {
