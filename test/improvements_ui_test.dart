@@ -89,11 +89,11 @@ void main() {
       );
       expect(find.text('Loss at stop: \$100.00'), findsOneWidget);
       expect(find.textContaining('Reward/risk 2.00'), findsOneWidget);
-      await t.ensureVisible(find.text('Order preview · USD'));
+      await t.ensureVisible(find.textContaining('Gain at target'));
       await capture(t, key, 'risk-preview');
       await t.enterText(field('Stop Loss Level (optional)'), '3990');
-      await t.ensureVisible(find.text('Place Order at 4000.00'));
-      await t.tap(find.text('Place Order at 4000.00'));
+      await t.ensureVisible(find.text('Place Order at 4,000.00'));
+      await t.tap(find.text('Place Order at 4,000.00'));
       await t.pump();
       expect(app.calls, 0);
       expect(find.text('Stop loss must be above entry.'), findsOneWidget);
@@ -121,7 +121,7 @@ void main() {
       );
       expect(find.text('Loss at stop: \$9.10'), findsOneWidget);
       expect(find.textContaining('Price or stop changed'), findsNothing);
-      await t.ensureVisible(find.text('Order preview · USD'));
+      await t.ensureVisible(find.textContaining('Gain at target'));
       await capture(t, key, 'risk-budget-safe');
       expect(t.takeException(), isNull);
     },
