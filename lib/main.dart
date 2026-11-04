@@ -5601,6 +5601,29 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
   final riskBudget = TextEditingController(text: '1');
   bool riskPercent = true;
   double? selectedRiskBudget;
+  double? lastLots; // last placed order size on this phone
+  void rememberLots(double lots) {
+    lastLots = lots;
+    widget.app.prefs?.setDouble('tj_last_lots', lots);
+  }
+
+  Widget stepButton(IconData icon, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF232B3D),
+          border: Border.all(color: const Color(0xFF525E78), width: 1.5),
+        ),
+        child: Icon(icon, size: 20, color: const Color(0xFFC9D1E0)),
+      ),
+    );
+  }
+
   void sizeFromRisk() {
     final input = parseNum(riskBudget.text);
     final reference = pending
@@ -5640,6 +5663,11 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
   @override
   void initState() {
     super.initState();
+    final saved = widget.app.prefs?.getDouble('tj_last_lots');
+    if (saved != null && saved.isFinite && saved >= 0.01) {
+      lastLots = saved;
+      quantity.text = saved.toStringAsFixed(2);
+    }
     widget.app.addListener(refresh);
   }
 
@@ -5750,6 +5778,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
           });
         return;
       }
+      rememberLots(lotsIn!);
       widget.app.notifyListeners();
       if (!mounted) return;
       Navigator.pop(context);
@@ -5775,6 +5804,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
       });
       return;
     }
+    rememberLots(lotsIn!);
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -5826,81 +5856,188 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                '${widget.side.toUpperCase()} GOLD · Paper order',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Chip(label: Text('Quantity (lots · 0.01 = 1 oz)')),
               Row(
                 children: [
-                  IconButton(
-                    onPressed: sending
-                        ? null
-                        : () {
-                            selectedRiskBudget = null;
-                            quantity.text =
-                                ((parseNum(quantity.text) ?? .01) - .01)
-                                    .clamp(.01, 100000)
-                                    .toStringAsFixed(2);
-                            setState(() {});
-                          },
-                    icon: const Icon(Icons.remove_circle_outline, size: 36),
-                  ),
                   Expanded(
-                    child: TextField(
-                      controller: quantity,
-                      onChanged: (_) =>
-                          setState(() => selectedRiskBudget = null),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      textAlign: TextAlign.center,
+                    child: Text(
+                      '${widget.side.toUpperCase()} GOLD · Paper order',
                       style: const TextStyle(
-                        fontSize: 34,
+                        fontSize: 19,
                         fontWeight: FontWeight.bold,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: sending
-                        ? null
-                        : () {
-                            selectedRiskBudget = null;
-                            quantity.text =
-                                ((parseNum(quantity.text) ?? 0) + .01)
-                                    .toStringAsFixed(2);
-                            setState(() {});
-                          },
-                    icon: const Icon(Icons.add_circle_outline, size: 36),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF33301F),
+                      border: Border.all(color: const Color(0xFF6B5A2E)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'PAPER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: Color(0xFFF2C14E),
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Text(
-                'Trade value ${px != null && q != null ? money(px * q) : "unavailable"}',
-                style: const TextStyle(fontSize: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B3448),
+                  border: Border.all(color: const Color(0xFF39435A)),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Column(
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'QUANTITY · LOTS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                          color: cDim,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        stepButton(
+                          Icons.remove,
+                          sending
+                              ? null
+                              : () {
+                                  selectedRiskBudget = null;
+                                  quantity.text =
+                                      ((parseNum(quantity.text) ?? .01) - .01)
+                                          .clamp(.01, 100000)
+                                          .toStringAsFixed(2);
+                                  setState(() {});
+                                },
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: quantity,
+                            onChanged: (_) =>
+                                setState(() => selectedRiskBudget = null),
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ),
+                        stepButton(
+                          Icons.add,
+                          sending
+                              ? null
+                              : () {
+                                  selectedRiskBudget = null;
+                                  quantity.text =
+                                      ((parseNum(quantity.text) ?? 0) + .01)
+                                          .toStringAsFixed(2);
+                                  setState(() {});
+                                },
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      '1 lot = 100 oz · step 0.01 = 1 oz',
+                      style: TextStyle(color: cDim, fontSize: 11),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      lastLots == null
+                          ? 'Last used: none yet'
+                          : 'Last used: ${lastLots!.toStringAsFixed(2)} lots · remembered on this phone',
+                      style: const TextStyle(
+                        color: Color(0xFF7FB3E8),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const Text(
-                'Quantity is lots, XM-style: 1 lot = 100 oz, min/step 0.01 lot = 1 oz. Estimated paper margin uses assumed 1:500, not broker/server margin. No liquidation model.',
-                style: TextStyle(color: cDim, fontSize: 11),
+              const SizedBox(height: 14),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B3448),
+                  border: Border.all(color: const Color(0xFF39435A)),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Trade value',
+                          style: TextStyle(color: cDim, fontSize: 12),
+                        ),
+                        Text(
+                          px != null && q != null
+                              ? money(px * q)
+                              : 'unavailable',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Estimated margin',
+                          style: TextStyle(color: cDim, fontSize: 12),
+                        ),
+                        Flexible(
+                          child: Text(
+                            '${px != null && q != null ? money(px * q / PaperMargin.leverage) : "unavailable"} · available ${money(app.estimatedFreeMargin)}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Quantity is lots, XM-style: 1 lot = 100 oz, min/step 0.01 lot = 1 oz. Estimated paper margin uses assumed 1:500, not broker/server margin. No liquidation model.',
+                      style: TextStyle(color: cDim, fontSize: 11),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Account refresh required at submit. Pending orders recheck at fill; no margin reserved. Multiple devices can race. Server may reject.',
+                      style: TextStyle(color: cDim, fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Estimated margin ${px != null && q != null ? money(px * q / PaperMargin.leverage) : "unavailable"} · available ${money(app.estimatedFreeMargin)}',
-                style: const TextStyle(fontSize: 12),
-              ),
-              const Text(
-                'Account refresh required at submit. Pending orders recheck at fill; no margin reserved. Multiple devices can race. Server may reject.',
-                style: TextStyle(color: cDim, fontSize: 11),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 app.protectionStatus,
                 style: const TextStyle(color: Colors.amber, fontSize: 12),
