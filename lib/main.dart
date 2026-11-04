@@ -5942,6 +5942,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                             ),
                             decoration: const InputDecoration(
                               border: InputBorder.none,
+                              filled: true,
+                              fillColor: Colors.transparent,
+                              contentPadding: EdgeInsets.zero,
                             ),
                           ),
                         ),
@@ -6034,14 +6037,18 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                       'Account refresh required at submit. Pending orders recheck at fill; no margin reserved. Multiple devices can race. Server may reject.',
                       style: TextStyle(color: cDim, fontSize: 11),
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      app.protectionStatus,
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontSize: 11.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
-                app.protectionStatus,
-                style: const TextStyle(color: Colors.amber, fontSize: 12),
-              ),
               if (app.uncertainCloses > 0)
                 Text(
                   '${app.uncertainCloses} close outcome(s) need confirmation. No duplicate will be submitted.',
@@ -6053,6 +6060,13 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                   '${widget.side == 'buy' ? "Buy" : "Sell"} When Price is',
                 ),
                 value: pending,
+                activeColor: Colors.white,
+                activeTrackColor: const Color(0xFFE63E6E),
+                inactiveThumbColor: const Color(0xFFEDEFF4),
+                inactiveTrackColor: const Color(0xFF171D2B),
+                trackOutlineColor: WidgetStateProperty.all(
+                  const Color(0xFF525E78),
+                ),
                 onChanged: sending
                     ? null
                     : (v) => setState(() {
@@ -6082,6 +6096,13 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                         : 'Expires at local midnight',
                   ),
                   value: gtc,
+                  activeColor: Colors.white,
+                  activeTrackColor: const Color(0xFFE63E6E),
+                  inactiveThumbColor: const Color(0xFFEDEFF4),
+                  inactiveTrackColor: const Color(0xFF171D2B),
+                  trackOutlineColor: WidgetStateProperty.all(
+                    const Color(0xFF525E78),
+                  ),
                   onChanged: (v) => setState(() => gtc = v),
                 ),
                 const Text(
@@ -6093,6 +6114,13 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
               SwitchListTile(
                 title: const Text('TP / SL'),
                 value: tpsl,
+                activeColor: Colors.white,
+                activeTrackColor: const Color(0xFFE63E6E),
+                inactiveThumbColor: const Color(0xFFEDEFF4),
+                inactiveTrackColor: const Color(0xFF171D2B),
+                trackOutlineColor: WidgetStateProperty.all(
+                  const Color(0xFF525E78),
+                ),
                 onChanged: sending ? null : (v) => setState(() => tpsl = v),
                 tileColor: const Color(0xFF34425A),
                 shape: RoundedRectangleBorder(
