@@ -40,12 +40,15 @@ void main() {
       await t.pumpAndSettle();
       expect(app.calls, 0);
       await t.enterText(find.byType(TextField).first, '0.0025'); // lots = 0.25 oz
+      await t.ensureVisible(find.byType(Switch).last);
       await t.tap(find.byType(Switch).last);
       await t.pumpAndSettle();
+      await t.ensureVisible(find.byType(TextField).at(1));
       await t.enterText(find.byType(TextField).at(1), '3990');
+      await t.ensureVisible(find.byType(TextField).at(2));
       await t.enterText(find.byType(TextField).at(2), '4010');
-      await t.ensureVisible(find.text('Place Order at 4000.00'));
-    await t.tap(find.text('Place Order at 4000.00'));
+      await t.ensureVisible(find.text('Place Order at 4,000.00'));
+    await t.tap(find.text('Place Order at 4,000.00'));
       await t.pumpAndSettle();
       expect(app.calls, 1);
       expect(app.side, 'sell');
@@ -89,11 +92,11 @@ void main() {
       ..priceAt = DateTime.now().millisecondsSinceEpoch;
     app.prefs = prefs;
     await openSheet(app, 'sell');
-    // First open ever: default 0.01, no memory caption value.
-    expect(find.text('Last used: none yet'), findsOneWidget);
+    // First open ever: default 0.01, no memory caption shown.
+    expect(find.textContaining('Last used'), findsNothing);
     await t.enterText(find.byType(TextField).first, '0.05');
-    await t.ensureVisible(find.text('Place Order at 4000.00'));
-    await t.tap(find.text('Place Order at 4000.00'));
+    await t.ensureVisible(find.text('Place Order at 4,000.00'));
+    await t.tap(find.text('Place Order at 4,000.00'));
     await t.pumpAndSettle();
     expect(app.qty, 5);
     expect(prefs.getDouble('tj_last_lots'), 0.05);
@@ -109,9 +112,6 @@ void main() {
     await openSheet(app2, 'buy');
     final field = t.widget<TextField>(find.byType(TextField).first);
     expect(field.controller!.text, '0.05');
-    expect(
-      find.text('Last used: 0.05 lots · remembered on this phone'),
-      findsOneWidget,
-    );
+    expect(find.text('Last used: 0.05 lots'), findsOneWidget);
   });
 }
