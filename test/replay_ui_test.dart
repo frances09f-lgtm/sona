@@ -57,7 +57,7 @@ void main() {
     await t.pumpAndSettle();
 
     expect(find.text('REPLAY'), findsOneWidget);
-    expect(find.text('SELL GOLD · Paper order'), findsNothing);
+    expect(find.text('SELL GOLD · PAPER'), findsNothing);
 
     // Step two bars forward and open a paper BUY at the bar close.
     await t.tap(find.byKey(const ValueKey('replay-step')));
