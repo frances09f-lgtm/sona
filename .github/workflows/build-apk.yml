@@ -29,9 +29,9 @@ jobs:
       - run: flutter pub get
       - name: Safety tests and exact source contracts
         run: flutter test test/friday_orders_test.dart test/background_order_contract_test.dart test/trade_safety_test.dart test/paper_margin_test.dart test/execution_ledger_test.dart test/pending_orders_test.dart
+      - run: flutter build apk --release --target-platform android-arm64
       - name: Native caller and concurrent claim tests
         run: cd android && ./gradlew :app:testReleaseUnitTest
-      - run: flutter build apk --release --target-platform android-arm64
       - name: Verify and save PRIVATE test only
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,4 +43,12 @@ jobs:
           grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
           sha256sum "$APK"
           cp "$APK" /tmp/Sona.apk
-          gh release create "test-bg-121-${GITHUB_RUN_NUMBER}" /tmp/Sona.apk --draft --target "$GITHUB_SHA" --title 'Private background paper order TEST - do not publish' --notes 'Native compile succeeded. Off-screen phone behavior unverified. Do not publish or place account trades during development.'
+          DRAFT=435746970
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-before.json
+          jq -e '.draft == true and .published_at == null' /tmp/draft-before.json
+          HASH=$(sha256sum /tmp/Sona.apk | cut -d' ' -f1)
+          jq -n --arg sha "$GITHUB_SHA" --arg hash "$HASH" '{target_commitish:$sha,body:("Private background TEST only. Verified source: "+$sha+". SHA256: "+$hash+". Native concurrency/caller tests passed. Phone off-screen behavior unverified. Do not publish.")}' > /tmp/draft-body.json
+          gh api --method PATCH repos/$GITHUB_REPOSITORY/releases/$DRAFT --input /tmp/draft-body.json > /tmp/draft-updated.json
+          jq -e '.draft == true and .published_at == null' /tmp/draft-updated.json
+          gh api --hostname uploads.github.com --method POST "repos/$GITHUB_REPOSITORY/releases/$DRAFT/assets?name=Sona.apk" --header 'Content-Type: application/vnd.android.package-archive' --input /tmp/Sona.apk > /tmp/asset.json
+          jq '{id,name,size,browser_download_url}' /tmp/asset.json
