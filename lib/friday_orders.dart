@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 /// What the Friday order runner needs from Sona's app state. AppState is
 /// adapted to this in main.dart; tests use a fake.
@@ -34,17 +35,22 @@ class FridayOrders {
   FridayOrders(
     this.prefs,
     this.desk, {
+    Future<String?> Function()? claimPending,
     int Function()? nowMs,
     this.step = const Duration(milliseconds: 250),
     this.unlockWait = const Duration(seconds: 20),
     this.priceWait = const Duration(seconds: 12),
-  }) : _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch);
+  }) : _claimPending = claimPending ?? _nativeClaim,
+       _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch);
 
   static const orderKey = 'oro_friday_order';
   static const resultKey = 'oro_friday_result';
   static const maxAgeMs = 60000;
   static const closeReason = 'Closed from Friday';
 
+  static Future<String?> _nativeClaim() =>
+      const MethodChannel('oro/friday_claim').invokeMethod<String>('claim');
+  final Future<String?> Function() _claimPending;
   final SharedPreferences prefs;
   final PaperDesk desk;
   final int Function() _nowMs;
@@ -61,32 +67,36 @@ class FridayOrders {
     try {
       // The provider writes natively; refresh the Dart-side cache first.
       await prefs.reload();
-      final raw = prefs.getString(orderKey);
+      final raw = await _claimPending();
       if (raw == null) return false;
       Map<String, dynamic> order;
       try {
         order = Map<String, dynamic>.from(jsonDecode(raw) as Map);
       } catch (_) {
-        await prefs.remove(orderKey);
         return false;
       }
       // Consume first: exactly once.
-      await prefs.remove(orderKey);
       final id = order['id']?.toString() ?? '';
       if (id.isEmpty) return false;
       final received = (order['receivedAt'] as num?)?.toInt() ?? 0;
       final age = _nowMs() - received;
       if (received <= 0 || age > maxAgeMs || age < -5000) {
-        await _write(id, 'rejected',
-            message: 'The order from Friday expired before Sona could run it. Nothing was placed.');
+        await _write(
+          id,
+          'rejected',
+          message: 'The order from Friday expired before Sona could run it. Nothing was placed.',
+        );
         return false;
       }
       await _write(id, 'working');
       try {
         await _execute(id, order);
       } catch (_) {
-        await _write(id, 'rejected',
-            message: 'Sona hit an error. Open Sona to check your positions before trying again.');
+        await _write(
+          id,
+          'unknown',
+          message: 'Order outcome unconfirmed. Check Sona positions before trying again; no automatic retry was sent.',
+        );
       }
       return true;
     } finally {
@@ -100,59 +110,110 @@ class FridayOrders {
       await _write(id, 'rejected', message: ready);
       return;
     }
+    final received = (order['receivedAt'] as num?)?.toInt() ?? 0;
+    if (_nowMs() - received > maxAgeMs) {
+      await _write(
+        id,
+        'rejected',
+        message: 'The confirmed order expired during readiness checks. Nothing was submitted.',
+      );
+      return;
+    }
+    if (order['op'] == 'close') {
+      await desk.refreshAccount();
+    }
     if (order['op'] == 'open') {
       final side = order['side']?.toString() ?? '';
       final qty = (order['qty'] as num?)?.toDouble();
       final tp = (order['tp'] as num?)?.toDouble();
       final sl = (order['sl'] as num?)?.toDouble();
-      if (!['buy', 'sell'].contains(side) || qty == null || !qty.isFinite || qty <= 0) {
-        await _write(id, 'rejected', message: 'The order from Friday was incomplete. Nothing was placed.');
+      if (!['buy', 'sell'].contains(side) ||
+          qty == null ||
+          !qty.isFinite ||
+          qty <= 0) {
+        await _write(
+          id,
+          'rejected',
+          message: 'The order from Friday was incomplete. Nothing was placed.',
+        );
         return;
       }
       final before = {
         for (final p in desk.positions)
-          if (p['status'] == 'open') p['id'].toString()
+          if (p['status'] == 'open') p['id'].toString(),
       };
       final err = await desk.openPaper(side, qty, tp, sl);
       if (err != null) {
-        await _write(id, 'rejected', message: err);
+        await _write(
+          id,
+          err.startsWith('Order outcome unconfirmed') ? 'unknown' : 'rejected',
+          message: err,
+        );
         return;
       }
       final opened = desk.positions
-          .where((p) => p['status'] == 'open' && !before.contains(p['id'].toString()))
+          .where(
+            (p) =>
+                p['status'] == 'open' && !before.contains(p['id'].toString()),
+          )
           .toList();
       if (opened.isEmpty) {
-        await _write(id, 'done',
-            message: 'Sona submitted the order but could not read it back yet. Open Sona to see it.');
+        await _write(
+          id,
+          'unknown',
+          message: 'Sona submitted the order but could not read it back yet. Check Sona positions; no automatic retry was sent.',
+        );
         return;
       }
       final p = opened.last;
-      await _write(id, 'done', extra: {
-        'fill': {
-          'id': p['id']?.toString(),
-          'side': p['direction'],
-          'qty': p['qty'],
-          'entry': p['entry'],
-          'tp': p['tp'],
-          'sl': p['sl'],
+      await _write(
+        id,
+        'done',
+        extra: {
+          'fill': {
+            'id': p['id']?.toString(),
+            'side': p['direction'],
+            'qty': p['qty'],
+            'entry': p['entry'],
+            'tp': p['tp'],
+            'sl': p['sl'],
+          },
         },
-      });
+      );
       return;
     }
     if (order['op'] == 'close') {
-      final ids = [for (final v in (order['ids'] as List? ?? const [])) v.toString()];
+      final ids = [
+        for (final v in (order['ids'] as List? ?? const [])) v.toString(),
+      ];
       if (ids.isEmpty) {
-        await _write(id, 'rejected', message: 'No trade was named to close. Nothing was closed.');
+        await _write(
+          id,
+          'rejected',
+          message: 'No trade was named to close. Nothing was closed.',
+        );
         return;
       }
       final closed = <Map<String, dynamic>>[];
       final failed = <Map<String, dynamic>>[];
       for (final tid in ids) {
+        if (_nowMs() - received > maxAgeMs) {
+          failed.add({
+            'id': tid,
+            'reason': 'Confirmation expired before this close. Nothing submitted for this trade.',
+          });
+          continue;
+        }
         final t = desk.positions
             .where((p) => p['id'].toString() == tid)
             .firstOrNull;
         if (t == null || t['status'] != 'open') {
-          failed.add({'id': tid, 'side': t?['direction'], 'qty': t?['qty'], 'reason': 'already closed or not found'});
+          failed.add({
+            'id': tid,
+            'side': t?['direction'],
+            'qty': t?['qty'],
+            'reason': 'already closed or not found',
+          });
           continue;
         }
         final r = await desk.closePaper(t, reason: closeReason);
@@ -178,17 +239,24 @@ class FridayOrders {
         }
       }
       if (closed.isEmpty) {
-        await _write(id, 'rejected',
-            message: failed.length == 1
-                ? '${failed.first['reason']}'
-                : 'None of the trades were closed.',
-            extra: {'failed': failed});
+        await _write(
+          id,
+          'rejected',
+          message: failed.length == 1
+              ? '${failed.first['reason']}'
+              : 'None of the trades were closed.',
+          extra: {'failed': failed},
+        );
       } else {
         await _write(id, 'done', extra: {'closed': closed, 'failed': failed});
       }
       return;
     }
-    await _write(id, 'rejected', message: 'Unknown order from Friday. Nothing was done.');
+    await _write(
+      id,
+      'rejected',
+      message: 'Unknown order from Friday. Nothing was done.',
+    );
   }
 
   /// Null when unlocked with a fresh quote; otherwise why not.
@@ -221,8 +289,12 @@ class FridayOrders {
     return null;
   }
 
-  Future<void> _write(String id, String status,
-      {String? message, Map<String, dynamic>? extra}) async {
+  Future<void> _write(
+    String id,
+    String status, {
+    String? message,
+    Map<String, dynamic>? extra,
+  }) async {
     await prefs.setString(
       resultKey,
       jsonEncode({
