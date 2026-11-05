@@ -29,6 +29,8 @@ jobs:
       - run: flutter pub get
       - name: Safety tests and exact source contracts
         run: flutter test test/friday_orders_test.dart test/background_order_contract_test.dart test/trade_safety_test.dart test/paper_margin_test.dart test/execution_ledger_test.dart test/pending_orders_test.dart
+      - name: Native caller and concurrent claim tests
+        run: cd android && ./gradlew :app:testReleaseUnitTest
       - run: flutter build apk --release --target-platform android-arm64
       - name: Verify and save PRIVATE test only
         env:
