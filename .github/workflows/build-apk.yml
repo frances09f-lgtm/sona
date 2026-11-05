@@ -29,6 +29,15 @@ jobs:
       - run: flutter pub get
       - name: Safety tests and exact source contracts
         run: flutter test test/friday_orders_test.dart test/background_order_contract_test.dart test/trade_safety_test.dart test/paper_margin_test.dart test/execution_ledger_test.dart test/pending_orders_test.dart
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - name: Verify release unit-test task exists before APK compilation
+        run: |
+          set -euo pipefail
+          cd android
+          gradle :app:tasks --all > /tmp/sona-task-inventory.txt
+          grep -E '^testReleaseUnitTest[[:space:]-]' /tmp/sona-task-inventory.txt
       - run: flutter build apk --release --target-platform android-arm64
       - name: Native caller and concurrent claim tests
         run: cd android && ./gradlew :app:testReleaseUnitTest
