@@ -82,3 +82,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
+
+// Flutter's asset-copy task feeds AGP9's host-test packaging. Declare the
+// dependency explicitly so Gradle cannot package resources before the copy.
+tasks.configureEach {
+    if (name == "packageReleaseUnitTestForUnitTest") {
+        dependsOn("copyFlutterAssetsRelease")
+    }
+}
