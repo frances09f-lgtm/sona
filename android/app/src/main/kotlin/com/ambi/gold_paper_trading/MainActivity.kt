@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        FridayOrderStore.register(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         // Friday paper orders: the order itself waits in OroBridgeProvider
         // (only Friday can write it); this channel just tells Dart to look,
         // and lets Dart hand the screen back to Friday when it is done.
