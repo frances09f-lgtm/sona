@@ -35,6 +35,7 @@ jobs:
       - name: Verify release unit-test task exists before APK compilation
         run: |
           set -euo pipefail
+          printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")" "$ANDROID_HOME" > android/local.properties
           cd android
           gradle :app:tasks --all > /tmp/sona-task-inventory.txt
           grep -E '^testReleaseUnitTest[[:space:]-]' /tmp/sona-task-inventory.txt
