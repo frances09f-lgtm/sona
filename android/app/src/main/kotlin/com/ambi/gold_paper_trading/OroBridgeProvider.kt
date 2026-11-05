@@ -67,14 +67,7 @@ class OroBridgeProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = true
 
-    private fun callerIsFriday(ctx: Context): Boolean {
-        val caller = try {
-            ctx.packageManager.getNameForUid(Binder.getCallingUid())
-        } catch (e: Exception) {
-            null
-        }
-        return caller == FRIDAY_PACKAGE
-    }
+    private fun callerIsFriday(ctx: Context): Boolean = FridayCaller.trusted(ctx, Binder.getCallingUid())
 
     override fun query(
         uri: Uri,
@@ -98,7 +91,7 @@ class OroBridgeProvider : ContentProvider() {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val out = Bundle()
         when (method) {
-            "fridayTradePing" -> out.putBoolean("trade", true)
+            "fridayTradePing" -> { out.putBoolean("trade", true); out.putBoolean("background", true) }
             "fridayTradeSubmit" -> {
                 val order = try { JSONObject(arg ?: "") } catch (e: Exception) { null }
                 val error = if (order == null) "bad json" else validateOrder(order)
@@ -107,8 +100,12 @@ class OroBridgeProvider : ContentProvider() {
                     out.putString("error", error)
                     return out
                 }
-                synchronized(OroBridgeProvider::class.java) {
+                synchronized(FridayOrderStore) {
                     val now = System.currentTimeMillis()
+                    val running = prefs.getString(RESULT_KEY, null)?.let { try { JSONObject(it) } catch (_: Exception) { null } }
+                    if (running?.optString("status") == "working" && now - running.optLong("at") < 90_000) {
+                        out.putBoolean("accepted", false); out.putString("error", "busy"); return out
+                    }
                     // One order at a time: refuse while a fresh one is still waiting.
                     val waiting = prefs.getString(ORDER_KEY, null)?.let {
                         try { JSONObject(it) } catch (e: Exception) { null }
@@ -118,7 +115,14 @@ class OroBridgeProvider : ContentProvider() {
                         out.putString("error", "busy")
                         return out
                     }
-                    order!!.put("receivedAt", now)
+                    val id = order!!.optString("id")
+                    if (FridayOrderStore.claimed(ctx, id)) {
+                        // Existing status is preserved. Never put a consumed ID back on the queue.
+                        out.putBoolean("accepted", false)
+                        out.putString("error", "already_claimed")
+                        return out
+                    }
+                    order.put("receivedAt", now)
                     prefs.edit().putString(ORDER_KEY, order.toString()).commit()
                 }
                 out.putBoolean("accepted", true)
@@ -129,7 +133,7 @@ class OroBridgeProvider : ContentProvider() {
                 if (res != null && res.optString("id") == arg) out.putString("json", raw)
             }
             "fridayTradeCancel" -> {
-                synchronized(OroBridgeProvider::class.java) {
+                synchronized(FridayOrderStore) {
                     val waiting = prefs.getString(ORDER_KEY, null)?.let {
                         try { JSONObject(it) } catch (e: Exception) { null }
                     }
