@@ -1,21 +1,12 @@
-name: Build Sona release APK
+name: Background paper order TEST only
 on:
   workflow_dispatch:
-    inputs:
-      publish_release:
-        description: Publish the verified APK as a GitHub release
-        type: boolean
-        default: false
-  push:
-    branches: [main, v2-terminal]
-permissions:
-  contents: write
 jobs:
-  build:
+  test-build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      TZ: Asia/Kolkata
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -26,49 +17,28 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Restore signing keystore
+      - name: Restore existing signing identity
         run: |
-          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/oro-release.jks
+          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
           cat >> android/gradle.properties <<GP
-          ORO_KEYSTORE_FILE=$RUNNER_TEMP/oro-release.jks
+          ORO_KEYSTORE_FILE=$RUNNER_TEMP/sona-release.jks
           ORO_KEYSTORE_PASSWORD=${{ secrets.ORO_KEYSTORE_PASSWORD }}
           ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
           ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
           GP
       - run: flutter pub get
-      - run: flutter test
-      - name: Render gauge capture images (visual verification aid, not a gate)
-        continue-on-error: true
-        run: GAUGE_CAPTURE=1 flutter test test/zz_gauge_capture_test.dart --update-goldens
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gauge-captures
-          path: test/goldens/
-      - run: flutter build apk --release --target-platform android-arm64 -v
-      - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Sona.apk"
-      - name: Verify production APK identity and certificate
-        run: |
-          APK="build/app/outputs/flutter-apk/Sona.apk"
-          SIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)"
-          "$SIGNER" verify --verbose --print-certs "$APK" | tee /tmp/certificate.txt
-          # apksigner 36+ labels v2 certificates as 'V2 Signer', not 'Signer #1'.
-          grep -Fx 'Number of signers: 1' /tmp/certificate.txt
-          CERT_SHA="$(awk '/certificate SHA-256 digest:/ {print $NF}' /tmp/certificate.txt | sort -u)"
-          test "$CERT_SHA" = '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0'
-          "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
-          VNAME="$(grep -E '^version: ' pubspec.yaml | sed 's/^version: //; s/+.*//')"
-          VCODE="$(grep -E '^version: ' pubspec.yaml | sed 's/.*+//')"
-          grep -F "package: name='com.ambi.gold_paper_trading' versionCode='${VCODE}' versionName='${VNAME}'" /tmp/badging.txt
-          grep -F "application-label:'Sona'" /tmp/badging.txt
-          sha256sum "$APK"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sona-release-apk
-          path: "build/app/outputs/flutter-apk/Sona.apk"
-      - name: Publish verified release
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+      - name: Safety tests and exact source contracts
+        run: flutter test test/friday_orders_test.dart test/background_order_contract_test.dart test/trade_safety_test.dart test/paper_margin_test.dart test/execution_ledger_test.dart test/pending_orders_test.dart
+      - run: flutter build apk --release --target-platform android-arm64
+      - name: Verify and save PRIVATE test only
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.2.13 "build/app/outputs/flutter-apk/Sona.apk" --target "$GITHUB_SHA" --title "Sona v1.2.13 - Technical summary gauge + tighter stop loss and take profit" --latest --notes-file RELEASE_NOTES.md
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
+          grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
+          sha256sum "$APK"
+          cp "$APK" /tmp/Sona.apk
+          gh release create "test-bg-121-${GITHUB_RUN_NUMBER}" /tmp/Sona.apk --draft --target "$GITHUB_SHA" --title 'Private background paper order TEST - do not publish' --notes 'Native compile succeeded. Off-screen phone behavior unverified. Do not publish or place account trades during development.'
