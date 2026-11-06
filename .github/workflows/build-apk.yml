@@ -41,8 +41,22 @@ jobs:
           grep -E '^testReleaseUnitTest[[:space:]-]' /tmp/sona-task-inventory.txt
       - run: flutter build apk --release --target-platform android-arm64
       - name: Native caller and concurrent claim tests
-        run: cd android && ./gradlew :app:testReleaseUnitTest
-      - name: Verify and save PRIVATE test only
+        run: |
+          set -euo pipefail
+          (cd android && ./gradlew :app:testReleaseUnitTest)
+          python3 - <<'PYTEST'
+          import glob, xml.etree.ElementTree as E
+          paths=glob.glob('build/app/test-results/testReleaseUnitTest/TEST-*.xml')
+          roots=[E.parse(p).getroot() for p in paths]
+          cases=[c for r in roots for c in r.findall('testcase')]
+          expected={'concurrentUiAndHeadlessClaimOnlyOnce','replayedIdNeverBecomesExecutableAgain','distinctOrderCanBeClaimedAfterPriorConsumption','unrelatedUidIsDenied'}
+          found={c.attrib['name'] for c in cases if c.attrib.get('classname')=='com.ambi.gold_paper_trading.FridayOrderStoreTest'}
+          assert expected <= found, (paths,found)
+          assert all(int(r.attrib.get(k,0))==0 for r in roots for k in ('failures','errors','skipped'))
+          print('Native JUnit executed:',len(cases),'failures=0 errors=0 skipped=0')
+          for c in cases: print(c.attrib['classname']+'.'+c.attrib['name'])
+          PYTEST
+      - name: Verify signed APK identity and PRIVATE draft transport
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -51,14 +65,25 @@ jobs:
           SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
           "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
           grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
-          sha256sum "$APK"
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          "$AAPT" dump badging "$APK" > /tmp/badging.txt
+          sed -n '1p' /tmp/badging.txt > /tmp/package.txt
+          cat /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='121' versionName='1.2.19'" /tmp/package.txt
           cp "$APK" /tmp/Sona.apk
+          (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
+          cat /tmp/Sona.apk.sha256
+          printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Native JUnit gate passed. Phone off-screen behavior unverified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
           DRAFT=435746970
           gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-before.json
-          jq -e '.draft == true and .published_at == null' /tmp/draft-before.json
-          HASH=$(sha256sum /tmp/Sona.apk | cut -d' ' -f1)
-          jq -n --arg sha "$GITHUB_SHA" --arg hash "$HASH" '{target_commitish:$sha,body:("Private background TEST only. Verified source: "+$sha+". SHA256: "+$hash+". Native concurrency/caller tests passed. Phone off-screen behavior unverified. Do not publish.")}' > /tmp/draft-body.json
-          gh api --method PATCH repos/$GITHUB_REPOSITORY/releases/$DRAFT --input /tmp/draft-body.json > /tmp/draft-updated.json
-          jq -e '.draft == true and .published_at == null' /tmp/draft-updated.json
-          gh api --hostname uploads.github.com --method POST "repos/$GITHUB_REPOSITORY/releases/$DRAFT/assets?name=Sona.apk" --header 'Content-Type: application/vnd.android.package-archive' --input /tmp/Sona.apk > /tmp/asset.json
-          jq '{id,name,size,browser_download_url}' /tmp/asset.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
+          UPLOAD=$(jq -r '.upload_url|split("{")[0]' /tmp/draft-before.json)
+          for NAME in Sona.apk Sona.apk.sha256 Sona-test-source.txt; do
+            TYPE=application/octet-stream
+            CODE=$(curl --silent --show-error --output /tmp/asset.json --write-out '%{http_code}' --request POST --header "Authorization: Bearer $GH_TOKEN" --header "Content-Type: $TYPE" --data-binary "@/tmp/$NAME" "$UPLOAD?name=$NAME")
+            if [ "$CODE" != 201 ]; then echo "Private upload failed HTTP $CODE"; jq '{message,errors}' /tmp/asset.json; exit 1; fi
+            jq -e --arg name "$NAME" '.name==$name and .state=="uploaded" and .size>0' /tmp/asset.json
+            jq '{id,name,size,browser_download_url}' /tmp/asset.json
+          done
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
