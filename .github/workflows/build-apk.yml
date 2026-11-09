@@ -144,3 +144,6 @@ jobs:
           open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
           PYDIAG
           gh release edit "diagnostic-entry-122-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --notes-file /tmp/diagnostic-final.txt
+          for IMAGE in test/failures/fullscreen_editor*.png; do
+            if [ -f "$IMAGE" ]; then gh release upload "diagnostic-entry-122-${GITHUB_RUN_ID}" "$IMAGE" --repo "$GITHUB_REPOSITORY" --clobber; fi
+          done
