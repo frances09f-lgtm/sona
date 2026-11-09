@@ -2818,6 +2818,18 @@ class StrategyLevelSegment {
   });
 }
 
+/// Keep time-grid columns at least roughly90 logical pixels apart, while
+/// snapping to candle intervals. This never changes candle data or gestures.
+int adaptiveGridBarStep(int visibleBars, double plotWidth) {
+  if (visibleBars <= 0 || plotWidth <= 0) return 1;
+  final target = visibleBars * 90 / plotWidth;
+  const steps = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 240, 480, 960];
+  for (final step in steps) {
+    if (step >= target) return step;
+  }
+  return (target / 960).ceil() * 960;
+}
+
 class CandlePainter extends CustomPainter {
   final List<Candle> candles;
   final double? livePrice;
@@ -2998,6 +3010,40 @@ class CandlePainter extends CustomPainter {
     }
 
     final stepG = niceStep(hi - lo);
+    // A price/time-anchored grid, not a fixed screen texture. It shares the
+    // candle viewport and price transform so zoom/pan/axis scaling stay aligned.
+    final gridPaint = Paint()..color = const Color(0xFF282C34);
+    void dots(Offset from, Offset to) {
+      final distance = (to - from).distance;
+      if (distance <= 0) return;
+      final unit = (to - from) / distance;
+      for (double d = 0; d <= distance; d += 5) {
+        canvas.drawCircle(from + unit * d, .65, gridPaint);
+      }
+    }
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
+    for (double v = (lo / stepG).ceil() * stepG; v <= hi; v += stepG) {
+      dots(Offset(0, y(v)), Offset(plotW, y(v)));
+    }
+    final gridBars = adaptiveGridBarStep(vc0, plotW);
+    final candleStep = plotW / vc0;
+    // Anchor to provider time rather than the viewport's left edge.
+    final barMs = candles.length > 1
+        ? (candles[1].time.millisecondsSinceEpoch -
+                  candles[0].time.millisecondsSinceEpoch)
+              .abs()
+        : const Duration(minutes: 1).inMilliseconds;
+    if (barMs > 0) {
+      final anchor = candles.first.time.millisecondsSinceEpoch ~/ barMs;
+      for (int i = fv0; i < fv0 + vc0 && i < n0; i++) {
+        if ((anchor + i) % gridBars != 0) continue;
+        final x = candleStep * (i - fv0 + .5);
+        dots(Offset(x, 0), Offset(x, plotH));
+      }
+    }
+    canvas.restore();
     final tickPaint = Paint()
       ..color = axis.withValues(alpha: 0.45)
       ..strokeWidth = 1;
