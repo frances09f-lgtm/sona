@@ -143,7 +143,7 @@ void main() {
     },
   );
   testWidgets(
-    'sell entry uses bid direction and cancellation persists across restart',
+    'sell entry uses bid direction and complete removal persists across restart',
     (t) async {
       final app = await account();
       await mount(t, AddTab(app: app));
@@ -163,12 +163,13 @@ void main() {
         find.textContaining('Waiting for Bid at or above 4,010.00'),
         findsOneWidget,
       );
-      await t.tap(find.byTooltip('Cancel pending order'));
+      await t.tap(find.byTooltip('Remove order'));
       await t.pumpAndSettle();
-      expect(find.text('Cancelled'), findsOneWidget);
+      expect(find.text('Cancelled'), findsNothing);
+      expect(find.textContaining('Waiting for Bid'), findsNothing);
       expect(
-        PendingPaperOrders.load(app.prefs!).orders.single.status,
-        'cancelled',
+        PendingPaperOrders.load(app.prefs!).orders,
+        isEmpty,
       );
       await app.pendingOrders!.evaluate(
         bid: 4010,
@@ -216,7 +217,7 @@ void main() {
         find.text('Needs review - check positions before retrying'),
         findsOneWidget,
       );
-      expect(find.byTooltip('Cancel pending order'), findsNothing);
+      expect(find.byTooltip('Remove order'), findsNothing);
       await app.pendingOrders!.evaluate(
         bid: 3989,
         ask: 3990,

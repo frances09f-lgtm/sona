@@ -1,4 +1,4 @@
-name: Adaptive chart grid and entry-price TEST only
+name: Pending removal, adaptive grid and entry-price TEST only
 on:
   workflow_dispatch:
   push:
@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nStarted TEST pipeline, no APK verified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/diagnostic-start.txt
-          gh release create "diagnostic-entry-123-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title 'Private TEST pipeline status - not an APK release' --notes-file /tmp/diagnostic-start.txt
+          gh release create "diagnostic-entry-124-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title 'Private TEST pipeline status - not an APK release' --notes-file /tmp/diagnostic-start.txt
       - id: checkout
         uses: actions/checkout@v4
       - id: java
@@ -94,13 +94,13 @@ jobs:
           "$AAPT" dump badging "$APK" > /tmp/badging.txt
           sed -n '1p' /tmp/badging.txt > /tmp/package.txt
           cat /tmp/package.txt
-          grep -F "name='com.ambi.gold_paper_trading' versionCode='123' versionName='1.2.21'" /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='124' versionName='1.2.22'" /tmp/package.txt
           cp "$APK" /tmp/Sona.apk
           (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
           cat /tmp/Sona.apk.sha256
           printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Full Flutter and native JUnit gates passed. Entry-price orders require open app and internet. Phone behavior unverified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
-          TAG="test-entry-123-${GITHUB_RUN_NUMBER}"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name='Sona 1.2.21 TEST - adaptive grid and entry-price orders' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
+          TAG="test-entry-124-${GITHUB_RUN_NUMBER}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name='Sona 1.2.22 TEST - pending removal and adaptive grid' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
           DRAFT=$(jq -er '.id' /tmp/draft-before.json)
           jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
           gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
@@ -136,10 +136,10 @@ jobs:
           except FileNotFoundError: pass
           open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
           PYDIAG
-          gh release edit "diagnostic-entry-123-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --notes-file /tmp/diagnostic-final.txt
+          gh release edit "diagnostic-entry-124-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --notes-file /tmp/diagnostic-final.txt
           for IMAGE in test/failures/fullscreen_editor*.png; do
-            if [ -f "$IMAGE" ]; then gh release upload "diagnostic-entry-123-${GITHUB_RUN_ID}" "$IMAGE" --repo "$GITHUB_REPOSITORY" --clobber; fi
+            if [ -f "$IMAGE" ]; then gh release upload "diagnostic-entry-124-${GITHUB_RUN_ID}" "$IMAGE" --repo "$GITHUB_REPOSITORY" --clobber; fi
           done
           if [ -f /tmp/Sona.apk ] && [ -f /tmp/cert.txt ] && [ -f /tmp/package.txt ]; then
-            gh release upload "diagnostic-entry-123-${GITHUB_RUN_ID}" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt /tmp/cert.txt /tmp/package.txt --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "diagnostic-entry-124-${GITHUB_RUN_ID}" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt /tmp/cert.txt /tmp/package.txt --repo "$GITHUB_REPOSITORY" --clobber
           fi

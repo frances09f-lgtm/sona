@@ -95,6 +95,26 @@ class PendingPaperOrders {
     }
   }
 
+  /// Delete only an unsubmitted order (or an already-cancelled record).
+  /// Mark the object first so an evaluator snapshot cannot submit it later.
+  Future<bool> remove(String id) async {
+    final index = orders.indexWhere((o) => o.id == id);
+    if (index < 0) return false;
+    final o = orders[index];
+    if (o.status != 'pending' && o.status != 'cancelled') return false;
+    final previous = o.status;
+    o.status = 'removed';
+    orders.removeAt(index);
+    try {
+      await save();
+    } catch (_) {
+      o.status = previous;
+      orders.insert(index.clamp(0, orders.length), o);
+      rethrow;
+    }
+    return true;
+  }
+
   Future<void> evaluate({
     required double bid,
     required double ask,

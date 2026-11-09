@@ -318,9 +318,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> cancelPending(String id) async {
-    await pendingOrders?.cancel(id);
+  Future<bool> removePending(String id) async {
+    final removed = await pendingOrders?.remove(id) ?? false;
     notifyListeners();
+    return removed;
   }
 
   double? effectiveLimit(Map<String, dynamic> t, String key) {
@@ -2279,14 +2280,7 @@ class _TradeTabState extends State<TradeTab> {
                               '${o.status} · ${o.gtc ? "GTC" : "expires at local midnight"} · fills only while Sona is open, needs internet${o.note == null ? "" : "\n${o.note}"}',
                             ),
                             trailing: o.status == 'pending'
-                                ? IconButton(
-                                    icon: const Icon(Icons.close),
-                                    tooltip: 'Cancel pending order',
-                                    onPressed: () async {
-                                      await app.pendingOrders!.cancel(o.id);
-                                      if (mounted) setState(() {});
-                                    },
-                                  )
+                                ? PendingOrderRemoveButton(app: app, order: o)
                                 : null,
                           ),
                         ),
@@ -3831,6 +3825,32 @@ Widget _pill(String label, bool buy) => Container(
   ),
 );
 
+class PendingOrderRemoveButton extends StatelessWidget {
+  final AppState app;
+  final PendingPaperOrder order;
+  const PendingOrderRemoveButton({super.key, required this.app, required this.order});
+  @override
+  Widget build(BuildContext context) => IconButton(
+    color: cRed,
+    tooltip: 'Remove order',
+    icon: const Icon(Icons.delete_outline),
+    onPressed: () async {
+      String message;
+      try {
+        final removed = await app.removePending(order.id);
+        message = removed
+            ? 'Pending order removed completely.'
+            : 'Order is no longer waiting. Check its status and positions.';
+      } catch (_) {
+        message = 'Could not save removal. Order was not removed. Try again.';
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    },
+  );
+}
+
 class PendingOrdersPanel extends StatelessWidget {
   final AppState app;
   const PendingOrdersPanel({super.key, required this.app});
@@ -3866,26 +3886,8 @@ class PendingOrdersPanel extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (o.status == 'pending')
-                          IconButton(
-                            tooltip: 'Cancel pending order',
-                            icon: const Icon(Icons.close),
-                            onPressed: () async {
-                              try {
-                                await app.cancelPending(o.id);
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Could not save cancellation. Check order status.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
+                        if (o.status == 'pending' || o.status == 'cancelled')
+                          PendingOrderRemoveButton(app: app, order: o),
                       ],
                     ),
                     Text(switch (o.status) {
