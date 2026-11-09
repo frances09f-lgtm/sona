@@ -124,14 +124,22 @@ jobs:
           import os,json
           steps=json.loads(os.environ['STEP_RESULTS'])
           out={'source':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'],'steps':{k:{'outcome':v.get('outcome'),'conclusion':v.get('conclusion')} for k,v in steps.items()},'note':'Private diagnostics only; no credentials, raw logs, or APK publication.'}
-          tests={}; failures=[]
+          tests={}; failures=[]; errors=[]
           try:
             for line in open('/tmp/flutter-results.jsonl'):
               try: e=json.loads(line)
               except ValueError: continue
+              if not isinstance(e,dict): continue
+              if e.get('type')=='error':
+                text=str(e.get('error',''))[:1200]
+                import re
+                text=re.sub(r'https?://\S+','[URL]',text)
+                text=re.sub(r'(?:gsk_|ghp_|github_pat_|sb_secret_)[A-Za-z0-9_\-]+','[REDACTED]',text)
+                errors.append({'test':tests.get(e.get('testID'),'load/setup'),'summary':text})
               if e.get('type')=='testStart': tests[e['test']['id']]=e['test'].get('name','unnamed')
               if e.get('type')=='testDone' and e.get('result') in ('failure','error'): failures.append(tests.get(e.get('testID'),'unknown test'))
             out['failed_test_names']=failures
+            out['test_error_summaries']=errors[:8]
           except FileNotFoundError: pass
           open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
           PYDIAG
