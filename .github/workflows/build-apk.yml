@@ -10,16 +10,28 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Record private pipeline start
+        id: diagnostic_start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nStarted TEST pipeline, no APK verified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/diagnostic-start.txt
+          gh release create "diagnostic-entry-122-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title 'Private TEST pipeline status - not an APK release' --notes-file /tmp/diagnostic-start.txt
+      - id: checkout
+        uses: actions/checkout@v4
+      - id: java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - id: flutter_sdk
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Restore existing signing identity
+      - id: signing
+        name: Restore existing signing identity
         run: |
           echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
           cat >> android/gradle.properties <<GP
@@ -28,21 +40,27 @@ jobs:
           ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
           ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
           GP
-      - run: flutter pub get
-      - name: Safety tests and exact source contracts
+      - id: dependencies
+        run: flutter pub get
+      - id: flutter_tests
+        name: Safety tests and exact source contracts
         run: flutter test
-      - uses: gradle/actions/setup-gradle@v4
+      - id: gradle_setup
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-      - name: Verify release unit-test task exists before APK compilation
+      - id: native_task_check
+        name: Verify release unit-test task exists before APK compilation
         run: |
           set -euo pipefail
           printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")" "$ANDROID_HOME" > android/local.properties
           cd android
           gradle :app:tasks --all > /tmp/sona-task-inventory.txt
           grep -E '^testReleaseUnitTest[[:space:]-]' /tmp/sona-task-inventory.txt
-      - run: flutter build apk --release --target-platform android-arm64
-      - name: Native caller and concurrent claim tests
+      - id: apk_build
+        run: flutter build apk --release --target-platform android-arm64
+      - id: native_tests
+        name: Native caller and concurrent claim tests
         run: |
           set -euo pipefail
           (cd android && ./gradlew :app:testReleaseUnitTest)
@@ -58,7 +76,8 @@ jobs:
           print('Native JUnit executed:',len(cases),'failures=0 errors=0 skipped=0')
           for c in cases: print(c.attrib['classname']+'.'+c.attrib['name'])
           PYTEST
-      - name: Verify signed APK identity and PRIVATE draft transport
+      - id: apk_verify_transport
+        name: Verify signed APK identity and PRIVATE draft transport
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -92,3 +111,17 @@ jobs:
           done
           gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
           jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
+      - name: Record private diagnostic step outcomes
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STEP_RESULTS: ${{ toJSON(steps) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYDIAG'
+          import os,json
+          steps=json.loads(os.environ['STEP_RESULTS'])
+          out={'source':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'],'steps':{k:{'outcome':v.get('outcome'),'conclusion':v.get('conclusion')} for k,v in steps.items()},'note':'Private diagnostics only; no credentials, raw logs, or APK publication.'}
+          open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
+          PYDIAG
+          gh release edit "diagnostic-entry-122-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --notes-file /tmp/diagnostic-final.txt
