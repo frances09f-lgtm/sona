@@ -3874,7 +3874,7 @@ class PendingOrdersPanel extends StatelessWidget {
                               try {
                                 await app.cancelPending(o.id);
                               } catch (_) {
-                                if (context.mounted)
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -3882,6 +3882,7 @@ class PendingOrdersPanel extends StatelessWidget {
                                       ),
                                     ),
                                   );
+                                }
                               }
                             },
                           ),
