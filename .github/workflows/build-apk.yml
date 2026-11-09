@@ -44,7 +44,9 @@ jobs:
         run: flutter pub get
       - id: flutter_tests
         name: Safety tests and exact source contracts
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test --machine > /tmp/flutter-results.jsonl
       - id: gradle_setup
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -122,6 +124,15 @@ jobs:
           import os,json
           steps=json.loads(os.environ['STEP_RESULTS'])
           out={'source':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'],'steps':{k:{'outcome':v.get('outcome'),'conclusion':v.get('conclusion')} for k,v in steps.items()},'note':'Private diagnostics only; no credentials, raw logs, or APK publication.'}
+          tests={}; failures=[]
+          try:
+            for line in open('/tmp/flutter-results.jsonl'):
+              try: e=json.loads(line)
+              except ValueError: continue
+              if e.get('type')=='testStart': tests[e['test']['id']]=e['test'].get('name','unnamed')
+              if e.get('type')=='testDone' and e.get('result') in ('failure','error'): failures.append(tests.get(e.get('testID'),'unknown test'))
+            out['failed_test_names']=failures
+          except FileNotFoundError: pass
           open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
           PYDIAG
           gh release edit "diagnostic-entry-122-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --notes-file /tmp/diagnostic-final.txt
