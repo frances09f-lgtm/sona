@@ -134,7 +134,7 @@ void main() {
       final key = await mount(t, AddTab(app: app));
       await t.enterText(field('Entry'), '4000');
       await t.enterText(field('Exit (optional)'), '4010');
-      await t.enterText(field('Quantity (lots · 1 lot = 100 oz)'), '0.02');
+      await t.enterText(field('Quantity (lots)'), '0.02');
       await t.enterText(field('Total costs (USD)'), '3');
       await t.enterText(field('Setup tag (optional)'), 'Breakout');
       await capture(t, key, 'journal');
@@ -145,7 +145,12 @@ void main() {
             .text,
         '17.0',
       );
-      await t.ensureVisible(find.text('Save trade'));
+      await t.dragUntilVisible(
+        find.text('Save trade'),
+        find.byType(Scrollable).first,
+        const Offset(0, -300),
+      );
+      await t.pumpAndSettle();
       await t.tap(find.text('Save trade'));
       await t.pumpAndSettle();
       expect(app.saved?['qty'], 2);

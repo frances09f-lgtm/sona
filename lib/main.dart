@@ -318,6 +318,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> cancelPending(String id) async {
+    await pendingOrders?.cancel(id);
+    notifyListeners();
+  }
+
   double? effectiveLimit(Map<String, dynamic> t, String key) {
     final local = limits[t['id'].toString()];
     if (local != null && local.containsKey(key)) return local[key];
@@ -3138,27 +3143,28 @@ class _PositionsTabState extends State<PositionsTab> {
   );
 
   Widget _openList(List<Map<String, dynamic>> open) {
-    if (open.isEmpty) {
-      return const Center(
-        child: Text('No open positions', style: TextStyle(color: cDim)),
-      );
-    }
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-      itemCount: open.length + 1,
-      itemBuilder: (ctx, i) {
-        if (i == open.length) {
-          return const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Text(
-              'TP/SL edits stay on this device. Android background checks may be delayed or stopped; always-on server protection is not deployed.',
-              style: TextStyle(color: cDim, fontSize: 11),
-              textAlign: TextAlign.center,
+      children: [
+        PendingOrdersPanel(app: app),
+        if (open.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Text('No open positions', style: TextStyle(color: cDim)),
             ),
-          );
-        }
-        return _positionCard(open[i]);
-      },
+          )
+        else
+          ...open.map(_positionCard),
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            'TP/SL edits stay on this device. Android background checks may be delayed or stopped; always-on server protection is not deployed.',
+            style: TextStyle(color: cDim, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 
@@ -3825,6 +3831,95 @@ Widget _pill(String label, bool buy) => Container(
   ),
 );
 
+class PendingOrdersPanel extends StatelessWidget {
+  final AppState app;
+  const PendingOrdersPanel({super.key, required this.app});
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: app,
+    builder: (context, _) {
+      final orders =
+          app.pendingOrders?.orders.reversed.toList() ?? <PendingPaperOrder>[];
+      if (orders.isEmpty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 12, bottom: 6),
+            child: Text(
+              'Pending orders',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          for (final o in orders)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${o.side.toUpperCase()} GOLD · ${lotsStr(o.qty)}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (o.status == 'pending')
+                          IconButton(
+                            tooltip: 'Cancel pending order',
+                            icon: const Icon(Icons.close),
+                            onPressed: () async {
+                              try {
+                                await app.cancelPending(o.id);
+                              } catch (_) {
+                                if (context.mounted)
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not save cancellation. Check order status.',
+                                      ),
+                                    ),
+                                  );
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                    Text(switch (o.status) {
+                      'pending' =>
+                        'Waiting for ${o.side == "buy" ? "Ask" : "Bid"} at or ${o.above ? "above" : "below"} ${fmtG(o.trigger)}',
+                      'filled' => 'Filled',
+                      'cancelled' => 'Cancelled',
+                      'expired' => 'Expired',
+                      'submitting' => 'Submitting - do not place again',
+                      _ => 'Needs review - check positions before retrying',
+                    }),
+                    Text(
+                      '${o.gtc ? "GTC" : "Expires at local midnight"} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
+                      style: const TextStyle(color: cDim, fontSize: 12),
+                    ),
+                    if (o.status == 'pending')
+                      const Text(
+                        'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
+                        style: TextStyle(color: cDim, fontSize: 11),
+                      ),
+                    if (o.note != null && o.note!.isNotEmpty)
+                      Text(
+                        o.note!,
+                        style: const TextStyle(color: cDim, fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
 class AddTab extends StatefulWidget {
   final AppState app;
   const AddTab({super.key, required this.app});
@@ -3931,6 +4026,17 @@ class _AddTabState extends State<AddTab> {
     });
   }
 
+  Future<void> openPending(String side) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      builder: (_) =>
+          PaperOrderSheet(app: app, side: side, pendingInitially: true),
+    );
+    if (mounted) setState(() {});
+  }
+
   double? pn(String s) => s.trim().isEmpty ? null : double.tryParse(s.trim());
 
   @override
@@ -3938,6 +4044,41 @@ class _AddTabState extends State<AddTab> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
+        const Text(
+          'Pending paper order',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Open a paper trade when gold reaches your entry price. Sona must be open with internet.',
+          style: TextStyle(color: cDim, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: () => openPending('buy'),
+                child: const Text('Buy at entry price'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: cRed),
+                onPressed: () => openPending('sell'),
+                child: const Text('Sell at entry price'),
+              ),
+            ),
+          ],
+        ),
+        PendingOrdersPanel(app: app),
+        const Divider(height: 24),
+        const Text(
+          'Records only. Saving a manual journal entry never places a paper order.',
+          style: TextStyle(color: cDim, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
         Text(
           editingId.isEmpty ? 'Log a manual trade' : 'Edit trade',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -4023,7 +4164,8 @@ class _AddTabState extends State<AddTab> {
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
-                        labelText: 'Quantity (lots · 1 lot = 100 oz)',
+                        labelText: 'Quantity (lots)',
+                        helperText: '1 lot = 100 oz',
                       ),
                     ),
                   ),
@@ -5604,7 +5746,13 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
 class PaperOrderSheet extends StatefulWidget {
   final AppState app;
   final String side;
-  const PaperOrderSheet({super.key, required this.app, required this.side});
+  final bool pendingInitially;
+  const PaperOrderSheet({
+    super.key,
+    required this.app,
+    required this.side,
+    this.pendingInitially = false,
+  });
   @override
   State<PaperOrderSheet> createState() => _PaperOrderSheetState();
 }
@@ -5813,6 +5961,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
   @override
   void initState() {
     super.initState();
+    pending = widget.pendingInitially;
     final saved = widget.app.prefs?.getDouble('tj_last_lots');
     if (saved != null && saved.isFinite && saved >= 0.01) {
       lastLots = saved;
@@ -6187,7 +6336,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                             decimal: true,
                           ),
                           onChanged: (_) => setState(() {}),
-                          decoration: insetField('Price'),
+                          decoration: insetField(
+                            widget.pendingInitially ? 'Entry price' : 'Price',
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -6359,7 +6510,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                         Text(
                           sending
                               ? 'Placing...'
-                              : 'Place Order at ${pending ? fmtG(parseNum(trigger.text)) : fmtG(px)}',
+                              : pending
+                              ? 'Save pending order'
+                              : 'Place Order at ${fmtG(px)}',
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
