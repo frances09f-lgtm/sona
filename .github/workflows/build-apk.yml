@@ -1,6 +1,8 @@
-name: Background paper order TEST only
+name: Pending entry-price TEST only
 on:
   workflow_dispatch:
+  push:
+    branches: [fix/add-pending-price]
 jobs:
   test-build:
     runs-on: ubuntu-latest
@@ -28,7 +30,7 @@ jobs:
           GP
       - run: flutter pub get
       - name: Safety tests and exact source contracts
-        run: flutter test test/friday_orders_test.dart test/background_order_contract_test.dart test/trade_safety_test.dart test/paper_margin_test.dart test/execution_ledger_test.dart test/pending_orders_test.dart
+        run: flutter test
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
@@ -69,12 +71,15 @@ jobs:
           "$AAPT" dump badging "$APK" > /tmp/badging.txt
           sed -n '1p' /tmp/badging.txt > /tmp/package.txt
           cat /tmp/package.txt
-          grep -F "name='com.ambi.gold_paper_trading' versionCode='121' versionName='1.2.19'" /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='122' versionName='1.2.20'" /tmp/package.txt
           cp "$APK" /tmp/Sona.apk
           (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
           cat /tmp/Sona.apk.sha256
-          printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Native JUnit gate passed. Phone off-screen behavior unverified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
-          DRAFT=435746970
+          printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Full Flutter and native JUnit gates passed. Entry-price orders require open app and internet. Phone behavior unverified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
+          TAG="test-entry-122-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title 'Sona 1.2.20 TEST - entry-price orders' --notes 'Private test transport only. Not an official app release. Automated tests passed; phone behavior unverified. Do not publish.'
+          DRAFT=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name==\"$TAG\") | .id")
+          test -n "$DRAFT"
           gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-before.json
           jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
           UPLOAD=$(jq -r '.upload_url|split("{")[0]' /tmp/draft-before.json)
