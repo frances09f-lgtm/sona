@@ -134,8 +134,9 @@ void main() {
       app.notifyListeners();
       await t.pumpAndSettle();
       expect(app.fills, 1);
-      expect(find.text('Filled'), findsOneWidget);
-      await capture(t, portfolioKey, 'pending-filled');
+      expect(find.text('Filled'), findsNothing);
+      expect(find.text('Pending orders'), findsNothing);
+      await capture(t, portfolioKey, 'pending-auto-removed');
       await store.evaluate(
         bid: 3989,
         ask: 3990,

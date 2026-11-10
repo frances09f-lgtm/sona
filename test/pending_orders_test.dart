@@ -33,7 +33,7 @@ void main() {
       submit: (_) async => fail('removed order must not submit'));
     expect(await s.remove('1'), isFalse);
   });
-  test('submitting, filled and uncertain orders cannot be removed', () async {
+  test('only waiting and cancelled orders can be removed manually', () async {
     final s = await create();
     for (final status in ['submitting', 'needsReview', 'filled', 'expired']) {
       s.orders.clear();
@@ -44,6 +44,30 @@ void main() {
     s.orders.single.status = 'cancelled';
     expect(await s.remove('1'), isTrue);
     expect(PendingPaperOrders.load(s.prefs).orders, isEmpty);
+  });
+  test('confirmed fill removes the record completely and persists removal', () async {
+    final s = await create();
+    s.orders.add(order());
+    await s.save();
+    await s.evaluate(bid: 3990, ask: 3999, fresh: true, active: true, now: 50,
+      submit: (_) async => const SubmitFilled());
+    expect(s.orders, isEmpty);
+    expect(PendingPaperOrders.load(s.prefs).orders, isEmpty);
+  });
+  test('load purges legacy filled records, keeps everything else', () async {
+    final s = await create();
+    s.orders.add(order()..status = 'filled');
+    final waiting = PendingPaperOrder(id: '2', side: 'sell', qty: .2, trigger: 4100,
+      above: true, gtc: true, createdAt: 1, expiresAt: 100);
+    final review = PendingPaperOrder(id: '3', side: 'buy', qty: .1, trigger: 3900,
+      above: false, gtc: true, createdAt: 1, expiresAt: 100,
+      status: 'needsReview', note: 'Submission outcome unknown. Check positions.');
+    final expired = PendingPaperOrder(id: '4', side: 'buy', qty: .1, trigger: 3900,
+      above: false, gtc: true, createdAt: 1, expiresAt: 100, status: 'expired');
+    s.orders.addAll([waiting, review, expired]);
+    await s.save();
+    final reloaded = PendingPaperOrders.load(s.prefs);
+    expect(reloaded.orders.map((o) => o.id), ['2', '3', '4']);
   });
   test('snapshot cannot fill another order removed during first submission', () async {
     final s = await create();
@@ -60,8 +84,8 @@ void main() {
     finish.complete(const SubmitFilled());
     await evaluation;
     expect(calls, 1);
-    expect(s.orders.single.status, 'filled');
-    expect(PendingPaperOrders.load(s.prefs).orders.single.id, '1');
+    expect(s.orders, isEmpty);
+    expect(PendingPaperOrders.load(s.prefs).orders, isEmpty);
   });
   test('failed removal restores order and reports failure', () async {
     final base = await create();
@@ -118,7 +142,7 @@ void main() {
         submit: submit,
       );
       expect(calls, 1);
-      expect(s.orders.first.status, 'filled');
+      expect(s.orders, isEmpty);
       await s.evaluate(
         bid: 3990,
         ask: 3999,
@@ -212,8 +236,7 @@ void main() {
         },
       );
       expect(calls, 2);
-      expect(s.orders.single.status, 'filled');
-      expect(s.orders.single.note, isNull);
+      expect(s.orders, isEmpty);
     },
   );
   test('retry backoff timestamp survives reload', () async {
@@ -299,8 +322,8 @@ void main() {
         now: 50,
         submit: (o) async => const SubmitFilled(),
       );
-      expect(reloaded.orders[0].status, 'filled');
-      expect(reloaded.orders[1].status, 'needsReview');
+      expect(reloaded.orders.single.id, 'unknown');
+      expect(reloaded.orders.single.status, 'needsReview');
     },
   );
   test('expiry and cancel cannot fill', () async {
