@@ -78,6 +78,11 @@ class PendingPaperOrder {
     this.note,
     this.lastAttemptAt,
   });
+  /// True when the record can be deleted from the list: waiting or
+  /// cancelled. Uncertain outcomes ('submitting', 'needsReview') cannot be
+  /// removed; 'filled' records never reach the UI (see evaluate/load) and
+  /// 'expired' records stay as history.
+  bool get removable => status == 'pending' || status == 'cancelled';
   bool matches(double quote, int now) =>
       status == 'pending' &&
       (gtc || now < expiresAt) &&
@@ -125,6 +130,14 @@ class PendingPaperOrders {
     try {
       for (final j in jsonDecode(prefs.getString(key) ?? '[]') as List) {
         final o = PendingPaperOrder.fromJson(j as Map);
+        if (o.status == 'filled') {
+          // Legacy cleanup: older versions kept a 'filled' card under
+          // "Pending orders" forever. The fill opened a separate position
+          // record and nothing reads the pending record back, so dropping
+          // the card loses nothing. AppState.init saves right after load,
+          // which persists this cleanup.
+          continue;
+        }
         if (o.status == 'submitting') {
           o.status = 'needsReview';
           o.note = 'App stopped during submission. Check positions before placing another order.';
@@ -164,7 +177,7 @@ class PendingPaperOrders {
     final index = orders.indexWhere((o) => o.id == id);
     if (index < 0) return false;
     final o = orders[index];
-    if (o.status != 'pending' && o.status != 'cancelled') return false;
+    if (!o.removable) return false;
     final previous = o.status;
     o.status = 'removed';
     orders.removeAt(index);
@@ -214,8 +227,11 @@ class PendingPaperOrders {
           final result = await submit(o);
           switch (result) {
             case SubmitFilled():
-              o.status = 'filled';
-              o.note = null;
+              // A confirmed fill leaves "Pending orders" immediately: the
+              // position it opened is a separate record, so deleting this
+              // one cannot affect positions, the journal, or dedup - it only
+              // clears the visible card.
+              orders.remove(o);
             case SubmitRetry(:final reason):
               // Definitely never submitted: keep waiting and show why, so
               // the order can fill once the blocker (margin, busy order,
