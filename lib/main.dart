@@ -3911,7 +3911,7 @@ class PendingOrdersPanel extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (o.status == 'pending' || o.status == 'cancelled')
+                        if (o.removable)
                           PendingOrderRemoveButton(app: app, order: o),
                       ],
                     ),
