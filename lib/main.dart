@@ -313,9 +313,17 @@ class AppState extends ChangeNotifier {
       active:
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
       now: DateTime.now().millisecondsSinceEpoch,
-      submit: (o) => openPaper(o.side, o.qty, o.tp, o.sl),
+      submit: submitPending,
     );
     notifyListeners();
+  }
+
+  /// Pending-order submission through the manual-order path, classified so
+  /// the evaluator only auto-retries definitive pre-submit failures.
+  Future<SubmitResult> submitPending(PendingPaperOrder o) async {
+    final (error, retryable) = await openPaperDetailed(o.side, o.qty, o.tp, o.sl);
+    if (error == null) return const SubmitFilled();
+    return retryable ? SubmitRetry(error) : SubmitUnknown(error);
   }
 
   Future<bool> removePending(String id) async {
@@ -753,42 +761,59 @@ class AppState extends ChangeNotifier {
     double qty,
     double? tp,
     double? sl,
+  ) async =>
+      (await openPaperDetailed(dir, qty, tp, sl)).$1;
+
+  /// Same manual-order path, with the outcome classified for automated
+  /// callers: retryable=true means the failure happened BEFORE anything was
+  /// submitted, so waiting and trying again cannot create a duplicate
+  /// position. retryable=false means committed, deterministically refused,
+  /// or outcome unknown - never auto-retry those.
+  /// When changing a pre-submit message, keep knownPreSubmitNotePrefixes in
+  /// pending_orders.dart in sync (it recovers stuck orders by note).
+  Future<(String?, bool)> openPaperDetailed(
+    String dir,
+    double qty,
+    double? tp,
+    double? sl,
   ) async {
     if (!unlocked)
-      return 'Paper account not connected. Open the account button to connect.';
+      return ('Paper account not connected. Open the account button to connect.', true);
     if (!priceFresh) {
-      return marketClosedMessage() ??
-          'No fresh live price - cannot open right now.';
+      return (marketClosedMessage() ??
+          'No fresh live price - cannot open right now.', true);
     }
     final warn = limitWarning();
     if (warn != null && blockOnLimit) {
-      return '$warn - new trades blocked (Daily limits)';
+      return ('$warn - new trades blocked (Daily limits)', true);
     }
     if (!['buy', 'sell'].contains(dir) || !qty.isFinite || qty <= 0)
-      return 'Enter a valid side and positive size.';
+      return ('Enter a valid side and positive size.', false);
     if (openingPaper)
-      return 'Another paper order is being checked. Wait for its result.';
+      return ('Another paper order is being checked. Wait for its result.', true);
     openingPaper = true;
     try {
       final before = accountRevision;
       await paperRefresh();
       if (!unlocked || accountRevision == before)
-        return 'Could not refresh the paper account. No order submitted.';
+        return ('Could not refresh the paper account. No order submitted.', true);
       final px = entrySidePrice(dir);
       if (px == null || !priceFresh)
-        return 'No fresh live bid/ask - cannot open right now.';
+        return ('No fresh live bid/ask - cannot open right now.', true);
       final marginError = PaperMargin.guard(
         free: estimatedFreeMargin,
         price: px,
         qty: qty,
       );
-      if (marginError != null) return marginError;
+      if (marginError != null) return (marginError, true);
       final protectionError = validateProtection(dir, px, tp, sl);
-      if (protectionError != null) return protectionError;
+      // TP/SL guards are risk controls: a gapped fill past TP/SL must stay
+      // visible for review, never silently retried at a different price.
+      if (protectionError != null) return (protectionError, false);
       if (fridayHeadless) {
         await prefs?.reload();
         if (prefs?.getString('tj_pin') != pin)
-          return 'Sona was locked or the account changed. Nothing was placed.';
+          return ('Sona was locked or the account changed. Nothing was placed.', true);
       }
       await rpc('paper_open', {
         'p': pin,
@@ -800,13 +825,13 @@ class AppState extends ChangeNotifier {
       });
       UsageReporter.report('trade_opened', {'src': 'manual'});
       await paperRefresh();
-      return null;
+      return (null, false);
     } on RpcException catch (e) {
-      return e.status != null && e.status! >= 400 && e.status! < 500
+      return (e.status != null && e.status! >= 400 && e.status! < 500
           ? e.message
-          : 'Order outcome unconfirmed. Check Sona positions; no automatic retry was sent.';
+          : 'Order outcome unconfirmed. Check Sona positions; no automatic retry was sent.', false);
     } catch (_) {
-      return 'Order outcome unconfirmed. Check Sona positions; no automatic retry was sent.';
+      return ('Order outcome unconfirmed. Check Sona positions; no automatic retry was sent.', false);
     } finally {
       openingPaper = false;
     }

@@ -2,6 +2,54 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Result of one pending-order submission attempt.
+///
+/// The distinction matters: [SubmitRetry] means the order was DEFINITELY
+/// never submitted (a local pre-submit check failed), so leaving it pending
+/// and trying again cannot create a duplicate position. [SubmitUnknown]
+/// means the request may have reached the server - never retry those.
+sealed class SubmitResult {
+  const SubmitResult();
+}
+
+class SubmitFilled extends SubmitResult {
+  const SubmitFilled();
+}
+
+class SubmitRetry extends SubmitResult {
+  final String reason;
+  const SubmitRetry(this.reason);
+}
+
+class SubmitUnknown extends SubmitResult {
+  final String note;
+  const SubmitUnknown(this.note);
+}
+
+/// Note prefixes that only a definitive pre-submit rejection can produce
+/// (see AppState.openPaperDetailed in main.dart - keep in sync). A stuck
+/// 'needsReview' order carrying one of these was never submitted, so it is
+/// safe to move back to 'pending'; any other note means the outcome is
+/// genuinely unknown and the order stays untouched.
+const knownPreSubmitNotePrefixes = [
+  'Estimated paper margin insufficient',
+  'Cannot estimate paper margin',
+  'Another paper order is being checked',
+  'Could not refresh the paper account',
+  'No fresh live price',
+  'No fresh live bid/ask',
+  'Paper account not connected',
+  'Sona was locked or the account changed',
+  'Market closed for the weekend',
+  'Market on its daily 1-hour break',
+];
+
+bool isKnownPreSubmitNote(String? note) {
+  if (note == null) return false;
+  if (note.contains('new trades blocked (Daily limits)')) return true;
+  return knownPreSubmitNotePrefixes.any((p) => note.startsWith(p));
+}
+
 class PendingPaperOrder {
   final String id, side;
   final double qty, trigger;
@@ -10,6 +58,11 @@ class PendingPaperOrder {
   final int createdAt, expiresAt;
   String status;
   String? note;
+
+  /// Last submission-attempt time (evaluator clock). Backs off retries of
+  /// definitive pre-submit rejections so a waiting order is not submitted
+  /// on every quote tick.
+  int? lastAttemptAt;
   PendingPaperOrder({
     required this.id,
     required this.side,
@@ -23,6 +76,7 @@ class PendingPaperOrder {
     this.sl,
     this.status = 'pending',
     this.note,
+    this.lastAttemptAt,
   });
   bool matches(double quote, int now) =>
       status == 'pending' &&
@@ -41,6 +95,7 @@ class PendingPaperOrder {
     'sl': sl,
     'status': status,
     'note': note,
+    'lastAttemptAt': lastAttemptAt,
   };
   factory PendingPaperOrder.fromJson(Map j) => PendingPaperOrder(
     id: j['id'],
@@ -55,6 +110,7 @@ class PendingPaperOrder {
     sl: (j['sl'] as num?)?.toDouble(),
     status: j['status'],
     note: j['note'],
+    lastAttemptAt: (j['lastAttemptAt'] as num?)?.toInt(),
   );
 }
 
@@ -72,6 +128,13 @@ class PendingPaperOrders {
         if (o.status == 'submitting') {
           o.status = 'needsReview';
           o.note = 'App stopped during submission. Check positions before placing another order.';
+        } else if (o.status == 'needsReview' && isKnownPreSubmitNote(o.note)) {
+          // Recovery: older versions knocked orders out permanently for
+          // rejections that definitely happened BEFORE anything was sent
+          // (margin estimate, busy flag, stale quote). Those orders were
+          // never submitted, so waiting again is safe and cannot duplicate
+          // a position. The note stays visible under the waiting status.
+          o.status = 'pending';
         }
         out.add(o);
       }
@@ -115,13 +178,18 @@ class PendingPaperOrders {
     return true;
   }
 
+  /// Minimum time between submission attempts for one order. Only applies
+  /// after a definitive pre-submit rejection ([SubmitRetry]); the first
+  /// attempt and real fills are never delayed.
+  static const retryBackoffMs = 15000;
+
   Future<void> evaluate({
     required double bid,
     required double ask,
     required bool fresh,
     required bool active,
     required int now,
-    required Future<String?> Function(PendingPaperOrder) submit,
+    required Future<SubmitResult> Function(PendingPaperOrder) submit,
   }) async {
     if (evaluating || !fresh || !active || !bid.isFinite || !ask.isFinite)
       return;
@@ -135,12 +203,29 @@ class PendingPaperOrders {
           continue;
         }
         if (!o.matches(o.side == 'buy' ? ask : bid, now)) continue;
+        final last = o.lastAttemptAt;
+        if (last != null && now - last >= 0 && now - last < retryBackoffMs) {
+          continue;
+        }
         o.status = 'submitting';
+        o.lastAttemptAt = now;
         await save();
         try {
           final result = await submit(o);
-          o.status = result == null ? 'filled' : 'needsReview';
-          o.note = result;
+          switch (result) {
+            case SubmitFilled():
+              o.status = 'filled';
+              o.note = null;
+            case SubmitRetry(:final reason):
+              // Definitely never submitted: keep waiting and show why, so
+              // the order can fill once the blocker (margin, busy order,
+              // stale quote) clears. No duplicate-position risk.
+              o.status = 'pending';
+              o.note = reason;
+            case SubmitUnknown(:final note):
+              o.status = 'needsReview';
+              o.note = note;
+          }
         } catch (_) {
           o.status = 'needsReview';
           o.note = 'Submission outcome unknown. Check positions. No automatic retry.';

@@ -34,6 +34,11 @@ class PendingAccount extends AppState {
   }
 }
 
+Future<SubmitResult> submitVia(PendingAccount app, PendingPaperOrder o) async {
+  final e = await app.openPaper(o.side, o.qty, o.tp, o.sl);
+  return e == null ? const SubmitFilled() : SubmitUnknown(e);
+}
+
 Finder field(String label) => find.byWidgetPredicate(
   (w) => w is TextField && w.decoration?.labelText == label,
 );
@@ -124,7 +129,7 @@ void main() {
         fresh: true,
         active: true,
         now: DateTime.now().millisecondsSinceEpoch,
-        submit: (o) => app.openPaper(o.side, o.qty, o.tp, o.sl),
+        submit: (o) => submitVia(app, o),
       );
       app.notifyListeners();
       await t.pumpAndSettle();
@@ -137,7 +142,7 @@ void main() {
         fresh: true,
         active: true,
         now: DateTime.now().millisecondsSinceEpoch,
-        submit: (o) => app.openPaper(o.side, o.qty, o.tp, o.sl),
+        submit: (o) => submitVia(app, o),
       );
       expect(app.fills, 1);
     },
@@ -177,7 +182,7 @@ void main() {
         fresh: true,
         active: true,
         now: DateTime.now().millisecondsSinceEpoch,
-        submit: (o) => app.openPaper(o.side, o.qty, o.tp, o.sl),
+        submit: (o) => submitVia(app, o),
       );
       expect(app.fills, 0);
     },
@@ -199,7 +204,7 @@ void main() {
         ),
       );
       int attempts = 0;
-      Future<String?> fail(PendingPaperOrder o) async {
+      Future<SubmitResult> fail(PendingPaperOrder o) async {
         attempts++;
         throw StateError('test transport');
       }
