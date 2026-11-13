@@ -37,6 +37,7 @@ import 'chart/chart_tools.dart';
 import 'analytics.dart';
 import 'trade_card.dart';
 import 'ai_brain.dart';
+import 'signal_zones.dart';
 import 'alerts.dart';
 import 'auto_trade.dart';
 import 'notification_log.dart';
@@ -374,6 +375,7 @@ class AppState extends ChangeNotifier {
             .toList();
       } catch (_) {}
     }
+    await signalBoxes.load(prefs!);
     final cache = prefs?.getString('tj_paper_cache');
     if (cache != null) {
       try {
@@ -571,6 +573,95 @@ class AppState extends ChangeNotifier {
   final TickBuffer _tickBuffer = TickBuffer();
   List<(int, double)> get liveTicks => List.unmodifiable(_tickBuffer.ticks);
 
+  /// Automatic BUY/SELL signal boxes on the chart (user request Nov 13):
+  /// drawn at strong support/resistance found in the real candles, fresh
+  /// setup search after a break, daily correct/wrong count under the
+  /// approved rule. Device-local history, no extra API calls.
+  final SignalBoxManager signalBoxes = SignalBoxManager();
+
+  /// Signal boxes mapped for the chart painter.
+  List<SignalZone> get signalChartZones => [
+        for (final b in signalBoxes.displayBoxes)
+          SignalZone(isBuy: b.isBuy, low: b.low, high: b.high),
+      ];
+
+  /// Daily correct/wrong chip; null while there is nothing to report.
+  (int, int)? get signalChipStats {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!signalBoxes.hasAnythingToday(now)) return null;
+    return signalBoxes.todayStats(now);
+  }
+
+  /// Signal-box scoring on the live tick stream: exact chronological
+  /// ordering, persisted only when something changed.
+  void _evaluateSignalTick() {
+    final p = bid ?? price;
+    final store = prefs;
+    if (p == null || store == null) return;
+    if (signalBoxes.onTick(DateTime.now().millisecondsSinceEpoch, p)) {
+      unawaited(signalBoxes.save(store));
+    }
+  }
+
+  /// Candle-refresh hook for the signal boxes: catch-up scoring of live
+  /// boxes against fresh candles. New boxes are NOT created here - zone
+  /// qualification rides on the existing scheduled auto-trade decision
+  /// and on the Advice button (the model answers inside its normal
+  /// reply), so the feature adds no extra Groq requests. Syncs from
+  /// prefs first because the background decision cycle may have added or
+  /// resolved boxes while the UI was closed.
+  Future<void> signalCandles(List<Candle> candles) async {
+    final basis = chartBasis;
+    final store = prefs;
+    if (candles.isEmpty || basis == null || store == null) return;
+    await store.reload();
+    await signalBoxes.load(store);
+    if (signalBoxes.onCandles(
+        candles, basis, DateTime.now().millisecondsSinceEpoch)) {
+      await signalBoxes.save(store);
+    }
+    notifyListeners();
+  }
+
+  /// Zones proposed for the next AI read (Advice button): one per free
+  /// direction slot. The brain qualifies them inside its normal reply.
+  List<DetectedZone> _pendingZones = const [];
+  List<DetectedZone> zoneCandidatesFor(List<Candle> candles, double price) {
+    if (candles.isEmpty || !signalBoxes.needsSetup) {
+      _pendingZones = const [];
+      return const [];
+    }
+    final c = signalBoxes.candidates(
+        candles, price, DateTime.now().millisecondsSinceEpoch);
+    final buys = c.where((z) => z.isBuy);
+    final sells = c.where((z) => !z.isBuy);
+    _pendingZones = [
+      if (buys.isNotEmpty) buys.first,
+      if (sells.isNotEmpty) sells.first,
+    ];
+    return _pendingZones;
+  }
+
+  /// Draws the zones the brain qualified in its reply (Advice path).
+  Future<void> applyZoneQualification(ZoneQualification? q) async {
+    final store = prefs;
+    final cands = _pendingZones;
+    _pendingZones = const [];
+    if (q == null || store == null || cands.isEmpty) return;
+    var changed = false;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    for (final z in cands) {
+      if ((z.isBuy && q.buyOk) || (!z.isBuy && q.sellOk)) {
+        signalBoxes.addBox(z, nowMs);
+        changed = true;
+      }
+    }
+    if (changed) {
+      await signalBoxes.save(store);
+      notifyListeners();
+    }
+  }
+
   Future<void> fetchPrice() async {
     if (_fetching) return; // 1s cadence: never stack overlapping fetches
     _fetching = true;
@@ -593,6 +684,7 @@ class AppState extends ChangeNotifier {
           _checkAlerts();
         }
       }
+      _evaluateSignalTick();
       _fetching = false;
       return;
     } catch (_) {}
@@ -648,6 +740,7 @@ class AppState extends ChangeNotifier {
           checkTpsl();
           _checkAlerts();
         }
+      _evaluateSignalTick();
         _fetching = false;
         return;
       }
@@ -1855,6 +1948,8 @@ class _TradeTabState extends State<TradeTab> {
           initialLayout: st.layoutSnapshot(),
           marketUpdates: app,
           marketSnapshot: st.widget.marketSnapshot,
+          signalZones: app.signalChartZones,
+          signalStats: app.signalChipStats,
         ),
       ),
     );
@@ -2172,9 +2267,13 @@ class _TradeTabState extends State<TradeTab> {
                             interval: spec.$1,
                             limit: spec.$2,
                           );
-                          return trimTradeRange(data, iv);
+                          final trimmed = trimTradeRange(data, iv);
+                          unawaited(app.signalCandles(trimmed));
+                          return trimmed;
                         },
                   marketUpdates: app,
+                  signalZones: app.signalChartZones,
+                  signalStats: app.signalChipStats,
                   onReplay: _toggleReplay,
                   replayOn: _replay != null || _pickingReplayStart,
                   marketSnapshot: () {
@@ -5212,13 +5311,28 @@ class _AiTabState extends State<AiTab> {
           }
         }
       } catch (_) {}
+      // Signal boxes: propose zones for the brain to qualify inside
+      // this same reply - no extra request (user request Nov 13).
+      final zoneCands = widget.app
+          .zoneCandidatesFor(candles, (quote.$1 + quote.$2) / 2);
+      String? zoneFragment;
+      if (zoneCands.isNotEmpty) {
+        final buys = zoneCands.where((z) => z.isBuy);
+        final sells = zoneCands.where((z) => !z.isBuy);
+        zoneFragment = zonePromptFragment(
+          buyZoneDesc: buys.isEmpty ? null : describeZone(buys.first),
+          sellZoneDesc: sells.isEmpty ? null : describeZone(sells.first),
+        );
+      }
       final r = await GroqBrain().advise(
         bid: quote.$1,
         ask: quote.$2,
         candles: candles,
         drawnLevels: levels,
         protection: ProtectionSettings.read(prefs),
+        zoneFragment: zoneFragment,
       );
+      await widget.app.applyZoneQualification(r.zoneQual);
       // User request: when the AI is SURE of a direction, start the trade
       // immediately at market with TP/SL - no waiting for a start price.
       String? tradeMsg;
