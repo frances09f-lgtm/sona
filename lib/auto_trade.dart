@@ -14,6 +14,7 @@ import 'usage_reporter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_brain.dart';
+import 'signal_zones.dart';
 import 'protection.dart';
 import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
@@ -330,6 +331,39 @@ class AutoTrade {
       return 'Position already open - holding off';
     }
 
+    // Signal boxes (user request Nov 13): ride on THIS scheduled call -
+    // the brain qualifies proposed zones inside its normal reply, so the
+    // feature adds no extra Groq requests and keeps the same cadence and
+    // fallback budget. Live boxes are scored against the fresh candles
+    // here so outcomes resolve even while the app UI is closed.
+    final zoneMgr = SignalBoxManager();
+    List<DetectedZone>? zoneCands;
+    String? zoneFragment;
+    final zonesNowMs = DateTime.now().millisecondsSinceEpoch;
+    final zonePrice = (quote.$1 + quote.$2) / 2;
+    try {
+      await zoneMgr.load(prefs);
+      zoneMgr.onCandles(candles, zonePrice, zonesNowMs);
+      await zoneMgr.save(prefs);
+      if (zoneMgr.needsSetup) {
+        final c = zoneMgr.candidates(candles, zonePrice, zonesNowMs);
+        final buys = c.where((z) => z.isBuy);
+        final sells = c.where((z) => !z.isBuy);
+        zoneCands = [
+          if (buys.isNotEmpty) buys.first,
+          if (sells.isNotEmpty) sells.first,
+        ];
+        if (zoneCands.isNotEmpty) {
+          zoneFragment = zonePromptFragment(
+            buyZoneDesc: buys.isEmpty ? null : describeZone(buys.first),
+            sellZoneDesc: sells.isEmpty ? null : describeZone(sells.first),
+          );
+        } else {
+          zoneCands = null;
+        }
+      }
+    } catch (_) {}
+
     // --- ask the brain ---
     final snapshot = MarketSnapshot(
       bid: quote.$1,
@@ -345,6 +379,7 @@ class AutoTrade {
       d = await (brain ?? GroqBrain()).decide(
         snapshot,
         protection: ProtectionSettings.read(prefs),
+        zoneFragment: zoneFragment,
       );
       await prefs.setInt(_brainFailKey, 0);
     } on BrainException catch (e) {
@@ -364,6 +399,21 @@ class AutoTrade {
         'AI unavailable (${e.message}) - retrying next cycle',
       );
       return 'AI unavailable this cycle - will retry';
+    }
+
+    // Draw the zones the brain qualified inside its reply (if any).
+    if (zoneCands != null && d.zoneQual != null) {
+      try {
+        final q = d.zoneQual!;
+        var added = false;
+        for (final z in zoneCands) {
+          if ((z.isBuy && q.buyOk) || (!z.isBuy && q.sellOk)) {
+            zoneMgr.addBox(z, zonesNowMs);
+            added = true;
+          }
+        }
+        if (added) await zoneMgr.save(prefs);
+      } catch (_) {}
     }
 
     UsageReporter.report('ai_decision', {
