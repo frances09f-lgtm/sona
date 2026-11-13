@@ -61,6 +61,10 @@ class AiDecision {
   final String reason;
   final String raw; // raw model output, kept for the AI log
 
+  /// Signal-box zone qualification answered in the same reply, when the
+  /// request proposed zones. Null when none were proposed or answered.
+  final ZoneQualification? zoneQual;
+
   const AiDecision({
     required this.action,
     required this.confidence,
@@ -69,6 +73,7 @@ class AiDecision {
     required this.sizePct,
     required this.reason,
     required this.raw,
+    this.zoneQual,
   });
 
   // User request: enter immediately only when the model is SURE.
@@ -76,8 +81,13 @@ class AiDecision {
   bool get isTrade =>
       (action == 'buy' || action == 'sell') && confidence == 'high';
 
-  static AiDecision hold(String reason, {String raw = ''}) => AiDecision(
+  static AiDecision hold(
+    String reason, {
+    String raw = '',
+    ZoneQualification? zoneQual,
+  }) => AiDecision(
     action: 'hold',
+    zoneQual: zoneQual,
     confidence: 'low',
     sl: null,
     tp: null,
@@ -107,6 +117,10 @@ class AdviceResult {
   final double? tp; // absolute price, clamped against the real quote
   final double sizePct; // 1..25, % of paper balance as notional
   final String raw;
+
+  /// Signal-box zone qualification answered in the same reply, when the
+  /// request proposed zones. Null when none were proposed or answered.
+  final ZoneQualification? zoneQual;
   const AdviceResult(
     this.verdict,
     this.reasons, {
@@ -117,12 +131,57 @@ class AdviceResult {
     this.tp,
     this.sizePct = 10,
     this.raw = '',
+    this.zoneQual,
   });
 
   /// True only when the model is sure of a direction - the app then opens
   /// the trade immediately at the live price instead of just advising.
   bool get sureTrade =>
       (verdict == 'buy' || verdict == 'sell') && confidence == 'high';
+}
+
+/// Signal-box zone qualification (user request Nov 13): the on-device
+/// swing detector proposes support/resistance zones; the model decides
+/// which are tradeable right now ("something worthy"). Advisory only -
+/// this never places trades. The answer rides INSIDE the normal analysis
+/// reply (zone_buy/zone_sell keys), so no extra Groq request ever
+/// happens for the signal boxes.
+class ZoneQualification {
+  final bool buyOk;
+  final bool sellOk;
+  final String reason;
+  const ZoneQualification(this.buyOk, this.sellOk, this.reason);
+}
+
+/// Extracts the optional zone keys from the model's normal JSON reply.
+/// Null when the model did not answer them (then no box is drawn).
+ZoneQualification? zoneQualificationFromJson(Map<String, dynamic> j) {
+  if (!j.containsKey('zone_buy') && !j.containsKey('zone_sell')) {
+    return null;
+  }
+  return ZoneQualification(
+    j['zone_buy'] == true,
+    j['zone_sell'] == true,
+    j['zone_reason']?.toString() ?? '',
+  );
+}
+
+/// Prompt fragment appended to the EXISTING analysis request when the
+/// chart has proposed signal zones awaiting qualification - same request,
+/// same call cadence and budget, the model answers in the same JSON.
+String zonePromptFragment({String? buyZoneDesc, String? sellZoneDesc}) {
+  final b = StringBuffer();
+  b.writeln('Proposed chart signal zones (detected on-device):');
+  b.writeln('  BUY zone (support): ${buyZoneDesc ?? 'none proposed'}.');
+  b.writeln('  SELL zone (resistance): ${sellZoneDesc ?? 'none proposed'}.');
+  b.writeln(
+    'For each proposed zone decide if it is a strong, tradeable level '
+    'right now (true) or not (false); answer false when there is no '
+    'worthwhile setup near it. Add these keys to your JSON reply: '
+    '"zone_buy":true|false, "zone_sell":true|false, '
+    '"zone_reason":"short".',
+  );
+  return b.toString();
 }
 
 class BrainException implements Exception {
@@ -161,7 +220,7 @@ double? atr(List<Candle> candles, int period) {
   return trs.reduce((a, b) => a + b) / trs.length;
 }
 
-String buildPrompt(MarketSnapshot s) {
+String buildPrompt(MarketSnapshot s, {String? zoneFragment}) {
   final b = StringBuffer();
   b.writeln('Instrument: XAU/USD (gold spot).');
   b.writeln(
@@ -202,6 +261,7 @@ String buildPrompt(MarketSnapshot s) {
     'Paper account: balance \$${s.balance.toStringAsFixed(2)}, PnL today ${s.dayPnl.toStringAsFixed(2)}, auto trades today ${s.tradesToday}.',
   );
   b.writeln('Open position: ${s.openPosition ?? 'none'}.');
+  if (zoneFragment != null) b.write(zoneFragment);
   return b.toString();
 }
 
@@ -220,7 +280,8 @@ const _systemPrompt =
     'you would wait for a price, answer hold instead. Use high confidence '
     'only when the setup is genuinely strong: high trades right away, medium '
     'and low result in no trade. This is a paper account for learning to '
-    'trade. Never invent data.';
+    'trade. When proposed chart signal zones are included in the data, '
+    'also answer the zone keys requested there. Never invent data.';
 
 /// Stop/targets for a trade at [ref] (a real side price), from the user's
 /// SL/TP rule (lib/protection.dart): stop = ATR multiple (or % of price),
@@ -278,6 +339,8 @@ AiDecision parseDecision(
     return AiDecision.hold('Model returned unparseable JSON', raw: content);
   }
 
+  final zoneQual = zoneQualificationFromJson(j);
+
   var action = (j['action']?.toString().toLowerCase() ?? 'hold');
   if (action != 'buy' && action != 'sell') action = 'hold';
   var confidence = (j['confidence']?.toString().toLowerCase() ?? 'low');
@@ -291,6 +354,7 @@ AiDecision parseDecision(
     return AiDecision.hold(
       reason.isEmpty ? 'Model says hold' : reason,
       raw: content,
+      zoneQual: zoneQual,
     );
   }
 
@@ -313,6 +377,7 @@ AiDecision parseDecision(
     sizePct: sizePct,
     reason: reason,
     raw: content,
+    zoneQual: zoneQual,
   );
 }
 
@@ -337,7 +402,9 @@ const _adviceSystemPrompt =
     'never advise waiting for a price level. When you are not sure, set '
     'confidence low or verdict wait and nothing trades. '
     'Base the verdict on the support/resistance levels and recent structure '
-    'in the data. Choose wait when the picture is unclear. Never invent data.';
+    'in the data. Choose wait when the picture is unclear. When proposed '
+    'chart signal zones are included in the data, also answer the zone '
+    'keys requested there. Never invent data.';
 
 /// Prompt for the Advice button: same real market data as the auto-trade
 /// brain, plus swing support/resistance and the user's drawn chart levels.
@@ -346,6 +413,7 @@ String buildAdvicePrompt({
   required double ask,
   required List<Candle> candles,
   required List<double> drawnLevels,
+  String? zoneFragment,
 }) {
   final b = StringBuffer();
   b.writeln('Instrument: XAU/USD (gold spot).');
@@ -395,6 +463,7 @@ String buildAdvicePrompt({
       'User-drawn chart levels: ${sorted.map((e) => e.toStringAsFixed(1)).join(', ')}.',
     );
   }
+  if (zoneFragment != null) b.write(zoneFragment);
   b.writeln('Give your read: buy, sell, or wait, with short reasons.');
   return b.toString();
 }
@@ -467,6 +536,7 @@ AdviceResult parseAdvice(
     tp: tp,
     sizePct: sizePct,
     raw: content,
+    zoneQual: zoneQualificationFromJson(j),
   );
 }
 
@@ -477,11 +547,12 @@ class GroqBrain {
   Future<AiDecision> decide(
     MarketSnapshot s, {
     ProtectionSettings? protection,
+    String? zoneFragment,
   }) async {
     if (AiConfig.groqApiKey.isEmpty) {
       throw const BrainException('Add your Groq key in API settings');
     }
-    final user = buildPrompt(s);
+    final user = buildPrompt(s, zoneFragment: zoneFragment);
     var content = await _call(AiConfig.model, user);
     content ??= await _call(
       AiConfig.fallbackModel,
@@ -509,6 +580,7 @@ class GroqBrain {
     required List<Candle> candles,
     List<double> drawnLevels = const [],
     ProtectionSettings? protection,
+    String? zoneFragment,
   }) async {
     if (AiConfig.groqApiKey.isEmpty) {
       throw const BrainException('Add your Groq key in API settings');
@@ -518,6 +590,7 @@ class GroqBrain {
       ask: ask,
       candles: candles,
       drawnLevels: drawnLevels,
+      zoneFragment: zoneFragment,
     );
     var content = await _call(
       AiConfig.model,
