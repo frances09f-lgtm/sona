@@ -138,6 +138,11 @@ class CandleChartPanel extends StatefulWidget {
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
 
+  /// Automatic signal boxes (BUY at support / SELL at resistance) and the
+  /// daily (correct, wrong) count chip. Empty/null: feature hidden.
+  final List<SignalZone> signalZones;
+  final (int, int)? signalStats;
+
   const CandleChartPanel({
     super.key,
     this.loader,
@@ -151,6 +156,8 @@ class CandleChartPanel extends StatefulWidget {
     this.initialLayout,
     this.marketUpdates,
     this.marketSnapshot,
+    this.signalZones = const [],
+    this.signalStats,
   });
 
   @override
@@ -2374,6 +2381,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
               smaPeriod: 20,
               ema: emaOn ? ema(candles, emaPeriod) : null,
               emaPeriod: emaPeriod,
+              signalZones: widget.signalZones,
+              signalStats: widget.signalStats,
               rsi: rsiOn ? rsi(candles, rsiPeriod) : null,
               macdLine: macdOn
                   ? macd(
@@ -2790,6 +2799,13 @@ class StrategyLevelSegment {
   });
 }
 
+class SignalZone {
+  final bool isBuy;
+  final double low;
+  final double high;
+  const SignalZone({required this.isBuy, required this.low, required this.high});
+}
+
 class CandlePainter extends CustomPainter {
   final List<Candle> candles;
   final double? livePrice;
@@ -2832,6 +2848,8 @@ class CandlePainter extends CustomPainter {
   final bool sessionShading;
   final (double, double)? prevDayHL;
   final (double, double)? prevWeekHL;
+  final List<SignalZone> signalZones;
+  final (int, int)? signalStats;
   final double priceScale;
 
   /// Wall clock for the candle-close countdown; null hides the countdown.
@@ -2844,6 +2862,8 @@ class CandlePainter extends CustomPainter {
     this.sessionShading = false,
     this.prevDayHL,
     this.prevWeekHL,
+    this.signalZones = const [],
+    this.signalStats,
     this.now,
     this.showCountdown = false,
     this.priceScale = 1.0,
@@ -2940,6 +2960,10 @@ class CandlePainter extends CustomPainter {
       if (hl == null) continue;
       hi = math.max(hi, hl.$1);
       lo = math.min(lo, hl.$2);
+    }
+    for (final z in signalZones) {
+      hi = math.max(hi, z.high);
+      lo = math.min(lo, z.low);
     }
     final pad = math.max((hi - lo) * 0.05, 0.01);
     hi += pad;
@@ -3051,6 +3075,45 @@ class CandlePainter extends CustomPainter {
         }
       }
     }
+    // Signal zones: full-width translucent buy (support) / sell (resistance)
+    // boxes with a left-edge label, drawn under the candles.
+    for (final z in signalZones) {
+      final zc = z.isBuy ? bull : bear;
+      final zTop = y(z.high), zBot = y(z.low);
+      canvas.drawRect(
+        Rect.fromLTRB(0, zTop, plotW, zBot),
+        Paint()..color = zc.withValues(alpha: 0.10),
+      );
+      final edge = Paint()
+        ..color = zc.withValues(alpha: 0.55)
+        ..strokeWidth = 1;
+      canvas.drawLine(Offset(0, zTop), Offset(plotW, zTop), edge);
+      canvas.drawLine(Offset(0, zBot), Offset(plotW, zBot), edge);
+      final zLabel = TextPainter(
+        text: TextSpan(
+          text:
+              '${z.isBuy ? 'BUY' : 'SELL'} ${fmtAxisPrice(z.low)} - ${fmtAxisPrice(z.high)}',
+          style: TextStyle(
+            color: zc,
+            fontSize: 10,
+            fontFamily: 'Roboto',
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final zMidY = (zTop + zBot) / 2 - zLabel.height / 2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(4, zMidY - 2, zLabel.width + 8, zLabel.height + 4),
+          const Radius.circular(3),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.75),
+      );
+      zLabel.paint(canvas, Offset(8, zMidY));
+    }
+
     for (int i = fv0; i < iEnd; i++) {
       final c = eff[i];
       final up = c.close >= c.open;
@@ -3104,6 +3167,38 @@ class CandlePainter extends CustomPainter {
           ..strokeWidth = 1.6,
       );
     canvas.restore();
+    if (signalStats != null) {
+      final ss = signalStats!;
+      const chipStyle = TextStyle(
+        color: axis,
+        fontSize: 10,
+        fontFamily: 'Roboto',
+        height: 1,
+      );
+      final ok = TextPainter(
+        text: TextSpan(children: [
+          const TextSpan(text: 'Today: ', style: chipStyle),
+          TextSpan(
+            text: '${ss.$1} correct',
+            style: chipStyle.copyWith(color: bull, fontWeight: FontWeight.w700),
+          ),
+          const TextSpan(text: '  ·  ', style: chipStyle),
+          TextSpan(
+            text: '${ss.$2} wrong',
+            style: chipStyle.copyWith(color: bear, fontWeight: FontWeight.w700),
+          ),
+        ]),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(8, 6, ok.width + 12, ok.height + 6),
+          const Radius.circular(4),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.75),
+      );
+      ok.paint(canvas, const Offset(14, 9));
+    }
     // Previous day/week high-low reference lines (NY-close sessions,
     // TradingView/OANDA style). Dashed, subtle, labeled at the left edge.
     for (final spec in [
@@ -3881,6 +3976,8 @@ class FullscreenChartPage extends StatefulWidget {
   final ChartMarketSnapshot Function()? marketSnapshot;
   final VoidCallback? onReplay;
   final bool replayOn;
+  final List<SignalZone> signalZones;
+  final (int, int)? signalStats;
 
   /// Floating SELL/BUY pills over the chart (broker reference): the page
   /// reports the side; the caller opens its order flow.
@@ -3892,6 +3989,8 @@ class FullscreenChartPage extends StatefulWidget {
     this.onReplay,
     this.replayOn = false,
     this.onTradeSide,
+    this.signalZones = const [],
+    this.signalStats,
     this.livePrice,
     this.rangeMode = false,
     this.initialLayout,
@@ -4381,6 +4480,8 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   expand: true,
                                   chromeless: true,
                                   rangeMode: widget.rangeMode,
+                                  signalZones: widget.signalZones,
+                                  signalStats: widget.signalStats,
                                 ),
                               ),
                               // symbol + price overlay
