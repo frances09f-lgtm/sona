@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../sessions.dart';
 import 'candle_debug.dart';
 import 'market_data_provider.dart';
 import 'swissquote_provider.dart';
@@ -109,12 +110,6 @@ class TwelveDataCandleService implements HistoricalCandleService {
     // placeholder shape instead of the clock alone.
     if (interval.endsWith('min') || interval.endsWith('h')) {
       final filtered = dropClosedMarketPlaceholders(out);
-      final dropped = out.length - filtered.length;
-      if (dropped > 0) {
-        CandleDebugSink.recordError(name,
-            'dropped $dropped closed-market placeholder bars '
-            '(last kept: ${filtered.isEmpty ? 'none' : filtered.last.time.toUtc()})');
-      }
       if (filtered.isEmpty) {
         throw MarketDataException('zero usable candles from $name');
       }
@@ -137,37 +132,62 @@ class TwelveDataCandleService implements HistoricalCandleService {
 /// shows Friday's real close as stale, so chart and header disagree by
 /// dollars.
 ///
-/// Detection is deliberately data-driven, not clock-driven: the weekly
-/// close window shifts an hour with US DST, but a run of 8+ CONSECUTIVE
-/// bars with the open frozen to 0.02 USD and sub-1-USD ranges does not
-/// occur in a live market - quiet weekday sessions still move. A short
-/// quiet stretch therefore survives, and so does the one transition bar
-/// where the feed freezes mid-step.
+/// A bar is dropped only when BOTH conditions hold:
+///  1. Closed session: its timestamp falls inside a closure from
+///     [metalsMarketClosed] - the app's own session table (weekend from
+///     Friday 21:00 UTC to Sunday 21:00 UTC, plus the weekday 21:00-22:00
+///     UTC settlement break). A frozen run during legitimate weekday
+///     trading is NEVER touched, however quiet the market.
+///  2. Frozen signature: it belongs to a run of 8+ CONSECUTIVE bars each
+///     with the open frozen within 0.02 USD of the previous open and a
+///     high-low range of at most 1 USD. Real closed-window bars survive
+///     this: DST shifts the actual close/reopen by an hour against the
+///     nominal UTC table (November 2026 data: real bars ran to Friday
+///     22:00 UTC, reopen Sunday ~22:30 UTC), and those bars move, so the
+///     signature does not fire on them.
+///
+/// The first bar of a fetch has no predecessor, so it can only be judged
+/// when the run starting right after it reaches 8 bars: if it is frozen
+/// the same way and also inside a closure, it is the head of the same
+/// placeholder run (a Saturday 60-bar fetch otherwise returns one
+/// synthetic candle).
+///
+/// Dropped runs are reported to [CandleDebugSink] with their UTC window
+/// and count, so the raw provider behavior stays diagnosable.
 List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
   bool frozen(Candle c, Candle prev) =>
       (c.open - prev.open).abs() <= 0.02 && (c.high - c.low) <= 1.0;
+  bool closedBar(Candle c) => metalsMarketClosed(c.time.toUtc());
   final keep = List<bool>.filled(candles.length, true);
+  final dropped = <int>[];
   var runStart = -1;
   for (var i = 1; i <= candles.length; i++) {
     final isFrozen = i < candles.length && frozen(candles[i], candles[i - 1]);
     if (isFrozen && runStart < 0) runStart = i;
     if (!isFrozen && runStart >= 0) {
-      if (i - runStart >= 8) {
-        // A run that starts at bar 1 leaves bar 0 untestable (no
-        // predecessor). If it freezes the same open the same way, it is
-        // the head of the same placeholder run, not a live bar: a 60-bar
-        // Saturday fetch is otherwise returned as one synthetic candle.
+      if (i - runStart >= 8 &&
+          [for (var j = runStart; j < i; j++) candles[j]].every(closedBar)) {
         if (runStart == 1 &&
             (candles[0].open - candles[1].open).abs() <= 0.02 &&
-            (candles[0].high - candles[0].low) <= 1.0) {
+            (candles[0].high - candles[0].low) <= 1.0 &&
+            closedBar(candles[0])) {
           keep[0] = false;
+          dropped.add(0);
         }
         for (var j = runStart; j < i; j++) {
           keep[j] = false;
+          dropped.add(j);
         }
       }
       runStart = -1;
     }
+  }
+  if (dropped.isNotEmpty) {
+    CandleDebugSink.recordError(
+        'TwelveDataCandleService',
+        'dropped ${dropped.length} closed-market placeholder bars '
+        '${candles[dropped.first].time.toUtc()} .. '
+        '${candles[dropped.last].time.toUtc()}');
   }
   return [for (var i = 0; i < candles.length; i++) if (keep[i]) candles[i]];
 }
