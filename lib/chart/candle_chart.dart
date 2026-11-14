@@ -136,12 +136,19 @@ class CandleChartPanel extends StatefulWidget {
   /// toolbar, no OHLC/positions text - the bare chart. Controls live below
   /// the chart in the page (range chips, style, fullscreen).
   final bool chromeless;
+
+  /// When false, the panel does not load or follow the user's saved
+  /// drawings, strategies, overlay migration or selection sync. The BTC
+  /// practice chart uses this so gold's saved chart state never appears
+  /// on (or is overwritten from) another instrument's chart.
+  final bool personalOverlays;
   final Map<String, dynamic>? initialLayout;
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
 
   /// Automatic signal boxes (BUY at support / SELL at resistance) and the
-  /// daily (correct, wrong) count chip. Empty/null: feature hidden.
+  /// daily (correct, wrong) count chip. Empty/null: feature h    this.personalOverlays = true,
+idden.
   final List<SignalZone> signalZones;
   final (int, int)? signalStats;
 
@@ -524,7 +531,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
       for (final hl in [previousDayHL(candles), previousWeekHL(candles)]) {
         if (hl == null) continue;
         hi = hi > hl.$1 ? hi : hl.$1;
-        lo = lo < hl.$2 ? lo : hl.$2;
+        lo =    } else if (widget.personalOverlays) {
+ lo : hl.$2;
       }
     }
     return (hi, lo);
@@ -532,10 +540,14 @@ class CandleChartPanelState extends State<CandleChartPanel>
 
   @override
   void initState() {
-    super.initState();
-    usingRange =
-        widget.initialLayout?['rangeMode'] as bool? ?? widget.rangeMode;
-    if (usingRange) interval = tradeRanges[1];
+    super.initS    if (widget.personalOverlays) {
+      _loadLines();
+      _loadRects();
+      _loadChannels();
+      _loadRulers();
+      _loadStrategies();
+    }
+   if (usingRange) interval = tradeRanges[1];
     if (widget.initialLayout != null) {
       _restoreTools(widget.initialLayout!);
     } else {
@@ -609,9 +621,8 @@ class CandleChartPanelState extends State<CandleChartPanel>
       if (!mounted) return;
       if (showAsk != showAskLine) setState(() => showAskLine = showAsk);
       final mode = prefs.getString(kChartModePref);
-      if (mode == null) return;
-      final code = mode == 'range'
-          ? prefs.getString(kChartRangePref)
+      if (mode == null) return    if (widget.initialLayout != null || !widget.personalOverlays) return;
+ ? prefs.getString(kChartRangePref)
           : prefs.getString(kChartIntervalPref);
       if (code == null) return;
       applyChartSelection(range: mode == 'range', code: code);
