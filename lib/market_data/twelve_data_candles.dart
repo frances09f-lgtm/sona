@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../sessions.dart';
 import 'candle_debug.dart';
 import 'market_data_provider.dart';
 import 'swissquote_provider.dart';
@@ -133,22 +132,33 @@ class TwelveDataCandleService implements HistoricalCandleService {
 /// dollars.
 ///
 /// A bar is dropped only when BOTH conditions hold:
-///  1. Closed session: its timestamp falls inside a closure from
-///     [metalsMarketClosed] - the app's own session table (weekend from
-///     Friday 21:00 UTC to Sunday 21:00 UTC, plus the weekday 21:00-22:00
-///     UTC settlement break). A frozen run during legitimate weekday
-///     trading is NEVER touched, however quiet the market.
+///  1. Confirmed closed: its timestamp falls in the intersection of every
+///     cited closure window for the XAU/USD trading week:
+///       - this app's session table (sessions.dart): Fri 21:00 - Sun 21:00
+///       - CME gold futures (17:00-18:00 ET close/open): Fri 21:00 -
+///         Sun 22:00 UTC during US daylight time (ET = UTC-4), Fri 22:00 -
+///         Sun 23:00 UTC in standard time (ET = UTC-5)
+///       - broker OTC schedules (e.g. Exness): Fri 20:58/21:58 -
+///         Sun 22:05/23:05 UTC by DST half
+///       - Twelve Data's own feed, observed two November 2026 weekends:
+///         synthetic bars from Fri 22:15 UTC, real bars resume Sun
+///         ~22:30 UTC
+///     Closed in ALL of them means: all of Saturday, Friday from 22:00
+///     UTC (the latest cited close), and Sunday before 21:00 UTC (the
+///     earliest cited open). The one-hour DST edges (Fri 21:00-22:00,
+///     Sun 21:00-23:05) are NOT treated as closed: sources disagree
+///     there, so bars at those edges are always kept. The weekday
+///     settlement break is not filtered at all - its cited hours vary
+///     by source and it never produced the corruption.
 ///  2. Frozen signature: it belongs to a run of 8+ CONSECUTIVE bars each
 ///     with the open frozen within 0.02 USD of the previous open and a
-///     high-low range of at most 1 USD. Real closed-window bars survive
-///     this: DST shifts the actual close/reopen by an hour against the
-///     nominal UTC table (November 2026 data: real bars ran to Friday
-///     22:00 UTC, reopen Sunday ~22:30 UTC), and those bars move, so the
-///     signature does not fire on them.
+///     high-low range of at most 1 USD. A quiet weekday stretch never
+///     matches (wrong clock), and real bars at the cited edges never
+///     match (wrong signature): both guards must fire together.
 ///
 /// The first bar of a fetch has no predecessor, so it can only be judged
 /// when the run starting right after it reaches 8 bars: if it is frozen
-/// the same way and also inside a closure, it is the head of the same
+/// the same way and also confirmed-closed, it is the head of the same
 /// placeholder run (a Saturday 60-bar fetch otherwise returns one
 /// synthetic candle).
 ///
@@ -157,7 +167,17 @@ class TwelveDataCandleService implements HistoricalCandleService {
 List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
   bool frozen(Candle c, Candle prev) =>
       (c.open - prev.open).abs() <= 0.02 && (c.high - c.low) <= 1.0;
-  bool closedBar(Candle c) => metalsMarketClosed(c.time.toUtc());
+  // The conservative intersection described above. Clock-based, but it
+  // is the region no cited source - futures, broker OTC, or the
+  // provider's own observed behavior - treats as open, so DST shifts of
+  // any single schedule cannot reach it.
+  bool closedBar(Candle c) {
+    final u = c.time.toUtc();
+    if (u.weekday == DateTime.saturday) return true;
+    if (u.weekday == DateTime.sunday && u.hour < 21) return true;
+    if (u.weekday == DateTime.friday && u.hour >= 22) return true;
+    return false;
+  }
   final keep = List<bool>.filled(candles.length, true);
   final dropped = <int>[];
   var runStart = -1;
