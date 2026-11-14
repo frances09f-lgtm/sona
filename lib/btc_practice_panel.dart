@@ -7,9 +7,7 @@ import 'btc_feed.dart';
 import 'btc_paper.dart';
 import 'chart/candle_chart.dart';
 import 'chart/chart_tools.dart';
-import 'market_data/models.dart';
 
-const _kBg = Color(0xFF10182A);
 const _kCard = Color(0xFF171A21);
 const _kBorder = Color(0xFF232834);
 const _kDim = Color(0xFF8A93A5);
@@ -45,7 +43,10 @@ String btcQty(num? n) {
 /// refreshed rarely. Gold's quote path is never touched.
 class BtcQuoteState extends ChangeNotifier {
   final BinanceBtcFeed feed;
-  BtcQuoteState({BinanceBtcFeed? feed}) : feed = feed ?? BinanceBtcFeed();
+  final DateTime Function() _now;
+  BtcQuoteState({BinanceBtcFeed? feed, DateTime Function()? now})
+      : feed = feed ?? BinanceBtcFeed(),
+        _now = now ?? DateTime.now;
 
   double? bid, ask, price;
   int? priceAt;
@@ -55,10 +56,20 @@ class BtcQuoteState extends ChangeNotifier {
 
   Timer? _timer;
   int _ticks = 0;
+  int _failStreak = 0;
+  int _lastFailAt = 0;
 
   bool get fresh =>
-      priceAt != null &&
-      DateTime.now().millisecondsSinceEpoch - priceAt! < 10000;
+      priceAt != null && _now().millisecondsSinceEpoch - priceAt! < 10000;
+
+  /// Seconds to wait before retrying after consecutive failures
+  /// (1, 2, 4, ... capped at 30) so a rate-limited or unreachable
+  /// feed is not hammered every second.
+  int get backoffSeconds {
+    if (_failStreak <= 0) return 0;
+    final s = 1 << (_failStreak - 1);
+    return s > 30 ? 30 : s;
+  }
 
   void start() {
     _timer ??= Timer.periodic(const Duration(seconds: 1), (_) => _tick());
@@ -70,16 +81,24 @@ class BtcQuoteState extends ChangeNotifier {
     _timer = null;
   }
 
+  @visibleForTesting
+  Future<void> tick() => _tick();
+
   Future<void> _tick() async {
+    if (_failStreak > 0) {
+      final waited = _now().millisecondsSinceEpoch - _lastFailAt;
+      if (waited < backoffSeconds * 1000) return;
+    }
     try {
       final q = await feed.fetchQuote();
       bid = q.bid;
       ask = q.ask;
       price = (q.bid + q.ask) / 2;
-      priceAt = DateTime.now().millisecondsSinceEpoch;
+      priceAt = _now().millisecondsSinceEpoch;
       liveTicks.add((priceAt!, q.bid));
       if (liveTicks.length > 300) liveTicks.removeAt(0);
       error = null;
+      _failStreak = 0;
       _ticks++;
       if (_ticks % 30 == 1) {
         unawaited(
@@ -90,6 +109,8 @@ class BtcQuoteState extends ChangeNotifier {
         );
       }
     } catch (e) {
+      _failStreak++;
+      _lastFailAt = _now().millisecondsSinceEpoch;
       error = e is BtcFeedException ? e.message : 'BTC feed unavailable.';
     }
     notifyListeners();
@@ -115,7 +136,8 @@ class BtcPracticePanel extends StatefulWidget {
   State<BtcPracticePanel> createState() => BtcPracticePanelState();
 }
 
-class BtcPracticePanelState extends State<BtcPracticePanel> {
+class BtcPracticePanelState extends State<BtcPracticePanel>
+    with WidgetsBindingObserver {
   final btcChartKey = GlobalKey<CandleChartPanelState>();
   late final BinanceBtcFeed feed = widget.feedOverride ?? BinanceBtcFeed();
   late final BtcQuoteState quote = BtcQuoteState(feed: feed);
@@ -133,6 +155,18 @@ class BtcPracticePanelState extends State<BtcPracticePanel> {
     });
     quote.addListener(_onTick);
     quote.start();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// The Binance poll runs only while the app is foregrounded: background
+  /// polling wastes battery and can trip the API's rate limits.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      quote.start();
+    } else {
+      quote.stop();
+    }
   }
 
   void _onTick() {
@@ -152,6 +186,7 @@ class BtcPracticePanelState extends State<BtcPracticePanel> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     quote.removeListener(_onTick);
     quote.dispose();
     super.dispose();
