@@ -3959,11 +3959,14 @@ class PendingOrderRemoveButton extends StatelessWidget {
     tooltip: 'Remove order',
     icon: const Icon(Icons.delete_outline),
     onPressed: () async {
+      final terminal = order.status == 'filled' || order.status == 'expired';
       String message;
       try {
         final removed = await app.removePending(order.id);
         message = removed
-            ? 'Pending order removed completely.'
+            ? (terminal
+                ? 'Record removed. Positions and history stay unchanged.'
+                : 'Pending order removed completely.')
             : 'Order is no longer waiting. Check its status and positions.';
       } catch (_) {
         message = 'Could not save removal. Order was not removed. Try again.';
@@ -4010,7 +4013,10 @@ class PendingOrdersPanel extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (o.status == 'pending' || o.status == 'cancelled')
+                        if (o.status == 'pending' ||
+                            o.status == 'cancelled' ||
+                            o.status == 'filled' ||
+                            o.status == 'expired')
                           PendingOrderRemoveButton(app: app, order: o),
                       ],
                     ),
