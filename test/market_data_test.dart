@@ -111,6 +111,116 @@ void main() {
       expect(() => s.fetchCandles(Instrument.xauUsd),
           throwsA(isA<MarketDataException>()));
     });
+
+    test('drops the frozen closed-market placeholder run, keeps real bars',
+        () async {
+      // Shape verified against the live feed on Nov 14-15, 2026: real
+      // Friday bars (multi-dollar ranges), then from Friday 22:15 UTC a
+      // run of synthetic bars with frozen opens and ~0.2 USD ranges.
+      final buf = StringBuffer('{"status":"ok","values":[');
+      String bar(String dt, double o, double h, double l, double c) =>
+          '{"datetime":"$dt","open":"$o","high":"$h","low":"$l",'
+          '"close":"$c","volume":"0"}';
+      final bars = <String>[
+        bar('2026-11-13 21:45:00', 3874.14, 3882.14, 3874.14, 3878.58),
+        bar('2026-11-13 22:00:00', 3878.27, 3878.27, 3874.41, 3874.84),
+        // transition bar where the feed freezes mid-step: survives.
+        bar('2026-11-13 22:15:00', 3875.18, 3875.18, 3874.38, 3874.50),
+      ];
+      for (var i = 0; i < 20; i++) {
+        final t = DateTime.utc(2026, 11, 13, 22, 30).add(
+            Duration(minutes: 15 * i));
+        final dt =
+            '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+        bars.add(bar(dt, 3874.4327, 3874.61, 3874.38, 3874.47));
+      }
+      // Real reopening bar on Sunday evening: must survive.
+      bars.add(bar('2026-11-08 22:30:00', 4067.25, 4068.50, 4066.64, 4066.85)
+          .replaceFirst('2026-11-08', '2026-11-15'));
+      buf.writeAll(bars.reversed, ','); // API returns newest-first
+      buf.write(']}');
+      final s = TwelveDataCandleService(
+          apiKey: 'k', client: fakeClient(200, buf.toString()));
+      final candles =
+          await s.fetchCandles(Instrument.xauUsd, interval: '15min');
+      // 3 real Friday bars + the first frozen bar (indistinguishable from
+      // a real bar: its open moved from the previous real bar) + the real
+      // Sunday bar. The other 19 frozen bars are gone.
+      expect(candles.length, 5);
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 15, 22, 30));
+      expect(candles[2].time.toUtc(), DateTime.utc(2026, 11, 13, 22, 15));
+    });
+
+    test('all-placeholder fetch throws honestly (AutoTrade skips, '
+        'never signals on synthetic bars)', () async {
+      // Saturday: AutoTrade's 60-bar fetch (auto_trade.dart) lands
+      // entirely inside the closed market. Every bar is a placeholder, so
+      // the filter empties the series and fetchCandles throws; AutoTrade's
+      // catch logs "No candle data - skipped" and no signal is computed
+      // on fabricated prices.
+      final buf = StringBuffer('{"status":"ok","values":[');
+      final bars = <String>[
+        for (var i = 0; i < 60; i++)
+          () {
+            final t = DateTime.utc(2026, 11, 14, 3, 0)
+                .add(Duration(minutes: 15 * i));
+            final dt =
+                '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+            return '{"datetime":"$dt","open":"3874.43","high":"3874.61",'
+                '"low":"3874.38","close":"3874.47","volume":"0"}';
+          }(),
+      ];
+      buf.writeAll(bars.reversed, ',');
+      buf.write(']}');
+      final s = TwelveDataCandleService(
+          apiKey: 'k', client: fakeClient(200, buf.toString()));
+      await expectLater(
+          s.fetchCandles(Instrument.xauUsd, interval: '15min', limit: 60),
+          throwsA(isA<MarketDataException>()));
+    });
+  });
+
+  group('dropClosedMarketPlaceholders', () {
+    Candle bar(int i, double open, double range) => Candle(
+        time: DateTime.utc(2026, 11, 14).add(Duration(minutes: 15 * i)),
+        open: open,
+        high: open + range,
+        low: open,
+        close: open + range / 2);
+
+    test('drops a long frozen run anywhere in the series', () {
+      final cs = <Candle>[
+        for (var i = 0; i < 5; i++) bar(i, 3900 + i * 3.0, 20.0),
+        for (var i = 5; i < 25; i++) bar(i, 3874.43, 0.23),
+        bar(25, 3900.0, 18.0),
+      ];
+      // First frozen bar survives: from the preceding real bar its open
+      // moved, so nothing marks it. The other 19 are dropped.
+      final kept = dropClosedMarketPlaceholders(cs);
+      expect(kept.length, 7);
+      expect(kept.last.close, 3909.0);
+    });
+
+    test('keeps short quiet stretches - they can be a live market', () {
+      final cs = <Candle>[
+        for (var i = 0; i < 3; i++) bar(i, 3900 + i * 2.0, 15.0),
+        // 7 frozen bars: below the run-length bar, all kept.
+        for (var i = 3; i < 10; i++) bar(i, 3874.43, 0.23),
+        bar(10, 3900.0, 15.0),
+      ];
+      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+    });
+
+    test('keeps real bars whose opens move, however quiet', () {
+      // 10 flat-ish bars but each open steps 0.5 - a drifting market,
+      // not a frozen feed.
+      final cs = <Candle>[
+        for (var i = 0; i < 10; i++) bar(i, 3874.0 + i * 0.5, 0.8),
+      ];
+      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+    });
   });
 
   group('RealtimePriceStream', () {
