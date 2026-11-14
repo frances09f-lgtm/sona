@@ -213,6 +213,25 @@ void main() {
       expect(dropClosedMarketPlaceholders(cs).length, cs.length);
     });
 
+    test('keeps a long frozen run during legitimate WEEKDAY trading', () {
+      // The closed-session guard is load-bearing: a quiet weekday stretch
+      // with frozen-looking bars is real market data and must survive
+      // even past the run-length bar. Tuesday 03:00 UTC, 20 frozen bars.
+      final cs = <Candle>[
+        for (var i = 0; i < 3; i++) bar(i, 3900 + i * 2.0, 15.0),
+        for (var i = 3; i < 23; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 10, 3, 0)
+                  .add(Duration(minutes: 15 * i)),
+              open: 3874.43,
+              high: 3874.66,
+              low: 3874.43,
+              close: 3874.55),
+        bar(23, 3900.0, 15.0),
+      ];
+      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+    });
+
     test('keeps real bars whose opens move, however quiet', () {
       // 10 flat-ish bars but each open steps 0.5 - a drifting market,
       // not a frozen feed.
