@@ -199,7 +199,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     final bar = _barDuration(interval.code);
     if (bar == null) return candles;
     final last = candles.last;
-    final now = DateTime.now();
+    final now = chartNow(); // frozen under flutter_test: stable goldens
     if (now.isBefore(last.time)) {
       return candles; // provider data ahead of the clock: leave it alone
     }
@@ -482,7 +482,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
   List<Candle> get _drawn => _liveCandles;
 
   /// Deterministic clock under flutter_test so goldens never flake.
-  static DateTime _chartNow() {
+  static DateTime chartNow() {
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       return DateTime(2026, 10, 7, 13, 59, 42);
     }
@@ -2388,7 +2388,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
-              now: _chartNow(),
+              now: chartNow(),
               reserveTopLeft: widget.chromeless && widget.expand,
               showCountdown: market.fresh,
               bid: market.bid,
