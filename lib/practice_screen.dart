@@ -76,7 +76,91 @@ int? practicePauseIndexFor(
     if (hi - lo >= minSpan) good.add(pause);
   }
   if (good.isEmpty) return window + rng.nextInt(max - window + 1);
-  return good[rng.nextInt(good.length)];
+  // User request Nov 15: prefer pauses where a strong directional move ran
+  // into the stop; fall back to any active window when none qualifies.
+  final strong = [
+    for (final pause in good)
+      if (practiceHasStrongMove(candles, pause, ranges[ranges.length ~/ 2]))
+        pause,
+  ];
+  final pool = strong.isEmpty ? good : strong;
+  return pool[rng.nextInt(pool.length)];
+}
+
+/// Picks a practice pause like [practicePauseIndexFor] and also reports
+/// whether the chosen pause sits right after a strong directional move.
+/// When no pause in the whole fetch qualifies (quiet feed), the picker
+/// falls back to an active window and reports strong=false so the UI can
+/// say so honestly instead of implying a strong setup. User request Nov 15,
+/// review note Nov 15: never silently degrade the strong-move requirement.
+(int, bool) practicePickPause(
+  List<Candle> candles,
+  Random rng, {
+  int window = practiceWindow,
+  int horizon = practiceHorizon,
+}) {
+  final pause = practicePauseIndexFor(candles, rng,
+      window: window, horizon: horizon);
+  if (pause == null) return (window, false);
+  final ranges = candles.map((c) => c.high - c.low).toList()..sort();
+  final strong =
+      practiceHasStrongMove(candles, pause, ranges[ranges.length ~/ 2]);
+  return (pause, strong);
+}
+
+/// True when the [lookback] candles right before [pause] make one strong
+/// directional move (up or down): their net close-to-close travel clears
+/// [mult] times the fetch's median bar range. User request Nov 15: a
+/// practice question should come after a strong move, not a drift.
+bool practiceHasStrongMove(
+  List<Candle> candles,
+  int pause,
+  double medianRange, {
+  int lookback = 8,
+  double mult = 3.0,
+}) {
+  if (pause - 1 - lookback < 0 || pause > candles.length) return false;
+  final net =
+      (candles[pause - 1].close - candles[pause - 1 - lookback].close).abs();
+  return net >= mult * medianRange;
+}
+
+/// Visible candle slice for the practice chart under pan/zoom.
+///
+/// Default (pan 0, no explicit zoom) reproduces the original behavior
+/// exactly: the whole revealed window from [fitStart] to [revealedEnd]
+/// squeezed on screen. Panning shifts the window toward older candles but
+/// never past index 0 or beyond [revealedEnd] - candles at or after
+/// [revealedEnd] are still hidden, so no future can leak. An explicit
+/// [visible] count (pinch zoom) changes how many candles fit the screen.
+(int, int) practiceVisibleSlice({
+  required int fitStart,
+  required int revealedEnd,
+  double pan = 0,
+  int? visible,
+}) {
+  assert(fitStart >= 0 && revealedEnd >= fitStart);
+  final p = pan < 0 ? 0.0 : pan;
+  if (visible == null) {
+    var start = fitStart - p;
+    var end = revealedEnd - p;
+    if (start < 0) {
+      end -= start;
+      start = 0;
+    }
+    if (end > revealedEnd) end = revealedEnd.toDouble();
+    return (start.round(), end.round());
+  }
+  final v = visible.clamp(5, revealedEnd);
+  var end = revealedEnd - p;
+  if (end > revealedEnd) end = revealedEnd.toDouble();
+  var start = end - v;
+  if (start < 0) {
+    start = 0;
+    end = v.toDouble();
+  }
+  if (end > revealedEnd) end = revealedEnd.toDouble();
+  return (start.round(), end.round());
 }
 
 /// Practice mode: replays real historical XAU/USD 15-minute candles fast,
@@ -117,6 +201,14 @@ class _PracticeScreenState extends State<PracticeScreen> {
   int _streak = 0;
   int _best = 0;
 
+  // Chart pan/zoom (user request Nov 15): pan roams older candles to check
+  // support/resistance; pinch changes how many candles fit the screen.
+  // _visibleCount null means the original fit-all-revealed rendering.
+  double _pan = 0;
+  bool _roundStrong = true;
+  int? _visibleCount;
+  double _scaleBase = 1;
+
   @override
   void initState() {
     super.initState();
@@ -141,7 +233,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
     try {
       final loader = widget.loadCandles ??
           () => TwelveDataCandleService(apiKey: MarketDataConfig.apiKey)
-              .fetchCandles(Instrument.xauUsd, interval: '15min', limit: 300);
+              .fetchCandles(Instrument.xauUsd, interval: '15min', limit: 5000);
       final cs = await loader();
       if (!mounted) return;
       setState(() {
@@ -162,8 +254,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   void _startRound() {
     final cs = _candles;
     if (cs == null) return;
-    final pause = practicePauseIndexFor(cs, _rng);
-    if (pause == null) {
+    final (pause, strong) = practicePickPause(cs, _rng);
+    if (cs.length < practiceWindow + practiceHorizon) {
       setState(() => _error =
           'Not enough candle history for a practice round (${cs.length} candles).');
       return;
@@ -174,6 +266,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _shown = 0;
       _verdict = null;
       _phase = _Phase.replaying;
+      _pan = 0;
+      _visibleCount = null;
+      _roundStrong = strong;
     });
     final ms = max(40, 1000 ~/ _speed);
     _timer = Timer.periodic(Duration(milliseconds: ms), (t) {
@@ -266,9 +361,24 @@ class _PracticeScreenState extends State<PracticeScreen> {
   Widget _buildReady() {
     final cs = _candles!;
     final start = _pause - practiceWindow;
-    final visible = _phase == _Phase.idle
-        ? const <Candle>[]
-        : cs.sublist(start, start + _shown);
+    final revealedEnd = start + _shown;
+    // Pan/zoom apply only once the replay has stopped moving (question and
+    // result): the stop stays the newest candle the user can see, and pan
+    // is clamped by practiceVisibleSlice so hidden candles never leak.
+    final interactive =
+        _phase == _Phase.question || _phase == _Phase.result;
+    final (vStart, vEnd) = _phase == _Phase.idle
+        ? (0, 0)
+        : interactive
+            ? practiceVisibleSlice(
+                fitStart: start,
+                revealedEnd: revealedEnd,
+                pan: _pan,
+                visible: _visibleCount,
+              )
+            : (start, revealedEnd);
+    final visible = cs.sublist(vStart, vEnd);
+    final onScreen = max(1, vEnd - vStart);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -282,11 +392,47 @@ class _PracticeScreenState extends State<PracticeScreen> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _PracticeChartPainter(
-                      visible,
-                      markLast: _phase != _Phase.idle,
-                    ),
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      const padL = 8.0, padR = 64.0;
+                      final candleW =
+                          (box.maxWidth - padL - padR) / onScreen;
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        // One recognizer for both: a one-finger drag pans
+                        // (scale stays 1), a two-finger pinch zooms. The
+                        // scale recognizer wins the arena over a separate
+                        // drag recognizer, so pan must ride on it.
+                        onScaleStart: !interactive
+                            ? null
+                            : (d) => _scaleBase =
+                                (_visibleCount ?? onScreen).toDouble(),
+                        onScaleUpdate: !interactive
+                            ? null
+                            : (d) => setState(() {
+                                  if (d.pointerCount > 1 ||
+                                      (d.scale - 1).abs() >= 0.01) {
+                                    _visibleCount = (_scaleBase / d.scale)
+                                        .round()
+                                        .clamp(15, revealedEnd);
+                                  }
+                                  // Content follows the finger: dragging right
+                                  // reveals older candles (pan grows).
+                                  _pan += d.focalPointDelta.dx / candleW;
+                                  final maxPan = _visibleCount == null
+                                      ? start.toDouble()
+                                      : max(0.0,
+                                          revealedEnd - _visibleCount! + .0);
+                                  _pan = _pan.clamp(0.0, maxPan);
+                                }),
+                        child: CustomPaint(
+                          painter: _PracticeChartPainter(
+                            visible,
+                            markLast: _phase != _Phase.idle && _pan == 0,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 if (_phase == _Phase.idle)
@@ -300,11 +446,22 @@ class _PracticeScreenState extends State<PracticeScreen> {
             ),
           ),
         ),
-        if (_phase == _Phase.question)
+        if (_phase == _Phase.question) ...[
+          if (!_roundStrong)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 6),
+              child: Text(
+                'Quiet stretch: no strong move found in the loaded history, '
+                'showing the best available setup. Tap New round to retry.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _kDim, fontSize: 12),
+              ),
+            ),
           _AskBar(
             onUp: () => _answer('up'),
             onDown: () => _answer('down'),
           ),
+        ],
         if (_phase == _Phase.result && _verdict != null)
           _ResultBar(outcome: _verdict!, move: _move),
         const SizedBox(height: 12),
