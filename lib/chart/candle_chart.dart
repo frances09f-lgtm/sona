@@ -3186,7 +3186,10 @@ class CandlePainter extends CustomPainter {
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      final zMidY = (zTop + zBot) / 2 - zLabel.height / 2;
+      // Keep the label clear of the "Today" stats chip painted over the
+      // top-left corner (chip bottom is ~22px: y=6 + 10pt text + padding).
+      final zMidY = math.max((zTop + zBot) / 2 - zLabel.height / 2,
+          signalStats != null ? 26.0 : 0.0);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(4, zMidY - 2, zLabel.width + 8, zLabel.height + 4),
