@@ -97,6 +97,77 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException('zero usable candles from $name');
     }
     out.sort((a, b) => a.time.compareTo(b.time)); // oldest-first
+    // Twelve Data keeps emitting synthetic XAU/USD bars after the metals
+    // market closes (verified Nov 14, 2026: from Friday 22:15 UTC through
+    // the weekend every bar had a frozen open and a ~0.2 USD high-low
+    // wiggle while Swissquote sat at Friday's real close). Rendered raw,
+    // ~90 of these fill the chart window and the auto-scale blows each
+    // 0.2-range placeholder up to full height - the "wall of slivers"
+    // bug. Drop intraday bars that sit inside the known closed window AND
+    // match the flat signature; real bars can never exist in that window,
+    // and the range check keeps the filter glued to the observed
+    // placeholder shape instead of the clock alone.
+    if (interval.endsWith('min') || interval.endsWith('h')) {
+      final filtered = dropClosedMarketPlaceholders(out);
+      final dropped = out.length - filtered.length;
+      if (dropped > 0) {
+        CandleDebugSink.recordError(name,
+            'dropped $dropped closed-market placeholder bars '
+            '(last kept: ${filtered.isEmpty ? 'none' : filtered.last.time.toUtc()})');
+      }
+      if (filtered.isEmpty) {
+        throw MarketDataException('zero usable candles from $name');
+      }
+      return filtered;
+    }
     return out;
   }
+}
+
+/// Drops synthetic closed-market placeholder runs from Twelve Data's
+/// XAU/USD intraday feed.
+///
+/// Verified against the live feed (user report Nov 15, 2026): after the
+/// Friday ~22:15 UTC close until the Sunday ~22:30 UTC reopen the feed
+/// keeps emitting 15-minute bars whose open is frozen to within cents of
+/// the previous bar's open and whose high-low range stays around 0.2 USD,
+/// while real 15-minute bars in the same fetch range 20-36 USD. Rendered
+/// raw, ~90 of these fill the chart on a Saturday and the auto-scale blows
+/// each placeholder up to a full-height sliver; the quote row correctly
+/// shows Friday's real close as stale, so chart and header disagree by
+/// dollars.
+///
+/// Detection is deliberately data-driven, not clock-driven: the weekly
+/// close window shifts an hour with US DST, but a run of 8+ CONSECUTIVE
+/// bars with the open frozen to 0.02 USD and sub-1-USD ranges does not
+/// occur in a live market - quiet weekday sessions still move. A short
+/// quiet stretch therefore survives, and so does the one transition bar
+/// where the feed freezes mid-step.
+List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
+  bool frozen(Candle c, Candle prev) =>
+      (c.open - prev.open).abs() <= 0.02 && (c.high - c.low) <= 1.0;
+  final keep = List<bool>.filled(candles.length, true);
+  var runStart = -1;
+  for (var i = 1; i <= candles.length; i++) {
+    final isFrozen = i < candles.length && frozen(candles[i], candles[i - 1]);
+    if (isFrozen && runStart < 0) runStart = i;
+    if (!isFrozen && runStart >= 0) {
+      if (i - runStart >= 8) {
+        // A run that starts at bar 1 leaves bar 0 untestable (no
+        // predecessor). If it freezes the same open the same way, it is
+        // the head of the same placeholder run, not a live bar: a 60-bar
+        // Saturday fetch is otherwise returned as one synthetic candle.
+        if (runStart == 1 &&
+            (candles[0].open - candles[1].open).abs() <= 0.02 &&
+            (candles[0].high - candles[0].low) <= 1.0) {
+          keep[0] = false;
+        }
+        for (var j = runStart; j < i; j++) {
+          keep[j] = false;
+        }
+      }
+      runStart = -1;
+    }
+  }
+  return [for (var i = 0; i < candles.length; i++) if (keep[i]) candles[i]];
 }
