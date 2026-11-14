@@ -7,6 +7,8 @@ import 'btc_feed.dart';
 import 'btc_paper.dart';
 import 'chart/candle_chart.dart';
 import 'chart/chart_tools.dart';
+import 'market_data/models.dart';
+import 'signal_zones.dart';
 
 const _kCard = Color(0xFF171A21);
 const _kBorder = Color(0xFF232834);
@@ -124,8 +126,24 @@ class BtcQuoteState extends ChangeNotifier {
 }
 
 /// The approved BTC weekend-practice surface: live chart, manual paper
-/// trades with TP/SL, and a phone-local USDT practice balance. Signals,
-/// alerts, AutoTrade and AI advice stay gold-only (visible note below).
+/// trades with TP/SL, and a phone-local USDT practice balance (balance
+/// row hidden at the user's request; the ledger itself is untouched).
+/// Signals: rule-based BUY/SELL boxes without AI qualification (approved
+/// Nov 14, user chose this over gold's AI-qualified flow) with offsets
+/// scaled to BTC's price - documented on the panel as an unvalidated
+/// heuristic. Alerts, AutoTrade and AI advice stay gold-only.
+
+/// BTC signal-box scoring (user-approved Nov 14, rule-based, no AI
+/// filtering): the same RELATIVE geometry as gold's approved
+/// $3.00/$1.50 at gold's ~3,900 tuning price, expressed as fractions of
+/// price. Each box's offsets are computed from the real BTC price at the
+/// moment it is drawn and then stay fixed forever (same immutability as
+/// gold). Heuristic, NOT validated performance.
+const double kBtcSignalTargetPct = 3.0 / 3900.0; // 0.077%
+const double kBtcSignalInvalidationPct = 1.5 / 3900.0; // 0.038%
+const double kBtcZoneHalfHeightPct = 0.75 / 3900.0;
+const double kBtcSignalTouchTolerancePct = 1.0 / 3900.0;
+const String kBtcSignalPrefsKey = 'sona_btc_signal_boxes_v1';
 class BtcPracticePanel extends StatefulWidget {
   /// Test hooks.
   final BinanceBtcFeed? feedOverride;
@@ -142,6 +160,16 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
   late final BinanceBtcFeed feed = widget.feedOverride ?? BinanceBtcFeed();
   late final BtcQuoteState quote = BtcQuoteState(feed: feed);
   final BtcPaperState paper = BtcPaperState();
+
+  /// BTC's own box history under its own key; gold's manager and stored
+  /// boxes are never touched.
+  final SignalBoxManager signals = SignalBoxManager(
+    prefsKey: kBtcSignalPrefsKey,
+    targetPct: kBtcSignalTargetPct,
+    invalidationPct: kBtcSignalInvalidationPct,
+    zoneHalfHeightPct: kBtcZoneHalfHeightPct,
+    touchTolerancePct: kBtcSignalTouchTolerancePct,
+  );
   SharedPreferences? prefs;
   String? notice;
 
@@ -151,6 +179,7 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
     SharedPreferences.getInstance().then((p) async {
       prefs = p;
       await paper.load(p);
+      await signals.load(p);
       if (mounted) setState(() {});
     });
     quote.addListener(_onTick);
@@ -180,8 +209,49 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
       if (closed.isNotEmpty && mounted) {
         setState(() => notice = 'BTC practice position closed by TP/SL.');
       }
+      if (signals.onTick(DateTime.now().millisecondsSinceEpoch,
+          (quote.bid! + quote.ask!) / 2)) {
+        unawaited(signals.save(p));
+      }
     }
     if (mounted) setState(() {});
+  }
+
+  /// Test entry into the production candle path (the widget's loader
+  /// calls this on every real refresh).
+  @visibleForTesting
+  Future<void> debugSignalCandles(List<Candle> candles) =>
+      _signalCandles(candles);
+
+  /// Candle refresh: score live boxes, then - because BTC boxes are
+  /// rule-based with no AI qualification (user-approved Nov 14) - draw
+  /// freshly detected setups directly, one per free direction slot.
+  Future<void> _signalCandles(List<Candle> candles) async {
+    final p = prefs;
+    if (p == null || candles.isEmpty) return;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final mid = (quote.bid != null && quote.ask != null)
+        ? (quote.bid! + quote.ask!) / 2
+        : quote.price;
+    if (mid == null) return;
+    var changed = signals.onCandles(candles, mid, nowMs);
+    if (signals.needsSetup) {
+      final c = signals.candidates(candles, mid, nowMs);
+      final buys = c.where((z) => z.isBuy);
+      final sells = c.where((z) => !z.isBuy);
+      if (buys.isNotEmpty) {
+        signals.addBox(buys.first, nowMs, price: mid);
+        changed = true;
+      }
+      if (sells.isNotEmpty) {
+        signals.addBox(sells.first, nowMs, price: mid);
+        changed = true;
+      }
+    }
+    if (changed) {
+      await signals.save(p);
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -491,8 +561,19 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
                     interval: spec.$1,
                     limit: spec.$2,
                   );
-                  return trimTradeRange(data, iv);
+                  final trimmed = trimTradeRange(data, iv);
+                  unawaited(_signalCandles(trimmed));
+                  return trimmed;
                 },
+            signalZones: [
+              for (final b in signals.displayBoxes)
+                SignalZone(isBuy: b.isBuy, low: b.low, high: b.high),
+            ],
+            signalStats: signals
+                    .hasAnythingToday(DateTime.now().millisecondsSinceEpoch)
+                ? signals
+                    .todayStats(DateTime.now().millisecondsSinceEpoch)
+                : null,
             marketUpdates: quote,
             marketSnapshot: () => ChartMarketSnapshot(
               price: quote.price,
@@ -535,40 +616,6 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
             const SizedBox(width: 12),
             _sideButton('SELL', bid, _kRed),
           ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _kCard,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _kBorder),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: _balanceCol(
-                    'Practice balance', '${btcFmt(paper.balance)} USDT'),
-              ),
-              Expanded(
-                child: _balanceCol(
-                  'Equity',
-                  bid != null && ask != null
-                      ? '${btcFmt(paper.equity(bid, ask))} USDT'
-                      : '--',
-                ),
-              ),
-              Expanded(
-                child: _balanceCol(
-                  'Free margin',
-                  bid != null && ask != null
-                      ? '${btcFmt(paper.free(bid, ask))} USDT'
-                      : '--',
-                ),
-              ),
-            ],
-          ),
         ),
         if (notice != null)
           Padding(
@@ -630,29 +677,14 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
               ),
             ),
         ],
-        _note('Signals, alerts and AI advice stay on Gold in this version'),
+        _note('Signals: rule-based BUY/SELL boxes, no AI check. '
+            'Target/stop distance: 0.077%/0.038% of BTC price '
+            '(~52/26 USDT at 67,000) - heuristic, not validated. '
+            'Alerts, AutoTrade and AI advice stay on Gold'),
         _note(
             'Practice TP/SL triggers only while Sona is open with a live BTC feed.'),
       ],
     );
   }
 
-  Widget _balanceCol(String label, String value) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: const TextStyle(color: _kDim, fontSize: 11),
-        overflow: TextOverflow.ellipsis,
-      ),
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Text(
-          value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-      ),
-    ],
-  );
 }
