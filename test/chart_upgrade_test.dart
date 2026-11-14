@@ -457,7 +457,7 @@ void main() {
       await loadFonts();
       // 15m bars (default interval), last bar closed ~20 minutes ago:
       // ~1.3 bars of lag, inside the 3-bar synthesis cap.
-      final now = DateTime.now();
+      final now = CandleChartPanelState.chartNow();
       final bars = List.generate(
         50,
         (i) => Candle(
