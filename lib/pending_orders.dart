@@ -158,13 +158,20 @@ class PendingPaperOrders {
     }
   }
 
-  /// Delete only an unsubmitted order (or an already-cancelled record).
-  /// Mark the object first so an evaluator snapshot cannot submit it later.
+  /// Delete an unsubmitted order, a cancelled record, or a terminal record
+  /// (filled/expired) whose outcome already lives elsewhere: a fill opened
+  /// its position in the portfolio, an expiry changed nothing. Submitting
+  /// and unknown-state records stay undeletable so an uncertain submission
+  /// is never lost track of. Mark the object first so an evaluator snapshot
+  /// cannot submit it later.
   Future<bool> remove(String id) async {
     final index = orders.indexWhere((o) => o.id == id);
     if (index < 0) return false;
     final o = orders[index];
-    if (o.status != 'pending' && o.status != 'cancelled') return false;
+    if (o.status != 'pending' &&
+        o.status != 'cancelled' &&
+        o.status != 'filled' &&
+        o.status != 'expired') return false;
     final previous = o.status;
     o.status = 'removed';
     orders.removeAt(index);
