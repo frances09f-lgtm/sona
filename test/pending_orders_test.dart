@@ -33,15 +33,24 @@ void main() {
       submit: (_) async => fail('removed order must not submit'));
     expect(await s.remove('1'), isFalse);
   });
-  test('submitting, filled and uncertain orders cannot be removed', () async {
+  test('submitting and uncertain orders cannot be removed, terminal records can', () async {
     final s = await create();
-    for (final status in ['submitting', 'needsReview', 'filled', 'expired']) {
+    for (final status in ['submitting', 'needsReview']) {
       s.orders.clear();
       s.orders.add(order()..status = status);
       expect(await s.remove('1'), isFalse);
       expect(s.orders.single.status, status);
     }
-    s.orders.single.status = 'cancelled';
+    // User request (Nov 14): filled/expired cards must be user-removable.
+    // A fill already opened its position elsewhere; removing the record
+    // touches nothing else.
+    for (final status in ['filled', 'expired']) {
+      s.orders.clear();
+      s.orders.add(order()..status = status);
+      expect(await s.remove('1'), isTrue);
+      expect(s.orders, isEmpty);
+    }
+    s.orders.add(order()..status = 'cancelled');
     expect(await s.remove('1'), isTrue);
     expect(PendingPaperOrders.load(s.prefs).orders, isEmpty);
   });
