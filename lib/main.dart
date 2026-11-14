@@ -2184,30 +2184,12 @@ class _TradeTabState extends State<TradeTab> {
 
   double? parseNum(String s) {
     if (s.trim().isEmpty) return null;
-    retur  /// GOLD | BTC market switch (user-approved BTC weekend practice).
-  /// Gold is th    if (_market == 'btc') {
-      return ColoredBox(
-        color: const Color(0xFF10182A),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const Edge                _marketSelector(),
-                const SizedBox(height: 12),
-Insets.all(14),
-                children: [
-                  _marketSelector(),
-                  const SizedBox(height: 12),
-                  const BtcPracticePanel(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-e default and its content below is unchanged; BTC swaps in
-  /// a separate local-practice panel that never touches gold state.
+    return double.tryParse(s.trim());
+  }
+
+  /// GOLD | BTC market switch. Gold is the default and its content below
+  /// is unchanged; BTC swaps in a separate local-practice panel that never
+  /// touches gold state.
   String _market = 'gold';
 
   Widget _marketSelector() {
@@ -2248,12 +2230,28 @@ e default and its content below is unchanged; BTC swaps in
     );
   }
 
-n double.tryParse(s.trim());
-  }
-
   @override
   Widget build(BuildContext context) {
     final fresh = app.priceFresh;
+    if (_market == 'btc') {
+      return ColoredBox(
+        color: const Color(0xFF10182A),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(14),
+                children: [
+                  _marketSelector(),
+                  const SizedBox(height: 12),
+                  const BtcPracticePanel(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return ColoredBox(
       color: const Color(0xFF10182A),
       child: Column(
@@ -2262,6 +2260,8 @@ n double.tryParse(s.trim());
             child: ListView(
               padding: const EdgeInsets.all(14),
               children: [
+                _marketSelector(),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                   child: Row(
