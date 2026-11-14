@@ -144,4 +144,49 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getKeys(), {'sona_btc_paper_v1'});
   });
+  test('quote poll backs off after failures instead of hammering the API',
+      () async {
+    var nowMs = 1000000;
+    final q = BtcQuoteState(
+      feed: _CountingFailFeed(),
+      now: () => DateTime.fromMillisecondsSinceEpoch(nowMs),
+    );
+    final f = q.feed as _CountingFailFeed;
+    await q.tick();
+    expect(f.calls, 1);
+    expect(q.backoffSeconds, 1);
+    nowMs += 900;
+    await q.tick();
+    expect(f.calls, 1, reason: 'inside 1s backoff, no new call');
+    nowMs += 200;
+    await q.tick();
+    expect(f.calls, 2, reason: 'backoff elapsed, retry allowed');
+    expect(q.backoffSeconds, 2, reason: 'streak grows the backoff');
+    nowMs += 1000;
+    await q.tick();
+    expect(f.calls, 2, reason: 'second failure backs off 2s');
+    q.dispose();
+  });
+
+  test('quote freshness is age-based, not a sticky flag', () {
+    var nowMs = 5000000;
+    final q = BtcQuoteState(
+      feed: _CountingFailFeed(),
+      now: () => DateTime.fromMillisecondsSinceEpoch(nowMs),
+    );
+    q.priceAt = nowMs;
+    expect(q.fresh, isTrue);
+    nowMs += 11000;
+    expect(q.fresh, isFalse, reason: 'quote older than 10s is stale');
+    q.dispose();
+  });
+}
+
+class _CountingFailFeed extends BinanceBtcFeed {
+  _CountingFailFeed() : super(hostOverride: 'fail.local');
+  int calls = 0;
+  @override
+  Future<Quote> fetchQuote() async {
+    calls++;
+    throw BtcFeedException('HTTP 429 from fail.local');  }
 }
