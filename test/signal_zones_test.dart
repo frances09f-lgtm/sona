@@ -326,6 +326,73 @@ void main() {
       expect(b.state, SignalBoxState.correct);
       expect(b.decidedAtMs, 333);
     });
+
+    test('pre-offset records keep the gold constants when loaded', () async {
+      // JSON written before per-box offsets existed has no offset fields;
+      // scoring must stay exactly the gold $3.00/$1.50 it was drawn under.
+      SharedPreferences.setMockInitialValues({
+        'sona_signal_boxes_v1':
+            '[{"id":"old","isBuy":true,"low":100.0,"high":101.0,'
+                '"createdAtMs":1,"state":"pending","evaluatedUpToMs":1}]',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final m = SignalBoxManager();
+      await m.load(prefs);
+      final b = m.boxes.single;
+      expect(b.targetOffset, kSignalTargetOffset);
+      expect(b.invalidationOffset, kSignalInvalidationOffset);
+      expect(b.target, 104.0); // 101 + 3.00
+      expect(b.invalidation, 98.5); // 100 - 1.50
+    });
+
+    test('managers with different prefs keys stay isolated', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final gold = SignalBoxManager();
+      final btc = SignalBoxManager(
+        prefsKey: 'sona_btc_signal_boxes_v1',
+        targetPct: 3.0 / 3900.0,
+        invalidationPct: 1.5 / 3900.0,
+        zoneHalfHeightPct: 0.75 / 3900.0,
+        touchTolerancePct: 1.0 / 3900.0,
+      );
+      btc.addBox(const DetectedZone(true, 67000.0, 3, halfHeight: 13.0),
+          5000,
+          price: 67000.0);
+      await btc.save(prefs);
+      await gold.load(prefs);
+      expect(gold.boxes, isEmpty); // gold key untouched by BTC writes
+      final btc2 = SignalBoxManager(prefsKey: 'sona_btc_signal_boxes_v1');
+      await btc2.load(prefs);
+      final b = btc2.boxes.single;
+      final t = 67000.0 * 3.0 / 3900.0;
+      final inv = 67000.0 * 1.5 / 3900.0;
+      expect(b.low, 67000.0 - 13.0);
+      expect(b.high, 67000.0 + 13.0);
+      expect(b.targetOffset, closeTo(t, 0.001));
+      expect(b.invalidationOffset, closeTo(inv, 0.001));
+      expect(b.target, closeTo(67000.0 + 13.0 + t, 0.001));
+      expect(b.invalidation, closeTo(67000.0 - 13.0 - inv, 0.001));
+    });
+
+    test('new boxes carry the manager offsets, existing ones keep theirs',
+        () async {
+      final m = SignalBoxManager(); // gold defaults
+      m.boxes.add(const SignalBox(
+        id: 'legacy',
+        isBuy: true,
+        low: 100.0,
+        high: 101.0,
+        createdAtMs: 1,
+        state: SignalBoxState.pending,
+        evaluatedUpToMs: 1,
+      ));
+      m.addBox(const DetectedZone(false, 105.0, 2), 2000);
+      expect(m.boxes[0].targetOffset, kSignalTargetOffset);
+      expect(m.boxes[1].targetOffset, kSignalTargetOffset);
+      expect(m.boxes[1].isBuy, isFalse);
+      expect(m.boxes[1].low, 105.0 - kZoneHalfHeight);
+    });
   });
 
   group('Groq zone qualification (inside the normal reply - no extra call)', () {
