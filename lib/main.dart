@@ -1,3 +1,4 @@
+import 'btc_practice_panel.dart';
 import 'execution_ledger.dart';
 import 'replay.dart';
 import 'trade_safety.dart';
@@ -2183,7 +2184,71 @@ class _TradeTabState extends State<TradeTab> {
 
   double? parseNum(String s) {
     if (s.trim().isEmpty) return null;
-    return double.tryParse(s.trim());
+    retur  /// GOLD | BTC market switch (user-approved BTC weekend practice).
+  /// Gold is th    if (_market == 'btc') {
+      return ColoredBox(
+        color: const Color(0xFF10182A),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const Edge                _marketSelector(),
+                const SizedBox(height: 12),
+Insets.all(14),
+                children: [
+                  _marketSelector(),
+                  const SizedBox(height: 12),
+                  const BtcPracticePanel(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+e default and its content below is unchanged; BTC swaps in
+  /// a separate local-practice panel that never touches gold state.
+  String _market = 'gold';
+
+  Widget _marketSelector() {
+    Widget seg(String code, String label) {
+      final sel = _market == code;
+      return Expanded(
+        child: InkWell(
+          onTap: () => setState(() => _market = code),
+          borderRadius: BorderRadius.circular(9),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: sel ? const Color(0xFF4C8DFF) : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: sel ? Colors.white : cDim,
+                fontSize: 13,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF171A21),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF232834)),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(children: [seg('gold', 'GOLD'), seg('btc', 'BTC')]),
+    );
+  }
+
+n double.tryParse(s.trim());
   }
 
   @override
