@@ -29,7 +29,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('BTC panel renders header, buttons, balance and scope note',
+  testWidgets('BTC panel renders header, buttons and scope note',
       (tester) async {
     final fonts = FontLoader('Roboto')
       ..addFont(rootBundle.load('assets/fonts/Roboto.ttf'));
@@ -81,11 +81,15 @@ void main() {
     expect(find.text('BTC/USDT · Paper trading'), findsOneWidget);
     expect(find.text('BUY'), findsOneWidget);
     expect(find.text('SELL'), findsOneWidget);
-    expect(find.text('Practice balance'), findsOneWidget);
+    // Practice balance row intentionally hidden (user request Nov 14);
+    // the ledger itself is untouched (isolation assert below).
+    expect(find.text('Practice balance'), findsNothing);
     expect(
-      find.text('Signals, alerts and AI advice stay on Gold in this version'),
+      find.textContaining('rule-based BUY/SELL boxes, no AI check'),
       findsOneWidget,
     );
+    expect(find.textContaining('heuristic, not validated'), findsOneWidget);
+    expect(find.textContaining('stay on Gold'), findsOneWidget);
     expect(
       find.text(
           'Practice TP/SL triggers only while Sona is open with a live BTC feed.'),
