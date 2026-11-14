@@ -147,8 +147,7 @@ class CandleChartPanel extends StatefulWidget {
   final ChartMarketSnapshot Function()? marketSnapshot;
 
   /// Automatic signal boxes (BUY at support / SELL at resistance) and the
-  /// daily (correct, wrong) count chip. Empty/null: feature h    this.personalOverlays = true,
-idden.
+  /// daily (correct, wrong) count chip. Empty/null: feature hidden.
   final List<SignalZone> signalZones;
   final (int, int)? signalStats;
 
@@ -162,6 +161,7 @@ idden.
     this.expand = false,
     this.rangeMode = false,
     this.chromeless = false,
+    this.personalOverlays = true,
     this.initialLayout,
     this.marketUpdates,
     this.marketSnapshot,
@@ -531,8 +531,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
       for (final hl in [previousDayHL(candles), previousWeekHL(candles)]) {
         if (hl == null) continue;
         hi = hi > hl.$1 ? hi : hl.$1;
-        lo =    } else if (widget.personalOverlays) {
- lo : hl.$2;
+        lo = lo < hl.$2 ? lo : hl.$2;
       }
     }
     return (hi, lo);
@@ -540,25 +539,23 @@ class CandleChartPanelState extends State<CandleChartPanel>
 
   @override
   void initState() {
-    super.initS    if (widget.personalOverlays) {
+    super.initState();
+    usingRange =
+        widget.initialLayout?['rangeMode'] as bool? ?? widget.rangeMode;
+    if (usingRange) interval = tradeRanges[1];
+    if (widget.initialLayout != null) {
+      _restoreTools(widget.initialLayout!);
+    } else if (widget.personalOverlays) {
+      _loadSavedSelection().whenComplete(_migrateV122Overlays);
+    }
+    widget.marketUpdates?.addListener(_syncSavedSelection);
+    if (widget.personalOverlays) {
       _loadLines();
       _loadRects();
       _loadChannels();
       _loadRulers();
       _loadStrategies();
     }
-   if (usingRange) interval = tradeRanges[1];
-    if (widget.initialLayout != null) {
-      _restoreTools(widget.initialLayout!);
-    } else {
-      _loadSavedSelection().whenComplete(_migrateV122Overlays);
-    }
-    widget.marketUpdates?.addListener(_syncSavedSelection);
-    _loadLines();
-    _loadRects();
-    _loadChannels();
-    _loadRulers();
-    _loadStrategies();
     _load();
     _armTimer();
   }
@@ -621,8 +618,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
       if (!mounted) return;
       if (showAsk != showAskLine) setState(() => showAskLine = showAsk);
       final mode = prefs.getString(kChartModePref);
-      if (mode == null) return    if (widget.initialLayout != null || !widget.personalOverlays) return;
- ? prefs.getString(kChartRangePref)
+      if (mode == null) return;
+      final code = mode == 'range'
+          ? prefs.getString(kChartRangePref)
           : prefs.getString(kChartIntervalPref);
       if (code == null) return;
       applyChartSelection(range: mode == 'range', code: code);
@@ -632,7 +630,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
   /// Settings bumps kChartSelectionRevPref and notifies app listeners;
   /// pick up the new selection without touching presets or drawings.
   void _syncSavedSelection() {
-    if (widget.initialLayout != null) return;
+    if (widget.initialLayout != null || !widget.personalOverlays) return;
     SharedPreferences.getInstance().then((prefs) {
       final rev = prefs.getInt(kChartSelectionRevPref) ?? 0;
       if (!mounted || rev == _appliedSelectionRev) return;
