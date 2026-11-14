@@ -14,7 +14,7 @@ void main() {
     (t) async {
       SharedPreferences.setMockInitialValues({});
       await loadFonts();
-      final t0 = DateTime.now();
+      final t0 = CandleChartPanelState.chartNow();
       // Provider 1m history ending 2.5 min ago (feed lag), flat-ish real ranges.
       final bars = List.generate(
         40,
