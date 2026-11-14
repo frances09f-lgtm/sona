@@ -1,11 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sona/ai_brain.dart';
 import 'package:sona/btc_feed.dart';
 import 'package:sona/btc_practice_panel.dart';
 import 'package:sona/market_data/models.dart';
 import 'package:sona/signal_zones.dart';
+import 'package:sona/user_api_keys.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -55,11 +59,46 @@ Future<void> loadFonts() async {
   await icons.load();
 }
 
+/// A GroqBrain whose mock client answers the zone-qualification request
+/// with the given verdicts, in the real chat-completions envelope.
+GroqBrain Function() qualBrain(
+        {bool buyOk = true, bool sellOk = true, String reason = 'test'}) =>
+    () => GroqBrain(
+          client: MockClient((req) async {
+            expect(req.url.path, contains('chat/completions'));
+            final inner = jsonEncode({
+              'zone_buy': buyOk,
+              'zone_sell': sellOk,
+              'zone_reason': reason,
+            });
+            return http.Response(
+              jsonEncode({
+                'choices': [
+                  {
+                    'message': {'content': inner}
+                  }
+                ]
+              }),
+              200,
+            );
+          }),
+        );
+
+/// A brain whose calls all fail (rate-limited / offline).
+GroqBrain Function() failingQualBrain() => () => GroqBrain(
+      client: MockClient((req) async => http.Response('{"error":{}}', 429)),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    UserApiKeys.groq = 'test-key';
+  });
+
+  tearDown(() {
+    UserApiKeys.groq = '';
   });
 
   testWidgets(
@@ -78,6 +117,7 @@ void main() {
             BtcPracticePanel(
               feedOverride: fixtureFeed(),
               candleLoaderOverride: (iv) async => candles,
+              brainOverride: qualBrain(reason: 'strong level'),
             ),
           ],
         ),
@@ -118,8 +158,32 @@ void main() {
 
     // Persisted under the BTC key; gold's key was never written.
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('sona_btc_signal_boxes_v1'), isNotNull);
+    expect(prefs.getString('sona_btc_ai_signal_boxes_v2'), isNotNull);
+    expect(prefs.getString('sona_btc_signal_boxes_v1'), isNull);
     expect(prefs.getString('sona_signal_boxes_v1'), isNull);
+  });
+
+  test('pre-AI boxes persisted under the v1 key are never loaded', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    // Boxes saved by the pre-AI rule-based build under its key.
+    final legacy = SignalBoxManager(
+      prefsKey: 'sona_btc_signal_boxes_v1',
+      targetPct: kBtcSignalTargetPct,
+      invalidationPct: kBtcSignalInvalidationPct,
+      zoneHalfHeightPct: kBtcZoneHalfHeightPct,
+      touchTolerancePct: kBtcSignalTouchTolerancePct,
+    );
+    legacy.addBox(const DetectedZone(true, 60000, 3, halfHeight: 11.5), 1000,
+        price: 60000);
+    await legacy.save(prefs);
+    expect(prefs.getString('sona_btc_signal_boxes_v1'), isNotNull);
+    // The AI-qualified series reads a different key, so those unqualified
+    // boxes can never resurface under the AI-checked disclosure.
+    expect(kBtcSignalPrefsKey, isNot('sona_btc_signal_boxes_v1'));
+    final m = SignalBoxManager(prefsKey: kBtcSignalPrefsKey);
+    await m.load(prefs);
+    expect(m.boxes, isEmpty);
   });
 
   test('offsets follow the creation price, not a fixed anchor', () async {
