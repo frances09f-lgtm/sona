@@ -85,7 +85,7 @@ void main() {
     // the ledger itself is untouched (isolation assert below).
     expect(find.text('Practice balance'), findsNothing);
     expect(
-      find.textContaining('rule-based BUY/SELL boxes, no AI check'),
+      find.textContaining('AI-checked BUY/SELL boxes'),
       findsOneWidget,
     );
     expect(find.textContaining('heuristic, not validated'), findsOneWidget);
