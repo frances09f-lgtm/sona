@@ -50,6 +50,13 @@ class SignalBox {
   /// considered, so history is never re-scored.
   final int evaluatedUpToMs;
 
+  /// Scoring offsets stamped when the box is drawn. They default to the
+  /// gold constants, so boxes stored before this field existed (and gold
+  /// boxes generally) keep scoring exactly as before; the BTC manager
+  /// stamps its own scaled values.
+  final double targetOffset;
+  final double invalidationOffset;
+
   const SignalBox({
     required this.id,
     required this.isBuy,
@@ -60,12 +67,14 @@ class SignalBox {
     this.touchedAtMs,
     this.decidedAtMs,
     required this.evaluatedUpToMs,
+    this.targetOffset = kSignalTargetOffset,
+    this.invalidationOffset = kSignalInvalidationOffset,
   });
 
   double get target =>
-      isBuy ? high + kSignalTargetOffset : low - kSignalTargetOffset;
+      isBuy ? high + targetOffset : low - targetOffset;
   double get invalidation =>
-      isBuy ? low - kSignalInvalidationOffset : high + kSignalInvalidationOffset;
+      isBuy ? low - invalidationOffset : high + invalidationOffset;
 
   bool get decided =>
       state == SignalBoxState.correct ||
@@ -92,6 +101,8 @@ class SignalBox {
         touchedAtMs: touchedAtMs ?? this.touchedAtMs,
         decidedAtMs: decidedAtMs ?? this.decidedAtMs,
         evaluatedUpToMs: evaluatedUpToMs ?? this.evaluatedUpToMs,
+        targetOffset: targetOffset,
+        invalidationOffset: invalidationOffset,
       );
 
   Map<String, dynamic> toJson() => {
@@ -104,6 +115,8 @@ class SignalBox {
         'touchedAtMs': touchedAtMs,
         'decidedAtMs': decidedAtMs,
         'evaluatedUpToMs': evaluatedUpToMs,
+        'targetOffset': targetOffset,
+        'invalidationOffset': invalidationOffset,
       };
 
   static SignalBox? fromJson(Map<String, dynamic> j) {
@@ -134,6 +147,12 @@ class SignalBox {
       decidedAtMs: (j['decidedAtMs'] as num?)?.toInt(),
       evaluatedUpToMs:
           (j['evaluatedUpToMs'] as num?)?.toInt() ?? created,
+      // Records written before per-box offsets: keep the gold constants
+      // they were scored under.
+      targetOffset:
+          (j['targetOffset'] as num?)?.toDouble() ?? kSignalTargetOffset,
+      invalidationOffset: (j['invalidationOffset'] as num?)?.toDouble() ??
+          kSignalInvalidationOffset,
     );
   }
 }
@@ -293,9 +312,14 @@ class DetectedZone {
   final bool isBuy;
   final double level;
   final int strength;
-  const DetectedZone(this.isBuy, this.level, this.strength);
-  double get low => level - kZoneHalfHeight;
-  double get high => level + kZoneHalfHeight;
+
+  /// Zone half height in price units (gold: [kZoneHalfHeight]; BTC uses a
+  /// scaled value).
+  final double halfHeight;
+  const DetectedZone(this.isBuy, this.level, this.strength,
+      {this.halfHeight = kZoneHalfHeight});
+  double get low => level - halfHeight;
+  double get high => level + halfHeight;
 }
 
 /// Finds the strongest support below and resistance above [price] from
@@ -312,6 +336,7 @@ List<DetectedZone> detectSignalZones(
   int wing = 3,
   double touchTolerance = 1.0,
   int minStrength = 2,
+  double halfHeight = kZoneHalfHeight,
 }) {
   if (candles.length < (wing * 2 + 10)) return const [];
   final start =
@@ -350,9 +375,10 @@ List<DetectedZone> detectSignalZones(
         .where((p) =>
             p.high == wantHigh &&
             (wantHigh
-                ? p.level - kZoneHalfHeight > price
-                : p.level + kZoneHalfHeight < price))
-        .map((p) => DetectedZone(!p.high, p.level, strengthOf(p.level)))
+                ? p.level - halfHeight > price
+                : p.level + halfHeight < price))
+        .map((p) => DetectedZone(!p.high, p.level, strengthOf(p.level),
+            halfHeight: halfHeight))
         .where((z) => z.strength >= minStrength)
         .toList();
     if (candidates.isEmpty) return null;
@@ -381,7 +407,52 @@ String describeZone(DetectedZone z) =>
     '(level ${z.level.toStringAsFixed(1)}, ${z.strength} touches)';
 
 class SignalBoxManager {
-  static const _prefsKey = 'sona_signal_boxes_v1';
+  /// Gold's original key; the default keeps every existing caller and
+  /// stored record byte-identical. BTC uses its own key so the two
+  /// instruments never share box history.
+  static const defaultPrefsKey = 'sona_signal_boxes_v1';
+
+  final String prefsKey;
+
+  /// Scoring offsets stamped onto new boxes (existing boxes keep the
+  /// values they were drawn with).
+  final double targetOffset;
+  final double invalidationOffset;
+
+  /// Zone geometry / detection tuning, in the instrument's price units.
+  final double zoneHalfHeight;
+  final double touchTolerance;
+
+  /// Optional price-relative form (fractions of the instrument's price,
+  /// e.g. 0.00077 = 0.077%). When set, a box's stamped offsets are
+  /// computed from the price AT CREATION and then stay fixed forever,
+  /// and detection geometry scales with the current price. Gold leaves
+  /// these null and keeps its approved fixed dollar values.
+  final double? targetPct;
+  final double? invalidationPct;
+  final double? zoneHalfHeightPct;
+  final double? touchTolerancePct;
+
+  SignalBoxManager({
+    this.prefsKey = defaultPrefsKey,
+    this.targetOffset = kSignalTargetOffset,
+    this.invalidationOffset = kSignalInvalidationOffset,
+    this.zoneHalfHeight = kZoneHalfHeight,
+    this.touchTolerance = 1.0,
+    this.targetPct,
+    this.invalidationPct,
+    this.zoneHalfHeightPct,
+    this.touchTolerancePct,
+  });
+
+  double targetOffsetFor(double price) =>
+      targetPct != null ? price * targetPct! : targetOffset;
+  double invalidationOffsetFor(double price) =>
+      invalidationPct != null ? price * invalidationPct! : invalidationOffset;
+  double zoneHalfHeightFor(double price) =>
+      zoneHalfHeightPct != null ? price * zoneHalfHeightPct! : zoneHalfHeight;
+  double touchToleranceFor(double price) =>
+      touchTolerancePct != null ? price * touchTolerancePct! : touchTolerance;
 
   final List<SignalBox> boxes = [];
   double? _lastTickPrice;
@@ -418,7 +489,7 @@ class SignalBoxManager {
   }
 
   Future<void> load(SharedPreferences prefs) async {
-    final raw = prefs.getString(_prefsKey);
+    final raw = prefs.getString(prefsKey);
     if (raw == null) return;
     try {
       final list = (jsonDecode(raw) as List)
@@ -435,7 +506,7 @@ class SignalBoxManager {
 
   Future<void> save(SharedPreferences prefs) async {
     await prefs.setString(
-        _prefsKey, jsonEncode(boxes.map((b) => b.toJson()).toList()));
+        prefsKey, jsonEncode(boxes.map((b) => b.toJson()).toList()));
   }
 
   /// Live-tick evaluation (1s quote cadence). Returns true when any box
@@ -520,7 +591,9 @@ class SignalBoxManager {
     final hasBuy = displayBoxes.any((b) => b.isBuy);
     final hasSell = displayBoxes.any((b) => !b.isBuy);
     final out = <DetectedZone>[];
-    for (final z in detectSignalZones(candles, price)) {
+    for (final z in detectSignalZones(candles, price,
+        touchTolerance: touchToleranceFor(price),
+        halfHeight: zoneHalfHeightFor(price))) {
       if (z.isBuy && hasBuy) continue;
       if (!z.isBuy && hasSell) continue;
       if (overlapsRecentOrLive(z.low, z.high)) continue;
@@ -529,8 +602,15 @@ class SignalBoxManager {
     return out;
   }
 
-  /// Draws a qualified zone as a new pending box.
-  void addBox(DetectedZone z, int nowMs) {
+  /// Draws a qualified zone as a new pending box, stamped with this
+  /// manager's scoring offsets. [price] is the instrument price at
+  /// creation; required when the manager uses price-relative offsets, so
+  /// the stamped (then immutable) offsets reflect the real price, not a
+  /// remembered anchor.
+  void addBox(DetectedZone z, int nowMs, {double? price}) {
+    assert(targetPct == null || price != null,
+        'price-relative offsets need the creation price');
+    final p = price ?? z.level;
     _seq++;
     boxes.add(SignalBox(
       id: 'sz_${nowMs}_$_seq',
@@ -540,6 +620,8 @@ class SignalBoxManager {
       createdAtMs: nowMs,
       state: SignalBoxState.pending,
       evaluatedUpToMs: nowMs,
+      targetOffset: targetOffsetFor(p),
+      invalidationOffset: invalidationOffsetFor(p),
     ));
   }
 }
