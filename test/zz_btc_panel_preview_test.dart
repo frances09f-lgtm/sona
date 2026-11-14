@@ -7,7 +7,8 @@ import 'package:sona/btc_practice_panel.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'btc_signals_test.dart' show signalFixtureCandles;
+import 'btc_signals_test.dart' show qualBrain, signalFixtureCandles;
+import 'package:sona/user_api_keys.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -45,11 +46,13 @@ void main() {
             BtcPracticePanel(
               feedOverride: feed,
               candleLoaderOverride: (iv) async => candles,
+              brainOverride: qualBrain(reason: 'strong level'),
             ),
           ],
         ),
       ),
     ));
+        UserApiKeys.groq = 'test-key';
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 1));
