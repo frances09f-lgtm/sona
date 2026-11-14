@@ -184,6 +184,41 @@ String zonePromptFragment({String? buyZoneDesc, String? sellZoneDesc}) {
   return b.toString();
 }
 
+/// Compact prompt for the DEDICATED zone-qualification call used by
+/// instruments with no analysis request to piggyback on (BTC weekend
+/// practice, user request Nov 14 evening). Carries just enough recent
+/// price action to judge the proposed levels and asks for the same
+/// zone_buy/zone_sell/zone_reason JSON keys as the gold fragment, so
+/// one parser serves both paths. Gold never calls this - its zones ride
+/// inside its existing analysis/advice replies.
+String buildZoneQualifyPrompt({
+  required String instrument,
+  required double bid,
+  required double ask,
+  required List<Candle> candles,
+  String? buyZoneDesc,
+  String? sellZoneDesc,
+}) {
+  final b = StringBuffer();
+  b.writeln('Instrument: $instrument.');
+  b.writeln(
+    'Live quote: bid ${bid.toStringAsFixed(2)}, ask ${ask.toStringAsFixed(2)}.',
+  );
+  final cs =
+      candles.length > 30 ? candles.sublist(candles.length - 30) : candles;
+  b.writeln('Recent ${cs.length} candles (oldest first):');
+  for (final c in cs) {
+    b.writeln(
+      '  o${c.open.toStringAsFixed(1)} h${c.high.toStringAsFixed(1)} '
+      'l${c.low.toStringAsFixed(1)} c${c.close.toStringAsFixed(1)}',
+    );
+  }
+  b.write(
+    zonePromptFragment(buyZoneDesc: buyZoneDesc, sellZoneDesc: sellZoneDesc),
+  );
+  return b.toString();
+}
+
 class BrainException implements Exception {
   final String message;
   const BrainException(this.message);
@@ -612,6 +647,49 @@ class GroqBrain {
       atr: atr(candles, 14),
       settings: protection ?? await ProtectionSettings.load(),
     );
+  }
+
+  /// Dedicated zone qualification for instruments with no analysis
+  /// call to ride on (BTC weekend practice, user request Nov 14
+  /// evening). Gold never calls this - its zones are qualified inside
+  /// its existing analysis/advice replies. One small request per fresh
+  /// candidate set, advisory only - never places trades. Null when the
+  /// model's reply carried no zone keys (then the caller draws nothing
+  /// and may retry on a later refresh).
+  Future<ZoneQualification?> qualifyZones({
+    required String instrument,
+    required double bid,
+    required double ask,
+    required List<Candle> candles,
+    String? buyZoneDesc,
+    String? sellZoneDesc,
+  }) async {
+    if (AiConfig.groqApiKey.isEmpty) {
+      throw const BrainException('Add your Groq key in API settings');
+    }
+    final user = buildZoneQualifyPrompt(
+      instrument: instrument,
+      bid: bid,
+      ask: ask,
+      candles: candles,
+      buyZoneDesc: buyZoneDesc,
+      sellZoneDesc: sellZoneDesc,
+    );
+    var content = await _call(AiConfig.model, user);
+    content ??= await _call(AiConfig.fallbackModel, user);
+    if (content == null) {
+      throw const BrainException('Groq call failed or rate-limited');
+    }
+    final start = content.indexOf('{');
+    final end = content.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    try {
+      final decoded = jsonDecode(content.substring(start, end + 1));
+      if (decoded is Map<String, dynamic>) {
+        return zoneQualificationFromJson(decoded);
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<String?> _call(
