@@ -232,6 +232,64 @@ void main() {
       expect(dropClosedMarketPlaceholders(cs).length, cs.length);
     });
 
+    test('keeps a frozen run in the DST-ambiguous Friday 21:00-22:00 UTC '
+        'hour (winter: market actually live)', () {
+      // Friday Nov 13 2026 (EST): cited closes disagree (20:58-22:00 UTC),
+      // and Twelve Data itself served real bars until 22:00 UTC. A frozen
+      // run starting 21:00 UTC must survive - sources disagree, no delete.
+      final cs = <Candle>[
+        bar(0, 3900.0, 15.0),
+        for (var i = 1; i < 13; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 13, 21, 0)
+                  .add(Duration(minutes: 15 * (i - 1))),
+              open: 3874.43,
+              high: 3874.66,
+              low: 3874.43,
+              close: 3874.55),
+      ];
+      // 12 frozen bars: the first four sit in the ambiguous hour, so the
+      // run is not fully inside the confirmed-closed region.
+      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+    });
+
+    test('keeps a frozen run crossing the ambiguous Sunday reopen edge', () {
+      // Sunday 20:00-23:00 UTC: cited reopens disagree (21:00-23:05).
+      // Bars before 21:00 are confirmed-closed, later ones are not, so
+      // the mixed run is kept whole.
+      final cs = <Candle>[
+        bar(0, 3900.0, 15.0),
+        for (var i = 1; i < 13; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 15, 20, 0)
+                  .add(Duration(minutes: 15 * (i - 1))),
+              open: 3874.43,
+              high: 3874.66,
+              low: 3874.43,
+              close: 3874.55),
+      ];
+      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+    });
+
+    test('drops a frozen run fully inside the confirmed weekend '
+        '(Sat 00:00 - Sun 21:00 UTC)', () {
+      final cs = <Candle>[
+        bar(0, 3900.0, 15.0),
+        for (var i = 1; i < 13; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 14, 22, 0)
+                  .add(Duration(minutes: 15 * (i - 1))),
+              open: 3874.43,
+              high: 3874.66,
+              low: 3874.43,
+              close: 3874.55),
+      ];
+      // Saturday 22:00 - Sunday 00:45: all confirmed-closed. The first
+      // frozen bar survives (its open moved from the real predecessor);
+      // the other 11 are dropped.
+      expect(dropClosedMarketPlaceholders(cs).length, 2);
+    });
+
     test('keeps real bars whose opens move, however quiet', () {
       // 10 flat-ish bars but each open steps 0.5 - a drifting market,
       // not a frozen feed.
