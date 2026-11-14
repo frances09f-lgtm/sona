@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_brain.dart';
 import 'btc_feed.dart';
 import 'btc_paper.dart';
 import 'chart/candle_chart.dart';
@@ -143,12 +144,21 @@ const double kBtcSignalTargetPct = 3.0 / 3900.0; // 0.077%
 const double kBtcSignalInvalidationPct = 1.5 / 3900.0; // 0.038%
 const double kBtcZoneHalfHeightPct = 0.75 / 3900.0;
 const double kBtcSignalTouchTolerancePct = 1.0 / 3900.0;
-const String kBtcSignalPrefsKey = 'sona_btc_signal_boxes_v1';
+// v2: boxes persisted by the pre-AI rule-based version under
+// 'sona_btc_signal_boxes_v1' were never AI-qualified, so they must not
+// resurface under the AI-checked disclosure. The new key starts the
+// AI-qualified series fresh; the old data is orphaned, never loaded.
+const String kBtcSignalPrefsKey = 'sona_btc_ai_signal_boxes_v2';
 class BtcPracticePanel extends StatefulWidget {
   /// Test hooks.
   final BinanceBtcFeed? feedOverride;
   final CandleLoader? candleLoaderOverride;
-  const BtcPracticePanel({super.key, this.feedOverride, this.candleLoaderOverride});
+
+  /// Test seam for the AI zone-qualification brain (mock client in
+  /// tests). Production uses a real GroqBrain with the user's key.
+  final GroqBrain Function()? brainOverride;
+  const BtcPracticePanel(
+      {super.key, this.feedOverride, this.candleLoaderOverride, this.brainOverride});
 
   @override
   State<BtcPracticePanel> createState() => BtcPracticePanelState();
@@ -172,6 +182,27 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
   );
   SharedPreferences? prefs;
   String? notice;
+
+  /// BTC AI zone qualification (user request Nov 14 evening: test the
+  /// AI filter on BTC). Candidates wait here for the brain's verdict;
+  /// on a failed call they stay pending and are re-asked on the next
+  /// candle refresh, so a blip never silently draws or drops a setup.
+  List<DetectedZone> _pendingQual = const [];
+
+  /// Levels the brain already rejected, with the rejection time, so the
+  /// same weak setup is not re-asked on every refresh. A rejection can
+  /// be re-asked after this cooldown with fresher candles.
+  final Map<String, int> _qualRejectedAt = {};
+  int _qualFailedAtMs = 0;
+  static const _qualRetryCooldown = Duration(minutes: 15);
+
+  String _qualSig(DetectedZone z) =>
+      '${z.isBuy ? 'B' : 'S'}@${z.level.toStringAsFixed(1)}';
+
+  bool _rejectedRecently(DetectedZone z, int nowMs) {
+    final t = _qualRejectedAt[_qualSig(z)];
+    return t != null && nowMs - t < _qualRetryCooldown.inMilliseconds;
+  }
 
   @override
   void initState() {
@@ -223,9 +254,13 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
   Future<void> debugSignalCandles(List<Candle> candles) =>
       _signalCandles(candles);
 
-  /// Candle refresh: score live boxes, then - because BTC boxes are
-  /// rule-based with no AI qualification (user-approved Nov 14) - draw
-  /// freshly detected setups directly, one per free direction slot.
+  /// Candle refresh: score live boxes, then qualify freshly detected
+  /// setups with the AI brain (user request Nov 14 evening: test the AI
+  /// filter on BTC) - a box is drawn only when the brain judges the
+  /// level tradeable. The brain's verdict is shown in the notice line
+  /// so the filter stays visible while it is being tested. BTC has no
+  /// analysis call to piggyback on like gold, so this is one small
+  /// dedicated request per fresh candidate set.
   Future<void> _signalCandles(List<Candle> candles) async {
     final p = prefs;
     if (p == null || candles.isEmpty) return;
@@ -237,21 +272,77 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
     var changed = signals.onCandles(candles, mid, nowMs);
     if (signals.needsSetup) {
       final c = signals.candidates(candles, mid, nowMs);
-      final buys = c.where((z) => z.isBuy);
-      final sells = c.where((z) => !z.isBuy);
-      if (buys.isNotEmpty) {
-        signals.addBox(buys.first, nowMs, price: mid);
-        changed = true;
+      for (final z in c) {
+        final dup = _pendingQual.any(
+            (w) => w.isBuy == z.isBuy && (w.level - z.level).abs() < 1e-9);
+        if (!dup && !_rejectedRecently(z, nowMs)) {
+          _pendingQual = [..._pendingQual, z];
+        }
       }
-      if (sells.isNotEmpty) {
-        signals.addBox(sells.first, nowMs, price: mid);
-        changed = true;
-      }
+    }
+    if (_pendingQual.isNotEmpty && nowMs - _qualFailedAtMs >= 300000) {
+      changed = await _qualifyPending(candles, mid, nowMs) || changed;
     }
     if (changed) {
       await signals.save(p);
       if (mounted) setState(() {});
     }
+  }
+
+  /// One qualification request for all pending candidates (the BUY and
+  /// SELL proposals ride in the same reply). Approved zones are drawn
+  /// with the manager's price-scaled offsets; rejected ones are
+  /// remembered for the cooldown; a failed call keeps everything
+  /// pending for the next refresh and says so in the notice line.
+  Future<bool> _qualifyPending(
+      List<Candle> candles, double mid, int nowMs) async {
+    if (quote.bid == null || quote.ask == null) return false;
+    final buys = _pendingQual.where((z) => z.isBuy);
+    final sells = _pendingQual.where((z) => !z.isBuy);
+    ZoneQualification? q;
+    try {
+      q = await (widget.brainOverride?.call() ?? GroqBrain()).qualifyZones(
+        instrument: 'BTC/USDT (Bitcoin, weekend practice)',
+        bid: quote.bid!,
+        ask: quote.ask!,
+        candles: candles,
+        buyZoneDesc: buys.isEmpty ? null : describeZone(buys.first),
+        sellZoneDesc: sells.isEmpty ? null : describeZone(sells.first),
+      );
+    } on BrainException catch (e) {
+      _qualFailedAtMs = nowMs; // back off 5 min before retrying
+      if (mounted) setState(() => notice = 'BTC AI unavailable (${e.message})');
+      return false;
+    }
+    if (q == null) {
+      _qualFailedAtMs = nowMs; // unreadable reply: same 5-min backoff
+      return false;
+    }
+    _qualFailedAtMs = 0;
+    var changed = false;
+    final approved = <String>[];
+    final skipped = <String>[];
+    for (final z in _pendingQual) {
+      final ok = (z.isBuy && q.buyOk) || (!z.isBuy && q.sellOk);
+      final side = z.isBuy ? 'BUY' : 'SELL';
+      if (ok) {
+        signals.addBox(z, nowMs, price: mid);
+        changed = true;
+        approved.add(side);
+      } else {
+        _qualRejectedAt[_qualSig(z)] = nowMs;
+        skipped.add(side);
+      }
+    }
+    final parts = <String>[
+      if (approved.isNotEmpty) 'approved a ${approved.join(' and ')} setup',
+      if (skipped.isNotEmpty) 'skipped a ${skipped.join(' and ')} setup',
+    ];
+    notice =
+        'BTC AI ${parts.join('; ')}${q.reason.isEmpty ? '.' : ': ${q.reason}'}';
+    _pendingQual = const [];
+    if (mounted) setState(() {});
+    return changed;
   }
 
   @override
@@ -677,7 +768,7 @@ class BtcPracticePanelState extends State<BtcPracticePanel>
               ),
             ),
         ],
-        _note('Signals: rule-based BUY/SELL boxes, no AI check. '
+        _note('Signals: AI-checked BUY/SELL boxes - the AI filter approves or skips each setup. '
             'Target/stop distance: 0.077%/0.038% of BTC price '
             '(~52/26 USDT at 67,000) - heuristic, not validated. '
             'Alerts, AutoTrade and AI advice stay on Gold'),
