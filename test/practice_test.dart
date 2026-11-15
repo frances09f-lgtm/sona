@@ -130,7 +130,7 @@ void main() {
     final candles = fakeCandles(120);
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
-      home: PracticeScreen(loadCandles: () async => candles),
+      home: PracticeScreen(loadCandles: (iv) async => candles),
     ));
     await tester.pumpAndSettle();
     expect(find.text('Start replay'), findsOneWidget);
@@ -159,7 +159,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
       home: PracticeScreen(
-        loadCandles: () async =>
+        loadCandles: (iv) async =>
             throw Exception('Add your Twelve Data key in API settings'),
       ),
     ));
@@ -307,7 +307,7 @@ void main() {
     final candles = fakeCandles(300);
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
-      home: PracticeScreen(loadCandles: () async => candles, randomSeed: 7),
+      home: PracticeScreen(loadCandles: (iv) async => candles, randomSeed: 7),
     ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Start replay'));
@@ -359,11 +359,34 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
-      home: PracticeScreen(loadCandles: () async => fakeCandles(120)),
+      home: PracticeScreen(loadCandles: (iv) async => fakeCandles(120)),
     ));
     await tester.pumpAndSettle();
     for (final s in ['1x', '2x', '5x']) {
       expect(find.text(s), findsOneWidget, reason: '$s chip missing');
     }
+  });
+
+  group('practice timeframe (user request Nov 15: fixed 5-minute candles)',
+      () {
+    testWidgets('loads 5-minute candles and offers no timeframe chips',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final requested = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData.dark(),
+        home: PracticeScreen(
+          loadCandles: (iv) async {
+            requested.add(iv);
+            return fakeCandles(120);
+          },
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(requested, ['5min']);
+      expect(find.text('XAU/USD · 5m'), findsOneWidget);
+      expect(find.text('1m'), findsNothing);
+      expect(find.text('15m'), findsNothing);
+    });
   });
 }

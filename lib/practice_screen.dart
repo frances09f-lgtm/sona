@@ -18,6 +18,12 @@ const _kGold = Color(0xFFF5C242);
 
 /// Replay speeds in candles per second (user chose 1x/2x/5x).
 const practiceSpeeds = [1, 2, 5];
+
+/// Practice candle timeframe (Twelve Data code). User request Nov 15:
+/// fixed 5-minute candles; he reviewed a 1m/5m/15m selector preview and
+/// chose no options ("Just do 5 min as default remove others").
+const practiceInterval = '5min';
+const practiceIntervalName = '5m';
 const practiceWindow = 60; // candles shown before the stop
 const practiceHorizon = 5; // hidden candles that decide the round
 
@@ -163,12 +169,14 @@ bool practiceHasStrongMove(
   return (start.round(), end.round());
 }
 
-/// Practice mode: replays real historical XAU/USD 15-minute candles fast,
-/// stops on its own and asks up or down. Pure training - it never touches
-/// the paper balance, positions, orders or the AI.
+/// Practice mode: replays real historical XAU/USD 5-minute candles fast,
+/// stops on its own and asks up or down.
+/// Pure training - it never touches the paper balance, positions, orders
+/// or the AI.
 class PracticeScreen extends StatefulWidget {
   /// Injectable for tests; defaults to the app's own candle service.
-  final Future<List<Candle>> Function()? loadCandles;
+  /// Receives the selected Twelve Data interval code.
+  final Future<List<Candle>> Function(String interval)? loadCandles;
 
   /// Injectable for tests: fixed seed makes the random stop deterministic.
   final int? randomSeed;
@@ -188,6 +196,10 @@ class _PracticeScreenState extends State<PracticeScreen> {
   List<Candle>? _candles;
   String? _error;
   bool _loading = true;
+
+  // Candle timeframe is fixed by [practiceInterval]; the field stays so
+  // the loader and tests share one source of truth.
+  final String _interval = practiceInterval;
 
   _Phase _phase = _Phase.idle;
   int _pause = 0;
@@ -232,9 +244,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
     });
     try {
       final loader = widget.loadCandles ??
-          () => TwelveDataCandleService(apiKey: MarketDataConfig.apiKey)
-              .fetchCandles(Instrument.xauUsd, interval: '15min', limit: 5000);
-      final cs = await loader();
+          (iv) => TwelveDataCandleService(apiKey: MarketDataConfig.apiKey)
+              .fetchCandles(Instrument.xauUsd, interval: iv, limit: 5000);
+      final cs = await loader(_interval);
       if (!mounted) return;
       setState(() {
         _candles = cs;
@@ -328,7 +340,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
           children: [
             _Badge(),
             SizedBox(width: 8),
-            Text('XAU/USD · 15m', style: TextStyle(fontSize: 14)),
+            Text('XAU/USD · $practiceIntervalName',
+                style: TextStyle(fontSize: 14)),
           ],
         ),
         actions: [
