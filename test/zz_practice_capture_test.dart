@@ -62,7 +62,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
-      home: PracticeScreen(loadCandles: () async => fixture(), randomSeed: 7),
+      home: PracticeScreen(loadCandles: (iv) async => fixture(), randomSeed: 7),
     ));
     await tester.pumpAndSettle();
   }

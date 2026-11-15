@@ -140,7 +140,7 @@ void main() {
     tester.view.physicalSize = const Size(360 * 3, 800 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    final screen = PracticeScreen(loadCandles: () async => cs, randomSeed: 7);
+    final screen = PracticeScreen(loadCandles: (iv) async => cs, randomSeed: 7);
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(brightness: Brightness.dark, fontFamily: 'Roboto'),
       home: Builder(
