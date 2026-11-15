@@ -323,4 +323,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, containsAll(['15min', '1h']));
   });
+
+  group('enforceMinPriceSpan (viewport floor, user report Nov 15 2026)',
+      () {
+    test('widens a near-flat range to 0.05% of price', () {
+      // The one-candle weekend bug: a single 0.23-USD placeholder bar
+      // auto-scaled to fill the whole chart.
+      final (hi, lo) = enforceMinPriceSpan(3874.60, 3874.37);
+      expect(hi - lo, closeTo(3874.485 * 0.0005, 1e-9));
+      expect((hi + lo) / 2, closeTo(3874.485, 1e-9)); // symmetric
+    });
+    test('leaves healthy ranges untouched', () {
+      final (hi, lo) = enforceMinPriceSpan(3900.0, 3860.0);
+      expect((hi, lo), (3900.0, 3860.0));
+    });
+    test('passes through degenerate or infinite inputs', () {
+      expect(enforceMinPriceSpan(5.0, 5.0), (5.0, 5.0));
+      final (hi, lo) =
+          enforceMinPriceSpan(double.infinity, double.negativeInfinity);
+      expect(hi, double.infinity);
+      expect(lo, double.negativeInfinity);
+    });
+    test('scales with the instrument, not a fixed dollar amount', () {
+      // BTC-scale price: the floor tracks the mid price.
+      final (hi, lo) = enforceMinPriceSpan(100000.20, 100000.00);
+      expect(hi - lo, closeTo(50.0, 0.01));
+    });
+  });
 }

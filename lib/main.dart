@@ -2331,6 +2331,11 @@ class _TradeTabState extends State<TradeTab> {
                             Instrument.xauUsd,
                             interval: spec.$1,
                             limit: spec.$2,
+                            // Weekend 1H/1D windows can be 100% closed-
+                            // market placeholders; widen once so the chart
+                            // keeps the last real session instead of going
+                            // blank (user report Nov 15 2026).
+                            backfillWhenClosed: true,
                           );
                           final trimmed = trimTradeRange(data, iv);
                           unawaited(app.signalCandles(trimmed));

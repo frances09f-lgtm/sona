@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -152,6 +153,122 @@ void main() {
       expect(candles[2].time.toUtc(), DateTime.utc(2026, 11, 13, 22, 15));
     });
 
+    test('live payload: the phone\'s exact Nov 15 weekend fetch drops '
+        'EVERY placeholder bar - including the 2.2-cent step bar that '
+        'survived as one full-screen candle (user report Nov 15 2026)',
+        () async {
+      // test/fixtures/xau_15m_nov13_15.json is the verbatim Twelve Data
+      // pull from the user's account (Nov 15 2026 04:26 UTC). The trade
+      // chart's 1D fetch = the last 120 bars (Fri 22:30 UTC - Sun 04:15
+      // UTC). The placeholder stream's frozen open steps 0.022 USD at
+      // Sat 04:15 UTC; the old 0.02 chain left that one bar alive.
+      final raw = jsonDecode(
+          File('test/fixtures/xau_15m_nov13_15.json').readAsStringSync());
+      final values = (raw['values'] as List).cast<Map<String, dynamic>>()
+        ..sort((a, b) =>
+            (a['datetime'] as String).compareTo(b['datetime'] as String));
+      final phoneWindow =
+          values.sublist(values.length - 120).reversed.toList(); // API order
+      final s = TwelveDataCandleService(
+          apiKey: 'k',
+          client: fakeClient(
+              200, jsonEncode({'status': 'ok', 'values': phoneWindow})));
+      await expectLater(
+          s.fetchCandles(Instrument.xauUsd, interval: '15min', limit: 120),
+          throwsA(isA<MarketDataException>()));
+    });
+
+    test('live payload: backfillWhenClosed widens once and returns the '
+        'last real session instead of a blank weekend chart', () async {
+      final raw = jsonDecode(
+          File('test/fixtures/xau_15m_nov13_15.json').readAsStringSync());
+      final values = (raw['values'] as List).cast<Map<String, dynamic>>()
+        ..sort((a, b) =>
+            (a['datetime'] as String).compareTo(b['datetime'] as String));
+      final phoneWindow =
+          values.sublist(values.length - 120).reversed.toList();
+      final fullWindow = values.reversed.toList(); // 200 bars, API order
+      final responses = <String>[
+        jsonEncode({'status': 'ok', 'values': phoneWindow}),
+        jsonEncode({'status': 'ok', 'values': fullWindow}),
+      ];
+      final requestedSizes = <String>[];
+      final client = MockClient((req) async {
+        requestedSizes.add(req.url.queryParameters['outputsize'] ?? '');
+        return http.Response(responses.removeAt(0), 200);
+      });
+      final s = TwelveDataCandleService(apiKey: 'k', client: client);
+      final candles = await s.fetchCandles(Instrument.xauUsd,
+          interval: '15min', limit: 120, backfillWhenClosed: true);
+      // Widened exactly once, 120 -> 300.
+      expect(requestedSizes, ['120', '300']);
+      // Friday's real session (78 bars) plus the three Fri 22:00-22:30 UTC
+      // transition bars whose shape is not the frozen signature - kept,
+      // never deleted on suspicion.
+      expect(candles.length, 81);
+      expect(candles.first.time.toUtc(), DateTime.utc(2026, 11, 13, 2, 30));
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 13, 22, 30));
+      // Any survivor inside the confirmed-closed clock window is there
+      // because it is NOT placeholder-shaped (clock alone never deletes):
+      // it moved or has a real range.
+      for (var i = 0; i < candles.length; i++) {
+        final c = candles[i];
+        final u = c.time.toUtc();
+        final inClosed = u.weekday == DateTime.saturday ||
+            (u.weekday == DateTime.sunday && u.hour < 21) ||
+            (u.weekday == DateTime.friday && u.hour >= 22);
+        if (!inClosed || i == 0) continue;
+        final moved =
+            (c.open - candles[i - 1].open).abs() > 0.10;
+        expect(moved || (c.high - c.low) > 1.0, isTrue,
+            reason: 'placeholder-shaped survivor at $u');
+      }
+    });
+
+    test('backfill refetch failure throws - no candles are ever '
+        'synthesized to fill a closed window', () async {
+      final raw = jsonDecode(
+          File('test/fixtures/xau_15m_nov13_15.json').readAsStringSync());
+      final values = (raw['values'] as List).cast<Map<String, dynamic>>()
+        ..sort((a, b) =>
+            (a['datetime'] as String).compareTo(b['datetime'] as String));
+      final phoneWindow =
+          values.sublist(values.length - 120).reversed.toList();
+      final responses = <http.Response>[
+        http.Response(
+            jsonEncode({'status': 'ok', 'values': phoneWindow}), 200),
+        http.Response('server error', 500),
+      ];
+      final s = TwelveDataCandleService(
+          apiKey: 'k', client: MockClient((req) async => responses.removeAt(0)));
+      await expectLater(
+          s.fetchCandles(Instrument.xauUsd,
+              interval: '15min', limit: 120, backfillWhenClosed: true),
+          throwsA(isA<MarketDataException>()));
+    });
+
+    test('backfillWhenClosed off by default: all-closed fetch still '
+        'throws (AutoTrade weekend skip preserved)', () async {
+      final raw = jsonDecode(
+          File('test/fixtures/xau_15m_nov13_15.json').readAsStringSync());
+      final values = (raw['values'] as List).cast<Map<String, dynamic>>()
+        ..sort((a, b) =>
+            (a['datetime'] as String).compareTo(b['datetime'] as String));
+      final phoneWindow =
+          values.sublist(values.length - 120).reversed.toList();
+      var calls = 0;
+      final client = MockClient((req) async {
+        calls++;
+        return http.Response(
+            jsonEncode({'status': 'ok', 'values': phoneWindow}), 200);
+      });
+      final s = TwelveDataCandleService(apiKey: 'k', client: client);
+      await expectLater(
+          s.fetchCandles(Instrument.xauUsd, interval: '15min', limit: 120),
+          throwsA(isA<MarketDataException>()));
+      expect(calls, 1); // no silent widening
+    });
+
     test('all-placeholder fetch throws honestly (AutoTrade skips, '
         'never signals on synthetic bars)', () async {
       // Saturday: AutoTrade's 60-bar fetch (auto_trade.dart) lands
@@ -287,6 +404,29 @@ void main() {
       // Saturday 22:00 - Sunday 00:45: all confirmed-closed. The first
       // frozen bar survives (its open moved from the real predecessor);
       // the other 11 are dropped.
+      expect(dropClosedMarketPlaceholders(cs).length, 2);
+    });
+
+    test('drops a frozen run whose open STEPS a few cents mid-run '
+        '(the one-candle bug, user report Nov 15 2026)', () {
+      // Saturday run of 12 placeholder bars; the 6th open steps +0.03 -
+      // over the old 0.02 chain, which used to split the run and leave
+      // the step bar alive as a single full-screen candle.
+      final cs = <Candle>[
+        bar(0, 3900.0, 15.0),
+        for (var i = 1; i < 13; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 14, 8, 0)
+                  .add(Duration(minutes: 15 * (i - 1))),
+              open: 3874.43 + (i >= 6 ? 0.03 : 0),
+              high: 3874.66 + (i >= 6 ? 0.03 : 0),
+              low: 3874.43 + (i >= 6 ? 0.03 : 0),
+              close: 3874.55 + (i >= 6 ? 0.03 : 0)),
+      ];
+      // The real Friday bar and the FIRST placeholder survive (its open
+      // moved 26 USD from the real bar, so nothing marks it - same rule
+      // as the existing run tests). The step bar and the rest of the run
+      // are gone; the old 0.02 chain kept 3.
       expect(dropClosedMarketPlaceholders(cs).length, 2);
     });
 

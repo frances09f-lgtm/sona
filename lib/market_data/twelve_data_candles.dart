@@ -24,11 +24,33 @@ class TwelveDataCandleService implements HistoricalCandleService {
     Instrument instrument, {
     String interval = '15min',
     int limit = 200,
+    bool backfillWhenClosed = false,
   }) async {
     if (apiKey.isEmpty) {
       throw MarketDataException(
           'Add your Twelve Data key in API settings to load candle history.');
     }
+    final first = await _fetchOnce(instrument, interval, limit);
+    if (first.isNotEmpty || !backfillWhenClosed || limit >= 5000) {
+      if (first.isEmpty) {
+        throw MarketDataException('zero usable candles from $name');
+      }
+      return first;
+    }
+    // The whole window was confirmed-closed placeholder bars (a weekend
+    // 1H/1D fetch). Widen once so the chart keeps the last real session
+    // instead of going blank; AutoTrade and advice keep the default
+    // throw so their closed-market skip is untouched.
+    final widened = await _fetchOnce(
+        instrument, interval, limit < 300 ? 300 : (limit * 4 > 5000 ? 5000 : limit * 4));
+    if (widened.isEmpty) {
+      throw MarketDataException('zero usable candles from $name');
+    }
+    return widened;
+  }
+
+  Future<List<Candle>> _fetchOnce(
+      Instrument instrument, String interval, int limit) async {
     // timezone=UTC is load-bearing: without it TwelveData returns naive
     // datetimes in the exchange timezone (Australia/Sydney for XAU/USD),
     // which read as ~8 hours in the FUTURE for an IST user. The forming-
@@ -108,11 +130,9 @@ class TwelveDataCandleService implements HistoricalCandleService {
     // and the range check keeps the filter glued to the observed
     // placeholder shape instead of the clock alone.
     if (interval.endsWith('min') || interval.endsWith('h')) {
-      final filtered = dropClosedMarketPlaceholders(out);
-      if (filtered.isEmpty) {
-        throw MarketDataException('zero usable candles from $name');
-      }
-      return filtered;
+      // Possibly empty: the caller decides whether an all-closed window
+      // is an error (default) or triggers one wider backfill fetch.
+      return dropClosedMarketPlaceholders(out);
     }
     return out;
   }
@@ -151,10 +171,14 @@ class TwelveDataCandleService implements HistoricalCandleService {
 ///     settlement break is not filtered at all - its cited hours vary
 ///     by source and it never produced the corruption.
 ///  2. Frozen signature: it belongs to a run of 8+ CONSECUTIVE bars each
-///     with the open frozen within 0.02 USD of the previous open and a
+///     with the open frozen within 0.10 USD of the previous open and a
 ///     high-low range of at most 1 USD. A quiet weekday stretch never
 ///     matches (wrong clock), and real bars at the cited edges never
-///     match (wrong signature): both guards must fire together.
+///     match (wrong signature): both guards must fire together. The
+///     0.10 chaining tolerance absorbs the few-cent open STEPS the
+///     placeholder stream emits (observed 0.022-0.028 USD): with a
+///     tighter chain a step bar survived alone and rendered as one
+///     full-screen candle (user report Nov 15 2026).
 ///
 /// The first bar of a fetch has no predecessor, so it can only be judged
 /// when the run starting right after it reaches 8 bars: if it is frozen
@@ -165,8 +189,16 @@ class TwelveDataCandleService implements HistoricalCandleService {
 /// Dropped runs are reported to [CandleDebugSink] with their UTC window
 /// and count, so the raw provider behavior stays diagnosable.
 List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
+  // The placeholder stream's frozen open occasionally STEPS by a few
+  // cents (verified live Nov 15 2026: a 0.022 USD step at Sat 04:15 UTC
+  // broke a 0.02-tolerance chain and left one bar alive, which the chart
+  // blew up into a single full-screen candle). Chain on 0.10 USD instead:
+  // 4x margin over the observed 0.022-0.028 USD steps, still far below a
+  // real drifting market (0.5 USD steps stay alive, covered by test), and
+  // the confirmed-closed clock window below already guarantees no real
+  // bar can sit inside a dropped run.
   bool frozen(Candle c, Candle prev) =>
-      (c.open - prev.open).abs() <= 0.02 && (c.high - c.low) <= 1.0;
+      (c.open - prev.open).abs() <= 0.10 && (c.high - c.low) <= 1.0;
   // The conservative intersection described above. Clock-based, but it
   // is the region no cited source - futures, broker OTC, or the
   // provider's own observed behavior - treats as open, so DST shifts of
@@ -188,7 +220,7 @@ List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
       if (i - runStart >= 8 &&
           [for (var j = runStart; j < i; j++) candles[j]].every(closedBar)) {
         if (runStart == 1 &&
-            (candles[0].open - candles[1].open).abs() <= 0.02 &&
+            (candles[0].open - candles[1].open).abs() <= 0.10 &&
             (candles[0].high - candles[0].low) <= 1.0 &&
             closedBar(candles[0])) {
           keep[0] = false;

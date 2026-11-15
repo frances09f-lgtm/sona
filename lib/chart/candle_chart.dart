@@ -534,7 +534,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
         lo = lo < hl.$2 ? lo : hl.$2;
       }
     }
-    return (hi, lo);
+    return enforceMinPriceSpan(hi, lo);
   }
 
   @override
@@ -4771,6 +4771,20 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
       ),
     );
   }
+}
+
+/// Viewport floor: a near-flat visible set must never be auto-scaled
+/// into full-height candles. Returns (hi, lo) widened symmetrically to
+/// at least 0.05% of the mid price when the range is degenerate
+/// (user report Nov 15 2026: a single 0.23-USD placeholder survivor
+/// filled the whole chart). Non-finite inputs pass through untouched -
+/// the painter already guards the empty-data case.
+(double, double) enforceMinPriceSpan(double hi, double lo) {
+  if (!hi.isFinite || !lo.isFinite || hi <= lo) return (hi, lo);
+  final mid = (hi + lo) / 2;
+  final minSpan = mid.abs() * 0.0005;
+  if (hi - lo >= minSpan || minSpan <= 0) return (hi, lo);
+  return (mid + minSpan / 2, mid - minSpan / 2);
 }
 
 (String, int) tradeRangeSpec(String code) => switch (code) {

@@ -31,6 +31,48 @@ Future<void> capture(WidgetTester t, GlobalKey key, String name) async {
 }
 
 void main() {
+  testWidgets(
+      'upgrade path: a saved layout from the placeholder era (huge scroll, '
+      'zoom) restores sanely on the short post-filter weekend list',
+      (t) async {
+    // 1.2.29/1.2.30 persisted a viewport tuned to ~120 placeholder bars;
+    // after the fix the same weekend fetch yields ~81 real bars. The
+    // restore must clamp, not crash or strand the view (user report
+    // Nov 15 2026).
+    SharedPreferences.setMockInitialValues({});
+    await loadFonts();
+    await t.binding.setSurfaceSize(const Size(360, 850));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    final data = fakeCandles(81);
+    final key = GlobalKey<CandleChartPanelState>();
+    await t.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: CandleChartPanel(
+            key: key,
+            loader: (_) async => data,
+            initialLayout: const {
+              'chartStyle': 'candles',
+              'visibleCount': 60,
+              'scrollCandles': 9999.0,
+            },
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.byType(CandleChartPanel), findsOneWidget);
+    expect(t.takeException(), isNull);
+    // Scroll past the end clamps to the oldest window instead of a blank
+    // or NaN chart; resetting the zoom returns to the newest bars.
+    final state = key.currentState!;
+    state.debugSetView(visibleCount: null, scroll: 0);
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+  });
+
   test('trade overlay labels avoid collisions at plot edges', () {
     final used = <double>[];
     for (final priceY in [999.0, 999.0, -99.0, -99.0, 40.0, 40.0]) {
