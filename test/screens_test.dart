@@ -9,6 +9,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sona/main.dart';
+import 'package:sona/chart/candle_chart.dart';
 import 'package:sona/market_data/models.dart';
 
 import 'dart:async';
@@ -158,6 +159,44 @@ void main() {
       'trade',
     );
   });
+  testWidgets('stale weekend quote: full trade screen says stale, chart '
+      'keeps real candles and claims no live price (user report Nov 15 2026)',
+      (t) async {
+    final app = demoState();
+    // Friday's last real quote, now stale (weekend): header must show it
+    // dimmed with the honest stale caption, while the backfilled chart
+    // shows the last real session and folds NO live quote into the bars.
+    app.price = 3880.07;
+    app.bid = 3880.07;
+    app.ask = 3880.74;
+    app.priceAt = DateTime.utc(2026, 11, 13, 22, 0).millisecondsSinceEpoch;
+    t.view.physicalSize = const Size(780, 1688);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: TradeTab(app: app, candleLoaderOverride: testCandles),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(app.priceFresh, isFalse);
+    expect(find.textContaining('Quote stale or unavailable'), findsWidgets);
+    // Header still shows the last real quote (never a fabricated one).
+    expect(find.text('\$4153.70'), findsNothing);
+    expect(find.textContaining('3880.07'), findsWidgets);
+    // Chart: candles loaded, but the live-quote fold is OFF while stale -
+    // no live price line can diverge from the last real bar.
+    final state =
+        t.state<CandleChartPanelState>(find.byType(CandleChartPanel).first);
+    expect(state.candles, isNotEmpty);
+    expect(state.chartPrice, isNull);
+    await expectLater(
+        find.byType(TradeTab), matchesGoldenFile('goldens/trade_stale.png'));
+  });
+
   testWidgets(
     'compact sides keep half-height targets and select without trading',
     (t) async {

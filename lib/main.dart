@@ -2299,9 +2299,13 @@ class _TradeTabState extends State<TradeTab> {
                       ),
                       Text(
                         app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
-                        style: const TextStyle(
+                        // Dim when the quote is stale so the header never
+                        // reads as a live price (user report Nov 15 2026:
+                        // chart vs header disagreement on a closed market).
+                        style: TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.w700,
+                          color: app.priceFresh ? null : cDim,
                         ),
                       ),
                     ],
