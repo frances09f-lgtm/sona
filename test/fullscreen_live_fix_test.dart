@@ -198,6 +198,11 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    // The old history-range chips are gone from the Trade screen (user
+    // request); only the candle-size chips remain.
+    for (final gone in ['1H', '1W', '1M', '3M', '1Y']) {
+      expect(find.text(gone), findsNothing, reason: 'range chip $gone');
+    }
     final labels = {
       '1m': '1min',
       '5m': '5min',
