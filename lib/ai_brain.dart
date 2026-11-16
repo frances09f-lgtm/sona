@@ -189,8 +189,9 @@ String zonePromptFragment({String? buyZoneDesc, String? sellZoneDesc}) {
 /// practice, user request Nov 14 evening). Carries just enough recent
 /// price action to judge the proposed levels and asks for the same
 /// zone_buy/zone_sell/zone_reason JSON keys as the gold fragment, so
-/// one parser serves both paths. Gold never calls this - its zones ride
-/// inside its existing analysis/advice replies.
+/// one parser serves both paths. Gold's independent signal pass calls
+/// this only at fresh-setup moments (user-approved Nov 16); AutoTrade
+/// and Advice qualifications still ride on the existing replies.
 String buildZoneQualifyPrompt({
   required String instrument,
   required double bid,

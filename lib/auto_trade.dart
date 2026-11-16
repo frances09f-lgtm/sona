@@ -14,6 +14,7 @@ import 'usage_reporter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_brain.dart';
+import 'signal_pass.dart';
 import 'signal_zones.dart';
 import 'protection.dart';
 import 'market_data/market_data_config.dart';
@@ -382,6 +383,9 @@ class AutoTrade {
         zoneFragment: zoneFragment,
       );
       await prefs.setInt(_brainFailKey, 0);
+      // Zone qualification rode on this decision call: stamp it so the
+      // independent signal pass does not duplicate the request.
+      if (zoneFragment != null) await SignalPass.stampQualified(prefs);
     } on BrainException catch (e) {
       // One bad call (rate limit, a 3 AM network blip) must NOT latch
       // auto-trade off - it used to pause forever here. Skip the cycle

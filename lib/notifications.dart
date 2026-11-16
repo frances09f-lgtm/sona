@@ -1,3 +1,5 @@
+import 'ai_brain.dart';
+import 'signal_pass.dart';
 import 'notification_claims.dart';
 import 'execution_ledger.dart';
 import 'trade_safety.dart';
@@ -361,6 +363,32 @@ Future<List<Map<String, dynamic>>> _fetchPositions(String pin) async {
   return positions;
 }
 
+/// The worker's AI section, extracted so tests drive the exact path the
+/// background worker runs (user-approved repair Nov 16): the gold
+/// signal-box pass ALWAYS runs - AutoTrade's gates (enabled flag,
+/// pauses, cooldowns, trade limits, open positions) decide trading
+/// only, never signals.
+Future<void> oroBackgroundAi(
+  SharedPreferences prefs, {
+  GroqBrain? brain,
+  Future<double?> Function()? midFetcher,
+  Future<List<Candle>> Function()? candleFetcher,
+  int? nowMs,
+}) async {
+  // Signal boxes first: independent of auto-trade; must not break the
+  // worker or the trade cycle below.
+  try {
+    await SignalPass.run(prefs,
+        brain: brain,
+        midFetcher: midFetcher,
+        candleFetcher: candleFetcher,
+        nowMs: nowMs);
+  } catch (_) {}
+  try {
+    await AutoTrade.think(prefs);
+  } catch (_) {}
+}
+
 Future<void> _bgCheck() async {
   await _initPlugin();
   final prefs = await SharedPreferences.getInstance();
@@ -579,11 +607,10 @@ Future<void> _bgCheck() async {
     );
   }
 
-  // AI auto-trade: the brain runs after position housekeeping so a fresh
-  // close is seen before the next decision. Never let it break the worker.
-  try {
-    await AutoTrade.think(prefs);
-  } catch (_) {}
+  // AI section after position housekeeping so a fresh close is seen
+  // before the next decision: the signal-box pass always runs, then
+  // AutoTrade's own gates decide trading only.
+  await oroBackgroundAi(prefs);
 }
 
 String _qty(Map<String, dynamic> p) =>

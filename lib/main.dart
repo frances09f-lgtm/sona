@@ -1,4 +1,3 @@
-import 'btc_practice_panel.dart';
 import 'execution_ledger.dart';
 import 'replay.dart';
 import 'trade_safety.dart';
@@ -38,6 +37,7 @@ import 'chart/chart_tools.dart';
 import 'analytics.dart';
 import 'trade_card.dart';
 import 'ai_brain.dart';
+import 'signal_pass.dart';
 import 'signal_zones.dart';
 import 'alerts.dart';
 import 'auto_trade.dart';
@@ -620,6 +620,19 @@ class AppState extends ChangeNotifier {
     if (signalBoxes.onCandles(
         candles, basis, DateTime.now().millisecondsSinceEpoch)) {
       await signalBoxes.save(store);
+    }
+    // Independent fresh-setup qualification (user-approved repair
+    // Nov 16): also runs while the app is open, deduped across all
+    // paths; fire-and-forget so a chart refresh never blocks on AI.
+    if (signalBoxes.needsSetup) {
+      unawaited(Future(() async {
+        final added = await SignalPass.qualifyFreshSetup(
+            store, signalBoxes, candles, basis);
+        if (added) {
+          await signalBoxes.save(store);
+          notifyListeners();
+        }
+      }));
     }
     notifyListeners();
   }
@@ -2187,71 +2200,9 @@ class _TradeTabState extends State<TradeTab> {
     return double.tryParse(s.trim());
   }
 
-  /// GOLD | BTC market switch. Gold is the default and its content below
-  /// is unchanged; BTC swaps in a separate local-practice panel that never
-  /// touches gold state.
-  String _market = 'gold';
-
-  Widget _marketSelector() {
-    Widget seg(String code, String label) {
-      final sel = _market == code;
-      return Expanded(
-        child: InkWell(
-          onTap: () => setState(() => _market = code),
-          borderRadius: BorderRadius.circular(9),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: sel ? const Color(0xFF4C8DFF) : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: sel ? Colors.white : cDim,
-                fontSize: 13,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF171A21),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF232834)),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(children: [seg('gold', 'GOLD'), seg('btc', 'BTC')]),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final fresh = app.priceFresh;
-    if (_market == 'btc') {
-      return ColoredBox(
-        color: const Color(0xFF10182A),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(14),
-                children: [
-                  _marketSelector(),
-                  const SizedBox(height: 12),
-                  const BtcPracticePanel(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
     return ColoredBox(
       color: const Color(0xFF10182A),
       child: Column(
@@ -2260,8 +2211,6 @@ class _TradeTabState extends State<TradeTab> {
             child: ListView(
               padding: const EdgeInsets.all(14),
               children: [
-                _marketSelector(),
-                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                   child: Row(
@@ -5412,6 +5361,9 @@ class _AiTabState extends State<AiTab> {
         protection: ProtectionSettings.read(prefs),
         zoneFragment: zoneFragment,
       );
+      // Qualification rode on this Advice call: stamp it so the
+      // independent signal pass does not duplicate the request.
+      if (zoneFragment != null) await SignalPass.stampQualified(prefs);
       await widget.app.applyZoneQualification(r.zoneQual);
       // User request: when the AI is SURE of a direction, start the trade
       // immediately at market with TP/SL - no waiting for a start price.
