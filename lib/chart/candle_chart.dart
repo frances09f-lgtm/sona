@@ -4116,6 +4116,12 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   bool get _isTest => Platform.environment.containsKey('FLUTTER_TEST');
 
+  /// Candle size as the user reads it: the 1-day interval is shown as 1D.
+  String _tfLabel(CandleChartPanelState? st) {
+    final l = st?.interval.label ?? '';
+    return l == 'D1' ? '1D' : l;
+  }
+
   double? get _livePrice =>
       widget.livePriceOf != null ? widget.livePriceOf!() : widget.livePrice;
   List<SignalZone> get _signalZones =>
@@ -4419,7 +4425,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 8),
                             child: Text(
-                              st?.interval.label ?? '',
+                              _tfLabel(st),
                               style: const TextStyle(
                                   color: Colors.white, fontSize: 13),
                             ),
@@ -4607,7 +4613,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'GOLD · ${st?.interval.label ?? ''}',
+                                      'GOLD · ${_tfLabel(st)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
