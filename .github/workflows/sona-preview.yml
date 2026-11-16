@@ -19,16 +19,21 @@ jobs:
           flutter-version: '3.47.6'
       - run: flutter pub get
       - name: Behaviour tests (live header, zones, interval routing, axis reset)
-        run: flutter test test/fullscreen_live_fix_test.dart
+        run: flutter test test/fullscreen_live_fix_test.dart --reporter expanded 2>&1 | tee /tmp/behaviour.log
       - name: Render fullscreen proof images (real fixture candles)
         if: always()
         run: FIX_PREVIEW=1 flutter test test/zz_fix_preview_capture_test.dart --update-goldens
       - name: Re-render Trade screen goldens that gained the timeframe row
         if: always()
         run: flutter test test/screens_test.dart --update-goldens
+      - name: Keep behaviour test log
+        if: always()
+        run: tail -n 120 /tmp/behaviour.log > test/goldens/behaviour_log.txt
       - name: List changed images
+        if: always()
         run: git status --short test/goldens
       - name: Commit rendered images to this branch
+        if: always()
         run: |
           git config user.name "sona-preview"
           git config user.email "sona-preview@users.noreply.github.com"
