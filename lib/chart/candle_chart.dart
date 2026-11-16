@@ -657,6 +657,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     // width at every range; a zoom saved on another timeframe looked broken).
     visibleOverride = null;
     scrollCandles = 0;
+    _priceScale = 1.0; // a manual price-axis stretch must not carry over
     if (usingRange != range) {
       setState(() {
         usingRange = range;
@@ -3189,7 +3190,7 @@ class CandlePainter extends CustomPainter {
       // Keep the label clear of the "Today" stats chip painted over the
       // top-left corner (chip bottom is ~22px: y=6 + 10pt text + padding).
       final zMidY = math.max((zTop + zBot) / 2 - zLabel.height / 2,
-          signalStats != null ? 26.0 : 0.0);
+          signalStats != null ? (reserveTopLeft ? 66.0 : 26.0) : 0.0);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(4, zMidY - 2, zLabel.width + 8, zLabel.height + 4),
@@ -3255,6 +3256,9 @@ class CandlePainter extends CustomPainter {
     canvas.restore();
     if (signalStats != null) {
       final ss = signalStats!;
+      // Fullscreen: the GOLD heading + price line own the top-left, so the
+      // count chip sits just below them (user: "Correct is going under 1D").
+      final chipTop = reserveTopLeft ? 46.0 : 6.0;
       const chipStyle = TextStyle(
         color: axis,
         fontSize: 10,
@@ -3278,12 +3282,12 @@ class CandlePainter extends CustomPainter {
       )..layout();
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(8, 6, ok.width + 12, ok.height + 6),
+          Rect.fromLTWH(8, chipTop, ok.width + 12, ok.height + 6),
           const Radius.circular(4),
         ),
         Paint()..color = Colors.black.withValues(alpha: 0.75),
       );
-      ok.paint(canvas, const Offset(14, 9));
+      ok.paint(canvas, Offset(14, chipTop + 3));
     }
     // Previous day/week high-low reference lines (NY-close sessions,
     // TradingView/OANDA style). Dashed, subtle, labeled at the left edge.
@@ -4065,6 +4069,17 @@ class FullscreenChartPage extends StatefulWidget {
   final List<SignalZone> signalZones;
   final (int, int)? signalStats;
 
+  /// Live readers: the page re-reads these on every rebuild so the heading
+  /// price, signal boxes and count chip follow the market instead of the
+  /// values captured when fullscreen opened. Null: use the fixed values.
+  final double? Function()? livePriceOf;
+  final List<SignalZone> Function()? signalZonesOf;
+  final (int, int)? Function()? signalStatsOf;
+
+  /// Adds a 1m / 5m / 1h / 4h / 1D candle-interval row (separate from the
+  /// Date Range menu). Off by default so other callers keep their layout.
+  final bool quickTimeframes;
+
   /// Floating SELL/BUY pills over the chart (broker reference): the page
   /// reports the side; the caller opens its order flow.
   final ValueChanged<String>? onTradeSide;
@@ -4077,6 +4092,10 @@ class FullscreenChartPage extends StatefulWidget {
     this.onTradeSide,
     this.signalZones = const [],
     this.signalStats,
+    this.livePriceOf,
+    this.signalZonesOf,
+    this.signalStatsOf,
+    this.quickTimeframes = false,
     this.livePrice,
     this.rangeMode = false,
     this.initialLayout,
@@ -4096,6 +4115,20 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   Map<String, Map<String, dynamic>> _templates = {};
 
   bool get _isTest => Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Candle size as the user reads it: the 1-day interval is shown as 1D.
+  String _tfLabel(CandleChartPanelState? st) {
+    final l = st?.interval.label ?? '';
+    return l == 'D1' ? '1D' : l;
+  }
+
+  double? get _livePrice =>
+      widget.livePriceOf != null ? widget.livePriceOf!() : widget.livePrice;
+  List<SignalZone> get _signalZones =>
+      widget.signalZonesOf?.call() ?? widget.signalZones;
+  (int, int)? get _signalStats => widget.signalStatsOf != null
+      ? widget.signalStatsOf!()
+      : widget.signalStats;
 
   @override
   void initState() {
@@ -4328,8 +4361,8 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                 });
               }
               final snap = widget.marketSnapshot?.call();
-              final bid = snap?.bid ?? widget.livePrice;
-              final ask = snap?.ask ?? widget.livePrice;
+              final bid = snap?.bid ?? _livePrice;
+              final ask = snap?.ask ?? _livePrice;
               final spread =
                   (bid != null && ask != null) ? (ask - bid).abs() : null;
               return Column(
@@ -4368,6 +4401,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                     ),
                   ),
                   const Divider(height: 1, color: Color(0xFF1C2230)),
+                  if (widget.quickTimeframes) _quickTimeframeRow(st),
                   // ---- tool row ----
                   SizedBox(
                     height: 44,
@@ -4391,7 +4425,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 8),
                             child: Text(
-                              st?.interval.label ?? '',
+                              _tfLabel(st),
                               style: const TextStyle(
                                   color: Colors.white, fontSize: 13),
                             ),
@@ -4562,12 +4596,12 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   onAlertPrice: widget.onAlertPrice,
                                   onReplay: widget.onReplay,
                                   replayOn: widget.replayOn,
-                                  livePrice: widget.livePrice,
+                                  livePrice: _livePrice,
                                   expand: true,
                                   chromeless: true,
                                   rangeMode: widget.rangeMode,
-                                  signalZones: widget.signalZones,
-                                  signalStats: widget.signalStats,
+                                  signalZones: _signalZones,
+                                  signalStats: _signalStats,
                                 ),
                               ),
                               // symbol + price overlay
@@ -4579,14 +4613,14 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'GOLD · ${st?.interval.label ?? ''}',
+                                      'GOLD · ${_tfLabel(st)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    if (widget.livePrice != null)
+                                    if (_livePrice != null)
                                       _changeLine(st),
                                   ],
                                 ),
@@ -4596,7 +4630,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   bid != null &&
                                   ask != null)
                                 Positioned(
-                                  top: 56,
+                                  top: _signalStats != null ? 68 : 56,
                                   left: 10,
                                   child: Row(
                                     children: [
@@ -4680,13 +4714,64 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     );
   }
 
+  /// Candle-interval shortcuts (1m, 5m, 1h, 4h, 1D). These choose the bar
+  /// size only; history windows stay in the Date Range menu.
+  Widget _quickTimeframeRow(CandleChartPanelState? st) {
+    const opts = [
+      ('1min', '1m'),
+      ('5min', '5m'),
+      ('1h', '1h'),
+      ('4h', '4h'),
+      ('1day', '1D'),
+    ];
+    final current = st != null && !st.usingRange ? st.interval.code : null;
+    return SizedBox(
+      height: 34,
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          for (final o in opts)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: GestureDetector(
+                key: ValueKey('tf-${o.$2}'),
+                onTap: () {
+                  st?.applyChartSelection(range: false, code: o.$1);
+                  setState(() {});
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: current == o.$1
+                        ? const Color(0xFF2962FF)
+                        : const Color(0xFF151A24),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    o.$2,
+                    style: TextStyle(
+                      color:
+                          current == o.$1 ? Colors.white : Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _vr() =>
       const VerticalDivider(width: 12, color: Color(0xFF1C2230));
 
   /// Reference-style change figure: price, then +/- change and percent
   /// against the first bar of the last candle's UTC day.
   Widget _changeLine(CandleChartPanelState? st) {
-    final px = widget.livePrice!;
+    final px = _livePrice!;
     double? open;
     final cs = st?.candles;
     if (cs != null && cs.isNotEmpty) {
