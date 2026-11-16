@@ -1,0 +1,64 @@
+name: Sona 1.2.34b repair (tests and renders, no APK)
+on:
+  workflow_dispatch:
+  push:
+    branches: [frances09f-lgtm-patch-1]
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Apply reviewed source patch
+        run: |
+          set -euo pipefail
+          if [ -f ci/fix.patch.b64 ]; then
+            base64 -d ci/fix.patch.b64 > /tmp/fix.patch
+            git apply --whitespace=nowarn /tmp/fix.patch
+            git rm -q ci/fix.patch.b64
+          fi
+          git status --short
+      - run: flutter pub get
+      - name: Full suite before any golden update
+        continue-on-error: true
+        run: flutter test --reporter expanded 2>&1 | tee /tmp/full1.log
+      - name: Keep failure images from first run
+        if: always()
+        run: |
+          mkdir -p test/goldens/run1_failures
+          cp test/failures/*.png test/goldens/run1_failures/ 2>/dev/null || true
+          rm -rf test/failures
+      - name: Re-render Trade and replay goldens affected by the layout change
+        if: always()
+        run: flutter test test/screens_test.dart test/replay_ui_test.dart --update-goldens 2>&1 | tail -n 40
+      - name: Render fullscreen proof images
+        if: always()
+        run: FIX_PREVIEW=1 flutter test test/zz_fix_preview_capture_test.dart --update-goldens 2>&1 | tail -n 20
+      - name: Full suite after golden update
+        if: always()
+        run: flutter test --reporter expanded 2>&1 | tee /tmp/full2.log
+      - name: Keep logs
+        if: always()
+        run: |
+          grep -E 'Some tests failed|All tests passed|\[E\]|: .*FAILED' /tmp/full1.log | tail -n 40 > test/goldens/ci_full1_summary.txt || true
+          tail -n 5 /tmp/full1.log >> test/goldens/ci_full1_summary.txt || true
+          grep -E 'Some tests failed|All tests passed|\[E\]' /tmp/full2.log | tail -n 40 > test/goldens/ci_full2_summary.txt || true
+          tail -n 5 /tmp/full2.log >> test/goldens/ci_full2_summary.txt || true
+          git status --short | head -40
+      - name: Commit repaired source, goldens and summaries to this branch
+        if: always()
+        run: |
+          git config user.name "sona-repair"
+          git config user.email "sona-repair@users.noreply.github.com"
+          git add lib test/goldens test/fullscreen_live_fix_test.dart
+          git add -u ci || true
+          git commit -m "Sona 1.2.34b: remove history-range row, keep candle-size row, fit fullscreen toolbar" || echo "nothing to commit"
+          git push origin HEAD:${GITHUB_REF_NAME}
