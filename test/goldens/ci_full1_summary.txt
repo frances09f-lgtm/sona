@@ -1,0 +1,9 @@
+00:41 +285 -1: /home/runner/work/sona/sona/test/screens_test.dart: trade [E]
+00:42 +285 -2: /home/runner/work/sona/sona/test/screens_test.dart: stale weekend quote: full trade screen says stale, chart keeps real candles and claims no live price (user report Nov 15 2026) [E]
+00:43 +287 -3: /home/runner/work/sona/sona/test/replay_ui_test.dart: Bar replay: pick start, step, paper BUY, golden [E]
+01:05 +435 ~1 -3: Some tests failed.
+
+Failing tests:
+  /home/runner/work/sona/sona/test/replay_ui_test.dart: Bar replay: pick start, step, paper BUY, golden
+  /home/runner/work/sona/sona/test/screens_test.dart: stale weekend quote: full trade screen says stale, chart keeps real candles and claims no live price (user report Nov 15 2026)
+  /home/runner/work/sona/sona/test/screens_test.dart: trade

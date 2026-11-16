@@ -1,0 +1,6 @@
+00:55 +438 ~1: All tests passed!
+00:55 +436 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: (setUpAll)
+00:55 +436 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: wick capture: real market bars
+00:55 +437 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: wick capture: flat degenerate bars
+00:55 +438 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: (tearDownAll)
+00:55 +438 ~1: All tests passed!

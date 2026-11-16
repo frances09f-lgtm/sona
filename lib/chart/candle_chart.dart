@@ -4302,7 +4302,9 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   Widget _toolIcon(IconData icon,
       {bool active = false, bool enabled = true, VoidCallback? onTap}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      // Tighter spacing when the extra candle-size row is shown, so the
+      // whole toolbar (alert bell, replay, trash) still fits on a phone.
+      padding: EdgeInsets.symmetric(vertical: widget.quickTimeframes ? 3 : 5),
       child: InkWell(
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(8),

@@ -1941,35 +1941,6 @@ class _TradeTabState extends State<TradeTab> {
     );
   }
 
-  Widget _rangeChip(ChartInterval r) {
-    final st = chartKey.currentState;
-    // Before the chart's first frame, highlight the panel's default (1D).
-    final selected = st == null
-        ? r.code == 'range:1D'
-        : st.usingRange && st.interval.code == r.code;
-    return InkWell(
-      onTap: () => setState(() {
-        chartKey.currentState?.applyChartSelection(range: true, code: r.code);
-      }),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          r.label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.black : cDim,
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _openChartFullscreen() async {
     final st = chartKey.currentState;
     if (st == null) return;
@@ -2371,24 +2342,6 @@ class _TradeTabState extends State<TradeTab> {
                   },
                   livePrice: _replay?.price ?? app.chartBasis,
                 ),
-                // Candle size (1m / 5m / 1h / 4h / 1D). The range chips below
-                // choose how much history to show; these choose the bar size.
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      for (final o in const [
-                        ('1min', '1m'),
-                        ('5min', '5m'),
-                        ('1h', '1h'),
-                        ('4h', '4h'),
-                        ('1day', '1D'),
-                      ])
-                        _intervalChip(o.$1, o.$2),
-                    ],
-                  ),
-                ),
                 Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 2),
                   child: Row(
@@ -2408,7 +2361,17 @@ class _TradeTabState extends State<TradeTab> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            for (final r in tradeRanges) _rangeChip(r),
+                            // Candle size only (1m / 5m / 1h / 4h / 1D). The
+                            // old history-range chips were removed at the
+                            // user's request.
+                            for (final o in const [
+                              ('1min', '1m'),
+                              ('5min', '5m'),
+                              ('1h', '1h'),
+                              ('4h', '4h'),
+                              ('1day', '1D'),
+                            ])
+                              _intervalChip(o.$1, o.$2),
                           ],
                         ),
                       ),
