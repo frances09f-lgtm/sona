@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sona/chart/candle_chart.dart';
+import 'package:sona/chart/chart_tools.dart';
 import 'package:sona/main.dart';
 import 'package:sona/market_data/models.dart';
 
