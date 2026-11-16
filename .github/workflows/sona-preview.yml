@@ -18,9 +18,13 @@ jobs:
           channel: stable
           flutter-version: '3.47.6'
       - run: flutter pub get
+      - name: Behaviour tests (live header, zones, interval routing, axis reset)
+        run: flutter test test/fullscreen_live_fix_test.dart
       - name: Render fullscreen proof images (real fixture candles)
+        if: always()
         run: FIX_PREVIEW=1 flutter test test/zz_fix_preview_capture_test.dart --update-goldens
       - name: Re-render Trade screen goldens that gained the timeframe row
+        if: always()
         run: flutter test test/screens_test.dart --update-goldens
       - name: List changed images
         run: git status --short test/goldens
