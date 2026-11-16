@@ -1,0 +1,33 @@
+name: Sona chart preview renders (no APK)
+on:
+  workflow_dispatch:
+  push:
+    branches: [sona-1-2-34-chart]
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - run: flutter pub get
+      - name: Render fullscreen proof images (real fixture candles)
+        run: FIX_PREVIEW=1 flutter test test/zz_fix_preview_capture_test.dart --update-goldens
+      - name: Re-render Trade screen goldens that gained the timeframe row
+        run: flutter test test/screens_test.dart --update-goldens
+      - name: List changed images
+        run: git status --short test/goldens
+      - name: Commit rendered images to this branch
+        run: |
+          git config user.name "sona-preview"
+          git config user.email "sona-preview@users.noreply.github.com"
+          git add test/goldens
+          git commit -m "Sona preview: rendered proof images and updated Trade goldens" || echo "nothing to commit"
+          git push origin HEAD:${GITHUB_REF_NAME}
