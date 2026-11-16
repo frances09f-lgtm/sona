@@ -1901,6 +1901,33 @@ class _TradeTabState extends State<TradeTab> {
     );
   }
 
+  Widget _intervalChip(String code, String label) {
+    final st = chartKey.currentState;
+    final selected = st != null && !st.usingRange && st.interval.code == code;
+    return InkWell(
+      key: ValueKey('trade-tf-$label'),
+      onTap: () => setState(() {
+        chartKey.currentState?.applyChartSelection(range: false, code: code);
+      }),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF2962FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : cDim,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _rangeChip(ChartInterval r) {
     final st = chartKey.currentState;
     // Before the chart's first frame, highlight the panel's default (1D).
@@ -1951,6 +1978,10 @@ class _TradeTabState extends State<TradeTab> {
           marketSnapshot: st.widget.marketSnapshot,
           signalZones: app.signalChartZones,
           signalStats: app.signalChipStats,
+          livePriceOf: () => _replay?.price ?? app.chartBasis,
+          signalZonesOf: () => app.signalChartZones,
+          signalStatsOf: () => app.signalChipStats,
+          quickTimeframes: true,
         ),
       ),
     );
@@ -2390,6 +2421,24 @@ class _TradeTabState extends State<TradeTab> {
                     );
                   },
                   livePrice: _replay?.price ?? app.chartBasis,
+                ),
+                // Candle size (1m / 5m / 1h / 4h / 1D). The range chips below
+                // choose how much history to show; these choose the bar size.
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final o in const [
+                        ('1min', '1m'),
+                        ('5min', '5m'),
+                        ('1h', '1h'),
+                        ('4h', '4h'),
+                        ('1day', '1D'),
+                      ])
+                        _intervalChip(o.$1, o.$2),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 2),
