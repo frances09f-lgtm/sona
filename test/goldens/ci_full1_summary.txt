@@ -1,6 +1,6 @@
-01:09 +448 ~1: All tests passed!
-01:09 +446 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: (setUpAll)
-01:09 +446 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: wick capture: real market bars
-01:09 +447 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: wick capture: flat degenerate bars
-01:09 +448 ~1: /home/runner/work/sona/sona/test/zz_wick_capture_test.dart: (tearDownAll)
-01:09 +448 ~1: All tests passed!
+00:44 +455 ~1: All tests passed!
+00:43 +451 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: fullscreen preserves layout, listens to live updates, returns settings, restores orientation
+00:44 +452 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: invalid history is refused; fresh quote marker never rewrites historic candles
+00:44 +453 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: provider OHLC retained, live marker separate
+00:44 +454 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:44 +455 ~1: All tests passed!
