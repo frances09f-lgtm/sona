@@ -1,0 +1,6 @@
+00:01 +7: All tests passed!
+00:01 +3: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: editor templates save, list and apply
+00:01 +4: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: editor templates save, list and apply
+00:01 +5: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden)
+00:01 +6: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden)
+00:01 +7: All tests passed!

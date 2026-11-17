@@ -1,0 +1,6 @@
+00:05 +13: All tests passed!
+00:03 +10: /home/runner/work/sona/sona/test/fullscreen_live_fix_test.dart: 1m/5m/1h/4h/1D menu picks load that exact candle size
+00:04 +11: /home/runner/work/sona/sona/test/fullscreen_live_fix_test.dart: a stretched price axis resets when the timeframe changes
+00:04 +12: /home/runner/work/sona/sona/test/fullscreen_live_fix_test.dart: Trade screen candle-size chips switch the real interval
+00:05 +13: /home/runner/work/sona/sona/test/fullscreen_live_fix_test.dart: (tearDownAll)
+00:05 +13: All tests passed!

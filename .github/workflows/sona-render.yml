@@ -1,0 +1,118 @@
+name: Sona 1.2.35 diagnostics render (image only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [frances09f-lgtm-patch-1]
+    paths: ['ci/render.flag']
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - run: flutter pub get
+      - name: Write render-only test
+        run: |
+          cat > test/zz_diag_blocks_render_test.dart <<'DART'
+          import 'dart:io';
+          import 'package:flutter/material.dart';
+          import 'package:flutter/services.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:package_info_plus/package_info_plus.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+          import 'package:sona/chart/chart_tools.dart';
+          import 'package:sona/chart_diagnostics.dart';
+          import 'package:sona/market_data/candle_debug.dart';
+
+          void main() {
+            setUpAll(() async {
+              final root = Platform.environment['FLUTTER_ROOT'];
+              if (root == null) return;
+              final dir = Directory('$root/bin/cache/artifacts/material_fonts');
+              if (!dir.existsSync()) return;
+              final roboto = FontLoader('Roboto');
+              final mono = FontLoader('monospace');
+              final icons = FontLoader('MaterialIcons');
+              for (final f in dir.listSync().whereType<File>()) {
+                final name = f.uri.pathSegments.last;
+                final data = ByteData.view(f.readAsBytesSync().buffer);
+                if (name.startsWith('Roboto')) roboto.addFont(Future.value(data));
+                if (name == 'Roboto-Regular.ttf') mono.addFont(Future.value(data));
+                if (name.startsWith('MaterialIcons')) icons.addFont(Future.value(data));
+              }
+              await roboto.load();
+              await mono.load();
+              await icons.load();
+            });
+
+            testWidgets('render diagnostics blocks', (tester) async {
+              PackageInfo.setMockInitialValues(
+                appName: 'Sona',
+                packageName: 'com.ambi.gold_paper_trading',
+                version: '1.2.35',
+                buildNumber: '137',
+                buildSignature: '',
+              );
+              final nowMs = DateTime.now().millisecondsSinceEpoch;
+              SharedPreferences.setMockInitialValues({
+                'oro_bridge_snapshot':
+                    '{"bid":3866.0,"ask":3866.6,"quoteAt":$nowMs}',
+                'tj_signal_status_v1':
+                    '{"at":${nowMs - 4 * 60000},"path":"worker","outcome":"no_candles"}',
+                'tj_signal_qual_last_ms': nowMs - 6 * 60000,
+              });
+              String row(String t, String o, String c) =>
+                  '{"datetime":"$t","open":"$o","high":"3866.0","low":"3856.0","close":"$c"}';
+              CandleDebugSink.recordFetch(
+                sourceName: 'twelvedata',
+                interval: '5min',
+                values: [
+                  {'datetime': '2026-11-16 19:25:00', 'open': '3862.10313', 'high': '3864.91318', 'low': '3862.10313', 'close': '3864.35044'},
+                  {'datetime': '2026-11-16 19:20:00', 'open': '3860.46673', 'high': '3863.50637', 'low': '3859.90764', 'close': '3863.00986'},
+                  {'datetime': '2026-11-16 19:15:00', 'open': '3857.54503', 'high': '3861.30203', 'low': '3857.07323', 'close': '3861.00606'},
+                  {'datetime': '2026-11-16 09:40:00', 'open': '3856.30841', 'high': '3857.63304', 'low': '3855.19874', 'close': '3855.81562'},
+                  {'datetime': '2026-11-16 09:35:00', 'open': '3857.23353', 'high': '3859.77401', 'low': '3855.49601', 'close': '3856.65771'},
+                  {'datetime': '2026-11-16 09:30:00', 'open': '3858.1632', 'high': '3859.5137', 'low': '3856.68556', 'close': '3856.98035'},
+                ],
+              );
+              CandleDebugSink.fetchAtUtc = DateTime.utc(2026, 11, 16, 19, 26, 59);
+              addTearDown(CandleDebugSink.clear);
+              tester.view.physicalSize = const Size(390 * 2, 1900 * 2);
+              tester.view.devicePixelRatio = 2;
+              addTearDown(tester.view.reset);
+              await tester.pumpWidget(const MaterialApp(
+                home: ChartDiagnosticsScreen(
+                  snapshot: ChartMarketSnapshot(
+                    price: 3866.0,
+                    fresh: true,
+                    bid: 3866.0,
+                    ask: 3866.6,
+                    liveTicks: [],
+                  ),
+                ),
+              ));
+              await tester.pumpAndSettle();
+              await expectLater(find.byType(ChartDiagnosticsScreen),
+                  matchesGoldenFile('goldens/diag_blocks_1_2_35.png'));
+            });
+          }
+          DART
+      - name: Render
+        run: flutter test test/zz_diag_blocks_render_test.dart --update-goldens 2>&1 | tail -n 30
+      - name: Commit image only
+        if: always()
+        run: |
+          rm -f test/zz_diag_blocks_render_test.dart
+          git config user.name "sona-repair"
+          git config user.email "sona-repair@users.noreply.github.com"
+          git add test/goldens/diag_blocks_1_2_35.png
+          git commit -m "Diagnostics render image (1.2.35)" || echo "nothing to commit"
+          git push origin HEAD:${GITHUB_REF_NAME}

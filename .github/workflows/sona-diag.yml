@@ -1,0 +1,62 @@
+name: Sona 1.2.36 failure diagnosis (no APK, no golden updates)
+on:
+  workflow_dispatch:
+  push:
+    branches: [frances09f-lgtm-patch-1]
+    paths: ['ci/diag.trigger']
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Check out the tree as it was BEFORE any golden regeneration for round 4
+        run: |
+          set -euo pipefail
+          git rm -q ci/diag.trigger || true
+          SHA=$(git log -1 --format=%H -- test/goldens/ci_fix7_full_summary.txt)
+          echo "pre-round4 commit: $SHA" | tee /tmp/diag_sha.txt
+          git log --oneline -5 | tee -a /tmp/diag_sha.txt
+          git checkout -q $SHA -- lib test pubspec.yaml
+          git status --short | head -n 20
+      - run: flutter pub get
+      - name: Run the failing files without updating goldens
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded test/candle_chart_test.dart test/chart_xm360_test.dart test/chart_drawing_tools_test.dart test/session_levels_test.dart test/screens_test.dart test/replay_ui_test.dart test/strategies_screen_test.dart > /tmp/diag_full.log 2>&1
+          echo "exit=$?" > /tmp/diag_exit.txt
+      - name: Keep evidence
+        if: always()
+        run: |
+          mkdir -p /tmp/ev
+          echo "exit: $(cat /tmp/diag_exit.txt 2>/dev/null)" > /tmp/ev/diag_summary.txt
+          cat /tmp/diag_sha.txt >> /tmp/ev/diag_summary.txt
+          grep -E 'Pixel test failed|Expected:|Actual:|Test failed\. See|The following|Failed assertion|Expected |  Which is|Bad state|TestFailure|\[E\]' /tmp/diag_full.log | cut -c1-300 | head -n 150 >> /tmp/ev/diag_summary.txt
+          find . -path ./node_modules -prune -o -type d -name failures -print | head
+          mkdir -p /tmp/ev/img
+          for f in $(find test -path '*failures*' -name '*.png' | head -n 40); do cp "$f" "/tmp/ev/img/$(echo $f | tr '/' '_')"; done
+          ls /tmp/ev/img | head -n 50 >> /tmp/ev/diag_summary.txt
+      - name: Commit evidence
+        if: always()
+        run: |
+          git config user.name "sona-repair"
+          git config user.email "sona-repair@users.noreply.github.com"
+          git checkout -q -f ${GITHUB_REF_NAME} 2>/dev/null || git checkout -q -f -B ${GITHUB_REF_NAME} origin/${GITHUB_REF_NAME}
+          git reset -q --hard origin/${GITHUB_REF_NAME}
+          git rm -q ci/diag.trigger 2>/dev/null || true
+          mkdir -p test/diag && cp -r /tmp/ev/* test/diag/
+          git add test/diag
+          git commit -m "diag evidence (no source change)" || echo none
+          git pull -q --rebase origin ${GITHUB_REF_NAME} || true
+          git push origin HEAD:${GITHUB_REF_NAME}

@@ -1,0 +1,153 @@
+name: Sona 1.2.36 chart restyle and scale fix (tests and render, no APK)
+on:
+  workflow_dispatch:
+  push:
+    branches: [frances09f-lgtm-patch-1]
+    paths: ['ci/fix5.patch.b64']
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Apply reviewed source patch
+        run: |
+          set -euo pipefail
+          if [ -f ci/fix5.patch.b64 ]; then
+            base64 -d ci/fix5.patch.b64 > /tmp/fix5.patch
+            git apply --whitespace=nowarn /tmp/fix5.patch
+            git rm -q ci/fix5.patch.b64
+          fi
+          git status --short
+      - run: flutter pub get
+      - name: Regenerate fullscreen goldens (palette and chip row changed on purpose)
+        continue-on-error: true
+        run: flutter test --update-goldens test/fullscreen_editor_test.dart test/adaptive_grid_preview_test.dart test/zz_fix_preview_capture_test.dart 2>&1 | tail -n 15
+      - name: Toolbar and chart tests, plain output
+        continue-on-error: true
+        run: flutter test --reporter expanded test/chart_toolbar_test.dart test/fullscreen_editor_test.dart test/fullscreen_live_fix_test.dart 2>&1 | tee /tmp/new.log
+      - name: Render previews
+        continue-on-error: true
+        run: |
+          cat > test/zz_xm_render_test.dart <<'DART'
+          import 'dart:math' as math;
+          import 'package:flutter/material.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+          import 'package:sona/chart/candle_chart.dart';
+          import 'package:sona/chart/chart_tools.dart';
+          import 'package:sona/market_data/models.dart';
+          import 'package:sona/signal_zones.dart';
+          import 'fullscreen_editor_test.dart' show loadFonts;
+
+          List<Candle> bars() {
+            // Fixture only: 5-minute bars around 3855-3892, not real market data.
+            final rnd = math.Random(7);
+            double px = 3858;
+            final base = DateTime.utc(2026, 11, 17, 14, 0);
+            final out = <Candle>[];
+            for (var i = 0; i < 40; i++) {
+              final o = px;
+              final drift = i < 28 ? (rnd.nextDouble() - 0.45) * 4 : (i < 31 ? 9.0 : -4.0);
+              final c = o + drift;
+              final h = math.max(o, c) + rnd.nextDouble() * 2;
+              final l = math.min(o, c) - rnd.nextDouble() * 2;
+              px = c;
+              out.add(Candle(time: base.add(Duration(minutes: 5 * i)), open: o, high: h, low: l, close: c));
+            }
+            return out;
+          }
+
+          void main() {
+            testWidgets('render xm preview', (tester) async {
+              SharedPreferences.setMockInitialValues({});
+              await loadFonts();
+              tester.view.physicalSize = const Size(716, 1599);
+              tester.view.devicePixelRatio = 1.0;
+              addTearDown(tester.view.reset);
+              final data = bars();
+              final last = data.last.close;
+              await tester.pumpWidget(MaterialApp(
+                debugShowCheckedModeBanner: false,
+                home: FullscreenChartPage(
+                  loader: (iv) async => data,
+                  livePrice: last,
+                  rangeMode: false,
+                  signalStats: (1, 0),
+                  signalZones: const [
+                    SignalZone(isBuy: false, low: 3915, high: 3921),
+                    SignalZone(isBuy: true, low: 3826, high: 3832),
+                  ],
+                  marketSnapshot: () => ChartMarketSnapshot(
+                    price: last, fresh: true, bid: last - 0.33, ask: last + 0.33),
+                  onTradeSide: (_) {},
+                ),
+              ));
+              await tester.pumpAndSettle();
+              await expectLater(find.byType(FullscreenChartPage),
+                  matchesGoldenFile('goldens/xm_preview_5m.png'));
+            });
+          }
+          DART
+          flutter test test/zz_xm_render_test.dart --update-goldens 2>&1 | tail -n 15
+          cat > test/zz_toolbar_render_test.dart <<'DART'
+          import 'package:flutter/material.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+          import 'package:sona/chart/candle_chart.dart';
+          import 'fullscreen_editor_test.dart' show fakeCandles, loadFonts;
+
+          void main() {
+            testWidgets('render menu', (tester) async {
+              SharedPreferences.setMockInitialValues({});
+              await loadFonts();
+              tester.view.physicalSize = const Size(716, 1599);
+              tester.view.devicePixelRatio = 1.0;
+              addTearDown(tester.view.reset);
+              final data = fakeCandles(96);
+              await tester.pumpWidget(MaterialApp(
+                debugShowCheckedModeBanner: false,
+                home: FullscreenChartPage(
+                  loader: (iv) async => data,
+                  livePrice: data.last.close,
+                  rangeMode: true,
+                  onTradeSide: (_) {},
+                ),
+              ));
+              await tester.pumpAndSettle();
+              await tester.tap(find.text('15m'));
+              await tester.pumpAndSettle();
+              await expectLater(find.byType(MaterialApp),
+                  matchesGoldenFile('goldens/xm_menu.png'));
+            });
+          }
+          DART
+          flutter test test/zz_toolbar_render_test.dart --update-goldens 2>&1 | tail -n 15
+          rm -f test/zz_xm_render_test.dart test/zz_toolbar_render_test.dart
+      - name: Full suite, plain output
+        if: always()
+        run: flutter test --reporter expanded 2>&1 | tee /tmp/full.log
+      - name: Keep summaries
+        if: always()
+        run: |
+          grep -E 'Some tests failed|All tests passed|\[E\]|FAILED|Error:|error:' /tmp/new.log | head -n 60 > test/goldens/ci_fix5_new_summary.txt || true
+          tail -n 5 /tmp/new.log >> test/goldens/ci_fix5_new_summary.txt || true
+          grep -E 'Some tests failed|All tests passed|\[E\]|FAILED' /tmp/full.log | head -n 60 > test/goldens/ci_fix5_full_summary.txt || true
+          tail -n 5 /tmp/full.log >> test/goldens/ci_fix5_full_summary.txt || true
+      - name: Commit to this branch
+        if: always()
+        run: |
+          git config user.name "sona-repair"
+          git config user.email "sona-repair@users.noreply.github.com"
+          git add lib test pubspec.yaml
+          git add -u ci || true
+          git commit -m "Sona 1.2.36: chart restyle, scale fix, timeframe menu" || echo "nothing to commit"
+          git push origin HEAD:${GITHUB_REF_NAME}

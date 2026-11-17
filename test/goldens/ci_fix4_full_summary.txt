@@ -1,0 +1,6 @@
+00:40 +446 ~1: All tests passed!
+00:39 +442 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: fullscreen preserves layout, listens to live updates, returns settings, restores orientation
+00:39 +443 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: invalid history is refused; fresh quote marker never rewrites historic candles
+00:39 +444 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: forming bar synthesized from live quote, line meets last candle
+00:40 +445 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:40 +446 ~1: All tests passed!

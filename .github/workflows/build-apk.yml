@@ -94,13 +94,13 @@ jobs:
           "$AAPT" dump badging "$APK" > /tmp/badging.txt
           sed -n '1p' /tmp/badging.txt > /tmp/package.txt
           cat /tmp/package.txt
-          grep -F "name='com.ambi.gold_paper_trading' versionCode='137' versionName='1.2.35'" /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='138' versionName='1.2.36'" /tmp/package.txt
           cp "$APK" /tmp/Sona.apk
           (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
           cat /tmp/Sona.apk.sha256
           printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Full Flutter and native JUnit gates passed. Entry-price orders require open app and internet. Phone behavior unverified. Do not publish.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
           TAG="test-entry-135-${GITHUB_RUN_NUMBER}"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name='Sona 1.2.35 TEST - signal key-load repair and diagnostics' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name='Sona 1.2.36 TEST - XM360-style chart, scale fix, timeframe menu' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
           DRAFT=$(jq -er '.id' /tmp/draft-before.json)
           jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
           gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"

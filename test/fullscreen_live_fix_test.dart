@@ -42,6 +42,13 @@ CandlePainter painterOf(WidgetTester t) => t
     .whereType<CandlePainter>()
     .first;
 
+Future<void> pickBar(WidgetTester t, String label) async {
+  await t.tap(find.byType(PopupMenuButton<String>).first);
+  await t.pumpAndSettle();
+  await t.tap(find.text(label));
+  await t.pumpAndSettle();
+}
+
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -123,7 +130,7 @@ void main() {
     expect(find.textContaining('3,900.00'), findsNothing);
   });
 
-  testWidgets('1m/5m/1h/4h/1D chips load that exact candle size', (t) async {
+  testWidgets('1m/5m/1h/4h/1D menu picks load that exact candle size', (t) async {
     final h = await pumpFullscreen(t);
     final expected = <String, Duration>{
       '1m': _steps['1min']!,
@@ -140,8 +147,7 @@ void main() {
       '1D': '1day',
     };
     for (final e in expected.entries) {
-      await t.tap(find.byKey(ValueKey('tf-${e.key}')));
-      await t.pumpAndSettle();
+      await pickBar(t, e.key);
       final st = t.state<CandleChartPanelState>(find.byType(CandleChartPanel));
       expect(st.usingRange, isFalse, reason: e.key);
       expect(st.interval.code, codes[e.key], reason: e.key);
@@ -170,8 +176,7 @@ void main() {
     await g.up();
     await t.pumpAndSettle();
     expect(st.debugPriceScale, greaterThan(1.0));
-    await t.tap(find.byKey(const ValueKey('tf-5m')));
-    await t.pumpAndSettle();
+    await pickBar(t, '5m');
     expect(st.debugPriceScale, 1.0);
   });
 

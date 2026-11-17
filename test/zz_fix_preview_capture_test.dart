@@ -96,7 +96,9 @@ void main() {
 
     // Candle-size chips.
     for (final label in ['1m', '5m', '1h', '4h', '1D']) {
-      await tester.tap(find.byKey(ValueKey('tf-$label')));
+      await tester.tap(find.byType(PopupMenuButton<String>).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
       await tester.pumpAndSettle();
       await expectLater(find.byType(FullscreenChartPage),
           matchesGoldenFile('goldens/fix_fullscreen_3_tf_$label.png'));

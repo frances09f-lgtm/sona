@@ -1,0 +1,18 @@
+00:05 +61 -1: /home/runner/work/sona/sona/test/chart_xm360_test.dart: chart card is clean: no interval or range chips [E]
+00:06 +61 -2: /home/runner/work/sona/sona/test/chart_xm360_test.dart: crosshair toggle + drag shows price and time tags [E]
+00:06 +61 -3: /home/runner/work/sona/sona/test/chart_xm360_test.dart: Heikin Ashi chart type renders [E]
+00:06 +62 -4: /home/runner/work/sona/sona/test/chart_xm360_test.dart: bid and ask lines with right-axis tags [E]
+00:22 +153 -5: /home/runner/work/sona/sona/test/chart_drawing_tools_test.dart: drawing tools render (golden) [E]
+00:24 +161 -6: /home/runner/work/sona/sona/test/session_levels_test.dart: chart renders session shading + PD/PW levels (golden) [E]
+00:40 +284 -7: /home/runner/work/sona/sona/test/screens_test.dart: trade [E]
+00:40 +284 -8: /home/runner/work/sona/sona/test/screens_test.dart: stale weekend quote: full trade screen says stale, chart keeps real candles and claims no live price (user report Nov 15 2026) [E]
+00:41 +286 -9: /home/runner/work/sona/sona/test/replay_ui_test.dart: Bar replay: pick start, step, paper BUY, golden [E]
+01:01 +385 ~1 -10: /home/runner/work/sona/sona/test/strategies_screen_test.dart: strategy levels stay off the chart (v1.2.3 clean-chart directive, golden) [E]
+01:04 +409 ~1 -11: /home/runner/work/sona/sona/test/candle_chart_test.dart: chart with indicators renders (golden) [E]
+01:06 +426 ~1 -12: /home/runner/work/sona/sona/test/candle_chart_test.dart: indicator dropdown offers nine toggles without changing timeframe [E]
+01:07 +436 ~1 -12: Some tests failed.
+  /home/runner/work/sona/sona/test/candle_chart_test.dart: chart with indicators renders (golden)
+  /home/runner/work/sona/sona/test/candle_chart_test.dart: indicator dropdown offers nine toggles without changing timeframe
+  /home/runner/work/sona/sona/test/chart_drawing_tools_test.dart: drawing tools render (golden)
+  /home/runner/work/sona/sona/test/chart_xm360_test.dart: Heikin Ashi chart type renders
+  ... and 8 more
