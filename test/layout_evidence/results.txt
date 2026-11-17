@@ -1,0 +1,20 @@
+Targeted outcome: success
+Full outcome: success
+00:03 +18: All tests passed!
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:03 +14: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: fullscreen preserves layout, listens to live updates, returns settings, restores orientation
+00:03 +15: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: invalid history is refused; fresh quote marker never rewrites historic candles
+00:03 +16: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: provider OHLC retained, live marker separate
+00:03 +17: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:03 +18: All tests passed!
+00:41 +455 ~1: All tests passed!
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:41 +451 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: fullscreen preserves layout, listens to live updates, returns settings, restores orientation
+00:41 +452 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: invalid history is refused; fresh quote marker never rewrites historic candles
+00:41 +453 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: provider OHLC retained, live marker separate
+00:41 +454 ~1: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:41 +455 ~1: All tests passed!

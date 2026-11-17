@@ -4630,7 +4630,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   bid != null &&
                                   ask != null)
                                 Positioned(
-                                  top: _signalStats != null ? 68 : 56,
+                                  top: _signalStats != null ? 92 : 72,
                                   left: 10,
                                   child: Row(
                                     children: [
