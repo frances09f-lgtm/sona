@@ -1,0 +1,27 @@
+Targeted outcome: success
+Full outcome: failure
+00:01 +6: All tests passed!
+00:00 +0: loading /home/runner/work/sona/sona/test/provider_day_open_test.dart
+00:00 +0: uses provider daily open and caches across timeframe callers
+00:00 +1: Sydney session rolls before UTC midnight, no stale previous-day fallback
+00:00 +2: IANA timezone handles DST instead of fixed offset
+00:00 +3: outage malformed zero future and missing timezone never use intraday fallback
+00:00 +4: empty key makes no request; error retries only after cooldown
+00:00 +5: same quote daily change independent of timeframe/history; stale hidden
+00:01 +6: All tests passed!
+Golden "goldens/fullscreen_editor_positions.png": Pixel test failed, 0.29%, 946px diff detected.
+00:13 +98 -1: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden) [E]
+Golden "goldens/fullscreen_editor.png": Pixel test failed, 0.29%, 946px diff detected.
+00:14 +98 -2: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden) [E]
+Expected: null
+  Actual: FlutterError:<Golden "goldens/adaptive_grid_normal.png": Pixel test failed, 0.21%, 2734px
+00:15 +98 -3: /home/runner/work/sona/sona/test/adaptive_grid_preview_test.dart: preview dotted grid normal, zoomed, panned, price-scaled [E]
+01:04 +451 ~1 -3: Some tests failed.
+01:04 +449 ~1 -3: /home/runner/work/sona/sona/test/candle_chart_test.dart: enforceMinPriceSpan (viewport floor, user report Nov 15 2026) passes through degenerate or infinite inputs
+01:04 +450 ~1 -3: /home/runner/work/sona/sona/test/candle_chart_test.dart: enforceMinPriceSpan (viewport floor, user report Nov 15 2026) scales with the instrument, not a fixed dollar amount
+01:04 +451 ~1 -3: Some tests failed.
+
+Failing tests:
+  /home/runner/work/sona/sona/test/adaptive_grid_preview_test.dart: preview dotted grid normal, zoomed, panned, price-scaled
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden)
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden)

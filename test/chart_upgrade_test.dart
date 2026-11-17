@@ -493,7 +493,7 @@ void main() {
   );
 
   testWidgets(
-    'lagging candle feed: forming bar synthesized from live quote, line meets last candle',
+    'lagging candle feed: provider OHLC retained, live marker separate',
     (t) async {
       SharedPreferences.setMockInitialValues({});
       await loadFonts();
@@ -525,15 +525,14 @@ void main() {
       );
       await t.pumpAndSettle();
       final cs = painter(t).candles;
-      expect(cs.length, bars.length + 1); // synthesized forming bar appended
-      expect(cs.last.close, 4123.5); // close == live quote
-      // The forming bar must be INSIDE the visible window (a provider-
-      // length window clips it off the right edge - the v1.0.88 bug).
-      final p0 = painter(t);
-      expect(p0.firstVisible + p0.visibleCount, greaterThanOrEqualTo(cs.length));
-      expect(cs.last.open, 4105); // opens at last real close
-      expect(cs.take(bars.length).map((c) => c.close).join(','),
-          bars.map((c) => c.close).join(',')); // history untouched
+      expect(cs.length, bars.length);
+      expect(cs.last.open, 4100);
+      expect(cs.last.high, 4110);
+      expect(cs.last.low, 4090);
+      expect(cs.last.close, 4105);
+      expect(painter(t).livePrice, 4123.5);
+      expect(cs.map((c) => (c.time,c.open,c.high,c.low,c.close,c.volume)).toList(),
+          bars.map((c) => (c.time,c.open,c.high,c.low,c.close,c.volume)).toList());
       await t.pumpWidget(const SizedBox());
     },
   );
