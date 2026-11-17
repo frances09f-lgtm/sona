@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sona/chart/candle_chart.dart';
 import 'package:sona/market_data/models.dart';
-import 'package:sona/signal_zones.dart';
 
 import 'fullscreen_editor_test.dart' show fakeCandles, loadFonts;
 
@@ -106,5 +105,17 @@ void main() {
           double.parse((e.widget as Text).data!.replaceAll(',', ''));
       expect(v, inInclusiveRange(lo - 40, hi + 40));
     }
+  });
+
+  test('axis extent: far boxes ignored, overlapping and near boxes kept', () {
+    const far = SignalZone(isBuy: false, low: 4400, high: 4410);
+    const farLow = SignalZone(isBuy: true, low: 3700, high: 3710);
+    const inside = SignalZone(isBuy: true, low: 3860, high: 3865);
+    const near = SignalZone(isBuy: false, low: 3893, high: 3897);
+    expect(axisExtentWithZones(3892, 3855, [far, farLow]), (3892.0, 3855.0));
+    expect(axisExtentWithZones(3892, 3855, [inside]), (3892.0, 3855.0));
+    expect(axisExtentWithZones(3892, 3855, [near]), (3897.0, 3855.0));
+    expect(axisExtentWithZones(3892, 3855, [far, near, farLow]),
+        (3897.0, 3855.0));
   });
 }

@@ -3025,16 +3025,8 @@ class CandlePainter extends CustomPainter {
       lo = math.min(lo, hl.$2);
     }
     // A box far from the visible candles must not stretch the price axis
-    // (it flattened the candles); only boxes within 15% of the candle
-    // range widen it. Farther boxes stay off-screen.
-    final dataSpan = hi - lo;
-    final zoneReach = dataSpan * 0.15;
-    final dataHi = hi, dataLo = lo;
-    for (final z in signalZones) {
-      if (z.low > dataHi + zoneReach || z.high < dataLo - zoneReach) continue;
-      hi = math.max(hi, z.high);
-      lo = math.min(lo, z.low);
-    }
+    // (it flattened the candles); see [axisExtentWithZones].
+    (hi, lo) = axisExtentWithZones(hi, lo, signalZones);
     final pad = math.max((hi - lo) * 0.05, 0.01);
     hi += pad;
     lo -= pad;
@@ -3527,7 +3519,10 @@ class CandlePainter extends CustomPainter {
     final dashPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.85)
       ..strokeWidth = 1;
-    canvas.drawLine(Offset(0, lpy), Offset(plotW, lpy), dashPaint);
+    for (double dx = 0; dx < plotW; dx += 5) {
+      canvas.drawLine(
+          Offset(dx, lpy), Offset(math.min(dx + 2, plotW), lpy), dashPaint);
+    }
     final tagTp = TextPainter(
       text: TextSpan(
         text: fmtAxisPrice(lp),
@@ -4958,6 +4953,21 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   final minSpan = mid.abs() * 0.0005;
   if (hi - lo >= minSpan || minSpan <= 0) return (hi, lo);
   return (mid + minSpan / 2, mid - minSpan / 2);
+}
+
+/// Price-axis extent for the candles' [hi]/[lo] plus signal boxes. Only boxes
+/// overlapping the candle range, or within 15% of it, widen the axis; farther
+/// boxes stay off-screen so they cannot squeeze the candles.
+(double, double) axisExtentWithZones(
+    double hi, double lo, List<SignalZone> zones) {
+  final reach = (hi - lo) * 0.15;
+  var h = hi, l = lo;
+  for (final z in zones) {
+    if (z.low > hi + reach || z.high < lo - reach) continue;
+    h = math.max(h, z.high);
+    l = math.min(l, z.low);
+  }
+  return (h, l);
 }
 
 (String, int) tradeRangeSpec(String code) => switch (code) {
