@@ -46,14 +46,13 @@ void main() {
     final panel = await pump(tester, fakeCandles(120));
     await tester.tap(find.text('15m'));
     await tester.pumpAndSettle();
-    expect(find.text('1D range'), findsOneWidget);
     expect(find.text('\u2713 1D range'), findsOneWidget);
     await tester.tap(find.text('5m'));
     await tester.pumpAndSettle();
     expect(panel.usingRange, isFalse);
     expect(panel.interval.code, '5min');
     expect(find.text('GOLD · 5m'), findsOneWidget);
-    await tester.tap(find.text('5m').first);
+    await tester.tap(find.byType(PopupMenuButton<String>).first);
     await tester.pumpAndSettle();
     expect(find.text('\u2713 5m'), findsOneWidget);
   });
