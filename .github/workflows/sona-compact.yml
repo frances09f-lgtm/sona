@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           dart format test/compact_chart_controls_test.dart
           COMPACT_CAPTURE=1 flutter test test/compact_chart_controls_test.dart --reporter expanded
-          flutter test test/fullscreen_editor_test.dart --update-goldens
+          flutter test test/fullscreen_editor_test.dart test/adaptive_grid_preview_test.dart --update-goldens
       - name: Keep real Flutter preview images in draft only
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           git config user.name sona-repair
           git config user.email sona-repair@users.noreply.github.com
-          git add lib/chart/candle_chart.dart lib/chart_diagnostics.dart lib/market_data/candle_debug.dart pubspec.yaml test/compact_chart_controls_test.dart test/fullscreen_live_fix_test.dart test/goldens/fullscreen_editor.png test/goldens/fullscreen_editor_positions.png
+          git add lib/chart/candle_chart.dart lib/chart_diagnostics.dart lib/market_data/candle_debug.dart pubspec.yaml test/compact_chart_controls_test.dart test/fullscreen_live_fix_test.dart test/goldens/fullscreen_editor.png test/goldens/fullscreen_editor_positions.png test/goldens/adaptive_grid_*.png
           git commit -m 'Sona 1.2.39 TEST: compact fullscreen controls and clear chart header [skip ci]'
           git push origin HEAD:feature/btc-weekend
           echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
