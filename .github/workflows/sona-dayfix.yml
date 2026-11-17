@@ -1,0 +1,89 @@
+name: Sona provider-day reference tests and preview
+on:
+  push:
+    branches: [frances09f-lgtm-patch-1]
+    paths: ['ci/dayfix.patch.b64']
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Apply patch
+        run: |
+          set -euo pipefail
+          base64 -d ci/dayfix.patch.b64 > /tmp/dayfix.patch
+          git apply /tmp/dayfix.patch
+          git rm ci/dayfix.patch.b64
+          dart format lib/market_data/provider_day_open.dart test/provider_day_open_test.dart
+      - run: flutter pub get
+      - name: New regression tests
+        id: targeted
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded test/provider_day_open_test.dart 2>&1 | tee /tmp/day-targeted.log
+      - name: Phone preview
+        if: always()
+        run: |
+          cat > test/zz_day_preview_test.dart <<'DART'
+          import 'package:flutter/material.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+          import 'package:sona/chart/candle_chart.dart';
+          import 'package:sona/chart/chart_tools.dart';
+          import 'package:sona/market_data/provider_day_open.dart';
+          import 'fullscreen_editor_test.dart' show fakeCandles, loadFonts;
+          void main(){testWidgets('daily change preview', (tester) async {
+            SharedPreferences.setMockInitialValues({}); await loadFonts();
+            tester.view.physicalSize=const Size(1080,2400);tester.view.devicePixelRatio=2.625;addTearDown(tester.view.reset);
+            final ref=ProviderDayOpen(3856.33,ProviderDayOpen.dateAt(DateTime.now(),'Australia/Sydney'),'Australia/Sydney');
+            final update=ValueNotifier(0);var fresh=true;
+            await tester.pumpWidget(MaterialApp(debugShowCheckedModeBanner:false,home:FullscreenChartPage(
+              loader:(iv) async=>fakeCandles(60),livePrice:3865.20,dayOpenLoader:()async=>ref,marketUpdates:update,
+              marketSnapshot:()=>ChartMarketSnapshot(price:3865.20,fresh:fresh,bid:3865.20,ask:3865.46),onTradeSide:(_) {},
+            )));
+            await tester.pumpAndSettle();
+            await expectLater(find.byType(FullscreenChartPage),matchesGoldenFile('goldens/day_reference_preview.png'));
+            fresh=false;update.value++;await tester.pumpAndSettle();
+            await expectLater(find.byType(FullscreenChartPage),matchesGoldenFile('goldens/day_reference_unavailable.png'));
+          });}
+          DART
+          flutter test --update-goldens test/zz_day_preview_test.dart
+          rm test/zz_day_preview_test.dart
+      - name: Full suite with real exit gate
+        id: full
+        if: always()
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee /tmp/day-full.log
+      - name: Keep evidence and source
+        if: always()
+        env:
+          TARGETED: ${{ steps.targeted.outcome }}
+          FULL: ${{ steps.full.outcome }}
+        run: |
+          mkdir -p test/day_evidence
+          printf 'Targeted outcome: %s\nFull outcome: %s\n' "$TARGETED" "$FULL" > test/day_evidence/results.txt
+          for f in /tmp/day-targeted.log /tmp/day-full.log; do
+            if [ -f "$f" ]; then
+              grep -E 'Some tests failed|All tests passed|\[E\]|Expected:|Actual:|Error:|Pixel test failed|Failed assertion' "$f" | head -n 100 >> test/day_evidence/results.txt || true
+              tail -n 8 "$f" >> test/day_evidence/results.txt
+            fi
+          done
+          mkdir -p test/day_evidence/img
+          find test/failures -name '*.png' -exec cp {} test/day_evidence/img/ \; 2>/dev/null || true
+          git config user.name sona-repair
+          git config user.email sona-repair@users.noreply.github.com
+          git add lib test pubspec.yaml pubspec.lock
+          git add -u ci
+          git commit -m 'Sona 1.2.37 TEST: independent provider-day reference and regression evidence' || true
+          git push origin HEAD:${GITHUB_REF_NAME}
