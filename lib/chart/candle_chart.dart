@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../analysis.dart';
 import '../market_data/models.dart';
+import '../market_data/provider_day_open.dart';
 import 'indicators.dart';
 import '../strategy.dart' as strat;
 import 'chart_tools.dart';
@@ -145,6 +146,7 @@ class CandleChartPanel extends StatefulWidget {
   final Map<String, dynamic>? initialLayout;
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
+  final Future<ProviderDayOpen?> Function()? dayOpenLoader;
 
   /// Automatic signal boxes (BUY at support / SELL at resistance) and the
   /// daily (correct, wrong) count chip. Empty/null: feature hidden.
@@ -165,6 +167,7 @@ class CandleChartPanel extends StatefulWidget {
     this.initialLayout,
     this.marketUpdates,
     this.marketSnapshot,
+    this.dayOpenLoader,
     this.signalZones = const [],
     this.signalStats,
     this.xmTheme = false,
@@ -1941,6 +1944,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                               initialLayout: layoutSnapshot(),
                               marketUpdates: widget.marketUpdates,
                               marketSnapshot: widget.marketSnapshot,
+                              dayOpenLoader: widget.dayOpenLoader,
                             ),
                           ),
                         );
@@ -4080,6 +4084,7 @@ class FullscreenChartPage extends StatefulWidget {
   final Map<String, dynamic>? initialLayout;
   final Listenable? marketUpdates;
   final ChartMarketSnapshot Function()? marketSnapshot;
+  final Future<ProviderDayOpen?> Function()? dayOpenLoader;
   final VoidCallback? onReplay;
   final bool replayOn;
   final List<SignalZone> signalZones;
@@ -4117,6 +4122,7 @@ class FullscreenChartPage extends StatefulWidget {
     this.initialLayout,
     this.marketUpdates,
     this.marketSnapshot,
+    this.dayOpenLoader,
   });
 
   @override
@@ -4126,6 +4132,25 @@ class FullscreenChartPage extends StatefulWidget {
 class _FullscreenChartPageState extends State<FullscreenChartPage> {
   final chartKey = GlobalKey<CandleChartPanelState>();
   Timer? _clockTimer;
+  ProviderDayOpen? _dayOpen;
+  bool _dayOpenLoading = false;
+  DateTime? _dayOpenChecked;
+
+  Future<void> _refreshDayOpen() async {
+    final loader = widget.dayOpenLoader;
+    if (loader == null || _dayOpenLoading) return;
+    final now = DateTime.now();
+    if (_dayOpen?.currentAt(now) == true) return;
+    if (_dayOpenChecked != null && now.difference(_dayOpenChecked!) < const Duration(minutes: 1)) return;
+    _dayOpenChecked = now;
+    _dayOpenLoading = true;
+    try {
+      final ref = await loader();
+      if (mounted) setState(() => _dayOpen = ref);
+    } catch (_) {
+      if (mounted) setState(() => _dayOpen = null);
+    } finally { _dayOpenLoading = false; }
+  }
 
   /// Named chart templates (indicators/style/view), stored on-device.
   Map<String, Map<String, dynamic>> _templates = {};
@@ -4164,9 +4189,10 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     ]);
     if (!_isTest) {
       _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
+        if (mounted) { _refreshDayOpen(); setState(() {}); }
       });
     }
+    _refreshDayOpen();
     _loadTemplates();
   }
 
@@ -4642,6 +4668,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   initialLayout: widget.initialLayout,
                                   marketUpdates: widget.marketUpdates,
                                   marketSnapshot: widget.marketSnapshot,
+                              dayOpenLoader: widget.dayOpenLoader,
                                   loader: widget.loader,
                                   onAlertPrice: widget.onAlertPrice,
                                   onReplay: widget.onReplay,
@@ -4836,41 +4863,25 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   Widget _vr() =>
       const VerticalDivider(width: 12, color: Color(0xFF2A3347));
 
-  /// Reference-style change figure: price, then +/- change and percent
-  /// against the first bar of the last candle's UTC day.
+  /// Independent provider daily reference, never an intraday-window open.
   Widget _changeLine(CandleChartPanelState? st) {
     final px = _livePrice!;
-    double? open;
-    final cs = st?.candles;
-    if (cs != null && cs.isNotEmpty) {
-      final lastDay = cs.last.time.toUtc();
-      final dayStart =
-          DateTime.utc(lastDay.year, lastDay.month, lastDay.day);
-      for (final c in cs.reversed) {
-        if (c.time.toUtc().isBefore(dayStart)) break;
-        open = c.open;
-      }
-    }
-    final chg = open == null ? null : px - open;
-    final pct = open == null || open == 0 ? null : chg! / open * 100;
+    final fresh = !widget.replayOn && widget.marketSnapshot?.call().fresh == true;
+    final pct = _dayOpen?.percent(px, DateTime.now(), fresh: fresh);
+    final chg = pct == null ? null : px - _dayOpen!.open;
     final up = (chg ?? 0) >= 0;
-    final color =
-        chg == null ? const Color(0xFF26A69A) : (up ? const Color(0xFF26A69A) : const Color(0xFFEF5350));
-    return Row(
-      children: [
-        Text(
-          CandlePainter.fmtAxisPrice(px),
-          style: TextStyle(color: color, fontSize: 12),
-        ),
-        if (chg != null && pct != null) ...[
-          const SizedBox(width: 6),
-          Text(
-            '${up ? '+' : ''}${chg.toStringAsFixed(2)} '
-            '(${up ? '+' : ''}${pct.toStringAsFixed(2)}%)',
-            style: TextStyle(color: color, fontSize: 12),
-          ),
-        ],
-      ],
+    final color = pct == null ? const Color(0xFF8A93A6)
+        : up ? const Color(0xFF26A69A) : const Color(0xFFEF5350);
+    final label = pct == null ? 'Day: unavailable'
+        : 'TD day ${up ? '+' : ''}${chg!.toStringAsFixed(2)} (${up ? '+' : ''}${pct.toStringAsFixed(2)}%)';
+    return Tooltip(
+      message: pct == null
+          ? 'Daily change unavailable: no current provider-day open or fresh live quote. Replay has no live daily change.'
+          : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} · ${_dayOpen!.sessionDate} · ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(CandlePainter.fmtAxisPrice(px), style: TextStyle(color: color, fontSize: 12)),
+        Text(label, key: const ValueKey('provider-day-change'), style: TextStyle(color: color, fontSize: 11)),
+      ]),
     );
   }
 

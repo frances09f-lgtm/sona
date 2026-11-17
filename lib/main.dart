@@ -30,6 +30,7 @@ import 'market_data/market_data_config.dart';
 import 'update/app_update.dart';
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
+import 'market_data/provider_day_open.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
 import 'chart/chart_tools.dart' show TickBuffer;
@@ -1948,6 +1949,7 @@ class _TradeTabState extends State<TradeTab> {
       MaterialPageRoute(
         builder: (_) => FullscreenChartPage(
           loader: st.widget.loader,
+          dayOpenLoader: _loadProviderDayOpen,
           livePrice: _replay?.price ?? app.chartBasis,
           rangeMode: st.usingRange,
           onAlertPrice: confirmChartAlert,
@@ -2176,6 +2178,9 @@ class _TradeTabState extends State<TradeTab> {
       ? null
       : TwelveDataCandleService(apiKey: MarketDataConfig.apiKey);
 
+  static final _dayOpenService = ProviderDayOpenService();
+  Future<ProviderDayOpen?> _loadProviderDayOpen() => _dayOpenService.load(MarketDataConfig.apiKey);
+
   AppState get app => widget.app;
 
   @override
@@ -2296,6 +2301,7 @@ class _TradeTabState extends State<TradeTab> {
                           unawaited(app.signalCandles(trimmed));
                           return trimmed;
                         },
+                  dayOpenLoader: widget.candleLoaderOverride == null ? _loadProviderDayOpen : null,
                   marketUpdates: app,
                   signalZones: app.signalChartZones,
                   signalStats: app.signalChipStats,
