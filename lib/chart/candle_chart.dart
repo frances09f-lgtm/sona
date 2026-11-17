@@ -3552,6 +3552,12 @@ class CandlePainter extends CustomPainter {
       priceTag(l.price, const Color(0xFF5EE0A0), Colors.black);
     }
 
+    // Drawing anchors can be outside this viewport after pan or timeframe
+    // changes. CustomPaint does not clip: contain all tool ink to the price
+    // plot, not the surrounding header, time/price axes or indicator panes.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, plotW, plotH));
+
     // trend lines (anchored by candle time, extended to the plot edges)
     if (n >= 2 && (trendLines.isNotEmpty || pendingTrend != null)) {
       final tlPaint = Paint()
@@ -3801,6 +3807,8 @@ class CandlePainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y(p.p1)), 3, fibPaint);
       }
     }
+
+    canvas.restore(); // price-plot drawing clip
 
     // RSI sub-pane
     if (rsiH > 0 && rsi != null) {
