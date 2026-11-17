@@ -4448,6 +4448,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                       children: [
                         const SizedBox(width: 8),
                         PopupMenuButton<String>(
+                          color: const Color(0xFF14203A),
                           onSelected: (code) {
                             final range = code.startsWith('range:');
                             st?.applyChartSelection(range: range, code: code);
@@ -4881,10 +4882,10 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
             SizedBox(
               width: 22,
               child: on
-                  ? const Icon(Icons.check, size: 16, color: Colors.black87)
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
                   : null,
             ),
-            Text(label),
+            Text(label, style: const TextStyle(color: Colors.white)),
           ],
         ),
       );
