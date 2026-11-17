@@ -1,0 +1,6 @@
+00:05 +18: All tests passed!
+00:04 +14: /home/runner/work/sona/sona/test/zz_settings_route_test.dart: settings routes to practice replay
+00:04 +15: /home/runner/work/sona/sona/test/zz_settings_route_test.dart: settings routes to practice replay
+00:04 +16: /home/runner/work/sona/sona/test/zz_settings_route_test.dart: settings routes to chart diagnostics
+00:05 +17: /home/runner/work/sona/sona/test/zz_settings_route_test.dart: panel shows the shared sink fed by the real service, redacted
+00:05 +18: All tests passed!

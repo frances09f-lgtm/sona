@@ -5,7 +5,9 @@ import 'market_data/market_data_config.dart';
 import 'market_data/models.dart';
 import 'market_data/swissquote_provider.dart';
 import 'market_data/twelve_data_candles.dart';
+import 'signal_status.dart';
 import 'signal_zones.dart';
+import 'user_api_keys.dart';
 
 /// Independent gold signal-box pass (repair approved Nov 16 2026: the
 /// user approved occasional standalone Groq qualification calls at fresh
@@ -61,23 +63,40 @@ class SignalPass {
     int? nowMs,
   }) async {
     final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    // The background worker starts in a fresh isolate where the in-memory
+    // API keys are still empty (AutoTrade.status loads them, but only
+    // AFTER this pass). Load them first; a load failure leaves the keys
+    // as they were and the pass proceeds exactly as before.
+    try {
+      await UserApiKeys.load();
+    } catch (_) {}
     final mid =
         await (midFetcher?.call() ?? _defaultMid());
-    if (mid == null) return 'No live quote - skipped';
+    if (mid == null) {
+      await SignalStatus.record(prefs,
+          path: 'worker', outcome: 'no_quote', nowMs: now);
+      return 'No live quote - skipped';
+    }
     List<Candle> candles;
     try {
       candles = await (candleFetcher?.call() ??
           TwelveDataCandleService(apiKey: MarketDataConfig.apiKey)
               .fetchCandles(Instrument.xauUsd, interval: '15min', limit: 60));
     } catch (_) {
+      await SignalStatus.record(prefs,
+          path: 'worker', outcome: 'no_candles', nowMs: now);
       return 'No candle data - skipped';
     }
-    if (candles.length < 2) return 'No candle data - skipped';
+    if (candles.length < 2) {
+      await SignalStatus.record(prefs,
+          path: 'worker', outcome: 'no_candles', nowMs: now);
+      return 'No candle data - skipped';
+    }
     final mgr = SignalBoxManager();
     await mgr.load(prefs);
     var changed = mgr.onCandles(candles, mid, now);
     final added = await qualifyFreshSetup(prefs, mgr, candles, mid,
-        brain: brain, nowMs: now);
+        brain: brain, nowMs: now, path: 'worker');
     changed = added || changed;
     if (changed) await mgr.save(prefs);
     return added ? 'New signal box qualified and drawn' : 'Checked - no new signal';
@@ -96,15 +115,36 @@ class SignalPass {
     double price, {
     GroqBrain? brain,
     int? nowMs,
+    String path = 'foreground',
   }) async {
-    if (!mgr.needsSetup) return false;
+    final keyPresent = AiConfig.groqApiKey.isNotEmpty;
+    Future<void> note(String outcome, [int? n, int? b, int? s]) =>
+        SignalStatus.record(prefs,
+            path: path,
+            outcome: outcome,
+            candidates: n,
+            buyCandidates: b,
+            sellCandidates: s,
+            groqKeyPresent: keyPresent,
+            nowMs: nowMs);
+    if (!mgr.needsSetup) {
+      await note('no_setup_needed');
+      return false;
+    }
     final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
     final c = mgr.candidates(candles, price, now);
     final buys = c.where((z) => z.isBuy);
     final sells = c.where((z) => !z.isBuy);
-    if (buys.isEmpty && sells.isEmpty) return false;
+    final nb = buys.length, ns = sells.length;
+    if (nb == 0 && ns == 0) {
+      await note('no_candidates', 0, 0, 0);
+      return false;
+    }
     final last = prefs.getInt(lastQualMsKey) ?? 0;
-    if (now - last < minQualGap.inMilliseconds) return false;
+    if (now - last < minQualGap.inMilliseconds) {
+      await note('gap_wait', nb + ns, nb, ns);
+      return false;
+    }
     await stampQualified(prefs, now);
     ZoneQualification? q;
     try {
@@ -117,9 +157,13 @@ class SignalPass {
         sellZoneDesc: sells.isEmpty ? null : describeZone(sells.first),
       );
     } catch (_) {
+      await note('ai_no_reply', nb + ns, nb, ns);
       return false; // AI unavailable: stay silent, retry after the gap
     }
-    if (q == null) return false;
+    if (q == null) {
+      await note('ai_no_reply', nb + ns, nb, ns);
+      return false;
+    }
     var added = false;
     if (buys.isNotEmpty && q.buyOk) {
       mgr.addBox(buys.first, now, price: price);
@@ -129,6 +173,7 @@ class SignalPass {
       mgr.addBox(sells.first, now, price: price);
       added = true;
     }
+    await note(added ? 'asked_ai_added' : 'asked_ai_declined', nb + ns, nb, ns);
     return added;
   }
 }
