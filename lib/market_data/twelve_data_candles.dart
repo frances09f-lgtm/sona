@@ -83,7 +83,11 @@ class TwelveDataCandleService implements HistoricalCandleService {
       CandleDebugSink.recordError(name, 'no candle values', secret: apiKey);
       throw MarketDataException('no candle values from $name');
     }
-    CandleDebugSink.recordFetch(sourceName: name, values: values, secret: apiKey);
+    CandleDebugSink.recordFetch(
+        sourceName: name,
+        values: values,
+        secret: apiKey,
+        interval: interval);
     final out = <Candle>[];
     for (final v in values) {
       if (v is! Map<String, dynamic>) continue;

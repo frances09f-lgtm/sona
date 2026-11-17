@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'bridge.dart';
 import 'chart/chart_tools.dart';
 import 'market_data/candle_debug.dart';
+import 'signal_pass.dart';
+import 'signal_status.dart';
 
 /// Test-build diagnostics: shows exactly how the chart's candles arrived -
 /// the provider's raw first/last bars before any app parsing, the quote
@@ -40,6 +42,36 @@ class ChartDiagnosticsScreen extends StatelessWidget {
     } catch (_) {
       return 'unreadable stored quote';
     }
+  }
+
+  Future<List<String>> _signalLines() async {
+    final prefs = await SharedPreferences.getInstance();
+    // The background worker writes from another isolate: refresh the
+    // cache so its latest record is visible here.
+    try {
+      await prefs.reload();
+    } catch (_) {}
+    return SignalStatus.describe(prefs,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+        minGap: SignalPass.minQualGap);
+  }
+
+  /// Quote vs the provider's newest captured close, with both timestamps.
+  /// Different instants and different feeds: a difference here is NOT a
+  /// proven vendor offset or chart distortion.
+  String _offsetText() {
+    final snap = snapshot;
+    final nb = CandleDebugSink.newestRawClose();
+    if (snap == null || snap.bid == null) {
+      return 'unknown from this screen (open from the chart menu)';
+    }
+    if (nb == null) return 'no provider bar captured yet';
+    final now = DateTime.now().toUtc();
+    final d = snap.bid! - nb.$2;
+    return 'bid ${snap.bid} at ${now.toIso8601String()} minus provider close '
+        '${nb.$2} of bar ${nb.$1.toIso8601String()} = ${d.toStringAsFixed(5)} '
+        '(quote ${now.difference(nb.$1).inMinutes} min after that bar start; '
+        'different feeds and instants - not a proven offset)';
   }
 
   Widget _row(String label, String value) => Padding(
@@ -77,9 +109,12 @@ class ChartDiagnosticsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chart diagnostics')),
-      body: FutureBuilder<(String, String)>(
+      body: FutureBuilder<List<String>>(
+        future: _signalLines(),
+        builder: (context, sig) => FutureBuilder<(String, String)>(
         future: _version(),
         builder: (context, ver) {
+          final signalLines = sig.data ?? const ['loading...'];
           final version = ver.data?.$1 ?? '…';
           final build = ver.data?.$2 ?? '…';
           final report = StringBuffer()
@@ -94,6 +129,13 @@ class ChartDiagnosticsScreen extends StatelessWidget {
             ..writeln('live ticks buffered: $ticksText')
             ..writeln(
                 'last error: ${CandleDebugSink.lastError ?? 'none'}')
+            ..writeln('quote vs provider close: ${_offsetText()}')
+            ..writeln('bar status at fetch:')
+            ..writeln(CandleDebugSink.barStatusLines().join('\n'))
+            ..writeln('raw open vs previous close (descriptive, UTC):')
+            ..writeln(CandleDebugSink.openVsPrevCloseLines().join('\n'))
+            ..writeln('signal check:')
+            ..writeln(signalLines.join('\n'))
             ..writeln('raw first bars:')
             ..writeln(CandleDebugSink.rawHead.join('\n'))
             ..writeln('raw last bars:')
@@ -118,6 +160,28 @@ class ChartDiagnosticsScreen extends StatelessWidget {
               ),
               _row('Live ticks buffered', ticksText),
               _row('Last fetch error', CandleDebugSink.lastError ?? 'none'),
+              _row('Quote vs close', _offsetText()),
+              const SizedBox(height: 8),
+              const Text('Bar status at fetch (requested interval):',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              SelectableText(
+                CandleDebugSink.barStatusLines().join('\n'),
+                style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: 12, height: 1.3),
+              ),
+              const SizedBox(height: 8),
+              const Text('Raw open vs previous close (UTC, descriptive):',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              SelectableText(
+                CandleDebugSink.openVsPrevCloseLines().join('\n'),
+                style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: 12, height: 1.3),
+              ),
+              const SizedBox(height: 8),
+              const Text('Signal check:',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              SelectableText(signalLines.join('\n'),
+                  style: const TextStyle(fontSize: 12, height: 1.3)),
               const SizedBox(height: 12),
               const Text('Raw first bars (pre-parse):',
                   style: TextStyle(fontWeight: FontWeight.w600)),
@@ -160,6 +224,7 @@ class ChartDiagnosticsScreen extends StatelessWidget {
             ],
           );
         },
+        ),
       ),
     );
   }
