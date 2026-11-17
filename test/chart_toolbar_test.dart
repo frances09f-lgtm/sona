@@ -46,7 +46,8 @@ void main() {
     final panel = await pump(tester, fakeCandles(120));
     await tester.tap(find.text('15m'));
     await tester.pumpAndSettle();
-    expect(find.text('\u2713 1D range'), findsOneWidget);
+    expect(find.text('1D range'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
     await tester.tap(find.text('5m'));
     await tester.pumpAndSettle();
     expect(panel.usingRange, isFalse);
@@ -54,7 +55,8 @@ void main() {
     expect(find.text('GOLD · 5m'), findsOneWidget);
     await tester.tap(find.byType(PopupMenuButton<String>).first);
     await tester.pumpAndSettle();
-    expect(find.text('\u2713 5m'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.text('5m'), findsWidgets);
   });
 
   testWidgets('existing indicator menu (sigma) still toggles SMA 20',

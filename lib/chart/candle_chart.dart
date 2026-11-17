@@ -4426,16 +4426,20 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                           },
                           itemBuilder: (_) => [
                             for (final iv in intervals)
-                              PopupMenuItem(
-                                  value: iv.code,
-                                  child: Text(
-                                      '${st != null && !st.usingRange && st.interval.code == iv.code ? '\u2713 ' : ''}${iv.label == 'D1' ? '1D' : iv.label}')),
+                              _tfItem(
+                                  iv.code,
+                                  iv.label == 'D1' ? '1D' : iv.label,
+                                  st != null &&
+                                      !st.usingRange &&
+                                      st.interval.code == iv.code),
                             const PopupMenuDivider(),
                             for (final r in tradeRanges)
-                              PopupMenuItem(
-                                  value: r.code,
-                                  child: Text(
-                                      '${st != null && st.usingRange && st.interval.code == r.code ? '\u2713 ' : ''}${r.label} range')),
+                              _tfItem(
+                                  r.code,
+                                  '${r.label} range',
+                                  st != null &&
+                                      st.usingRange &&
+                                      st.interval.code == r.code),
                           ],
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -4821,6 +4825,22 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
       ],
     );
   }
+
+  PopupMenuItem<String> _tfItem(String code, String label, bool on) =>
+      PopupMenuItem(
+        value: code,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              child: on
+                  ? const Icon(Icons.check, size: 16, color: Colors.black87)
+                  : null,
+            ),
+            Text(label),
+          ],
+        ),
+      );
 
   PopupMenuItem<String> _indItem(String v, String label, bool? on) =>
       PopupMenuItem(
