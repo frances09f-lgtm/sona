@@ -1,0 +1,99 @@
+exit: 
+pre-round4 commit: 551da638508a40e919120e3fee5ffb282e21fd24
+e55dcce Create diag.trigger
+2e77894 Create sona-diag.yml
+71f2e62 Sona 1.2.36: chart restyle, scale fix, timeframe menu
+60283da Update fix8.trigger
+f42253c Update sona-fix8.yml
+The following assertion was thrown while running async test code:
+Golden "goldens/chart_indicators.png": Pixel test failed, 0.08%, 366px diff detected.
+00:01 +2 -1: /home/runner/work/sona/sona/test/candle_chart_test.dart: chart with indicators renders (golden) [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/xm360_timeframes.png": Pixel test failed, 0.08%, 378px diff detected.
+00:02 +2 -2: /home/runner/work/sona/sona/test/chart_xm360_test.dart: chart card is clean: no interval or range chips [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/xm360_crosshair.png": Pixel test failed, 0.08%, 378px diff detected.
+00:03 +2 -3: /home/runner/work/sona/sona/test/chart_xm360_test.dart: crosshair toggle + drag shows price and time tags [E]
+  Test failed. See exception logs above.
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<Golden "goldens/indicator_dropdown.png": Pixel test failed, 0.04%, 1375px
+00:03 +2 -4: /home/runner/work/sona/sona/test/candle_chart_test.dart: indicator dropdown offers nine toggles without changing timeframe [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/xm360_heikin.png": Pixel test failed, 0.08%, 378px diff detected.
+00:03 +5 -5: /home/runner/work/sona/sona/test/chart_xm360_test.dart: Heikin Ashi chart type renders [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/xm360_bidask.png": Pixel test failed, 0.08%, 378px diff detected.
+00:04 +5 -6: /home/runner/work/sona/sona/test/chart_xm360_test.dart: bid and ask lines with right-axis tags [E]
+  Test failed. See exception logs above.
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<Golden "goldens/chart_sessions_prevlevels.png": Pixel test failed, 0.08%,
+00:06 +26 -7: /home/runner/work/sona/sona/test/session_levels_test.dart: chart renders session shading + PD/PW levels (golden) [E]
+  Test failed. See exception logs above.
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<Golden "goldens/chart_drawing_tools.png": Pixel test failed, 0.08%, 392px
+00:07 +27 -8: /home/runner/work/sona/sona/test/chart_drawing_tools_test.dart: drawing tools render (golden) [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/trade.png": Pixel test failed, 0.08%, 1119px diff detected.
+00:09 +27 -9: /home/runner/work/sona/sona/test/screens_test.dart: trade [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/trade_stale.png": Pixel test failed, 0.11%, 372px diff detected.
+00:09 +27 -10: /home/runner/work/sona/sona/test/screens_test.dart: stale weekend quote: full trade screen says stale, chart keeps real candles and claims no live price (user report Nov 15 2026) [E]
+  Test failed. See exception logs above.
+The following assertion was thrown while running async test code:
+Golden "goldens/chart_replay.png": Pixel test failed, 0.09%, 1124px diff detected.
+00:11 +29 -11: /home/runner/work/sona/sona/test/replay_ui_test.dart: Bar replay: pick start, step, paper BUY, golden [E]
+  Test failed. See exception logs above.
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<Golden "goldens/chart_strategy_levels.png": Pixel test failed, 0.08%, 366px
+00:14 +34 -12: /home/runner/work/sona/sona/test/strategies_screen_test.dart: strategy levels stay off the chart (v1.2.3 clean-chart directive, golden) [E]
+  Test failed. See exception logs above.
+test_goldens_run1_failures_adaptive_grid_normal_masterImage.png
+test_goldens_run1_failures_adaptive_grid_normal_testImage.png
+test_goldens_run1_failures_chart_drawing_tools_maskedDiff.png
+test_goldens_run1_failures_chart_drawing_tools_testImage.png
+test_goldens_run1_failures_chart_indicators_isolatedDiff.png
+test_goldens_run1_failures_chart_indicators_masterImage.png
+test_goldens_run1_failures_chart_indicators_testImage.png
+test_goldens_run1_failures_chart_replay_maskedDiff.png
+test_goldens_run1_failures_chart_replay_masterImage.png
+test_goldens_run1_failures_chart_replay_testImage.png
+test_goldens_run1_failures_chart_sessions_prevlevels_isolatedDiff.png
+test_goldens_run1_failures_chart_sessions_prevlevels_maskedDiff.png
+test_goldens_run1_failures_chart_strategy_levels_isolatedDiff.png
+test_goldens_run1_failures_chart_strategy_levels_masterImage.png
+test_goldens_run1_failures_chart_strategy_levels_testImage.png
+test_goldens_run1_failures_fullscreen_editor_maskedDiff.png
+test_goldens_run1_failures_fullscreen_editor_masterImage.png
+test_goldens_run1_failures_fullscreen_editor_positions_testImage.png
+test_goldens_run1_failures_indicator_dropdown_maskedDiff.png
+test_goldens_run1_failures_indicator_dropdown_masterImage.png
+test_goldens_run1_failures_indicator_dropdown_testImage.png
+test_goldens_run1_failures_trade_maskedDiff.png
+test_goldens_run1_failures_trade_masterImage.png
+test_goldens_run1_failures_trade_stale_isolatedDiff.png
+test_goldens_run1_failures_trade_stale_masterImage.png
+test_goldens_run1_failures_trade_stale_testImage.png
+test_goldens_run1_failures_trade_testImage.png
+test_goldens_run1_failures_xm360_bidask_isolatedDiff.png
+test_goldens_run1_failures_xm360_bidask_maskedDiff.png
+test_goldens_run1_failures_xm360_bidask_testImage.png
+test_goldens_run1_failures_xm360_crosshair_isolatedDiff.png
+test_goldens_run1_failures_xm360_crosshair_maskedDiff.png
+test_goldens_run1_failures_xm360_crosshair_masterImage.png
+test_goldens_run1_failures_xm360_crosshair_testImage.png
+test_goldens_run1_failures_xm360_heikin_masterImage.png
+test_goldens_run1_failures_xm360_heikin_testImage.png
+test_goldens_run1_failures_xm360_settings_chart_isolatedDiff.png
+test_goldens_run1_failures_xm360_settings_chart_masterImage.png
+test_goldens_run1_failures_xm360_timeframes_masterImage.png
+test_goldens_run1_failures_xm360_timeframes_testImage.png
