@@ -67,7 +67,7 @@ jobs:
                   matchesGoldenFile('goldens/toolbar_closed.png'));
               await tester.tap(find.text('15m'));
               await tester.pumpAndSettle();
-              await expectLater(find.byType(FullscreenChartPage),
+              await expectLater(find.byType(MaterialApp),
                   matchesGoldenFile('goldens/toolbar_menu.png'));
             });
           }
