@@ -28,6 +28,9 @@ jobs:
           fi
           git status --short
       - run: flutter pub get
+      - name: Regenerate goldens that legitimately changed (timeframe chip row removed)
+        continue-on-error: true
+        run: flutter test --update-goldens test/fullscreen_editor_test.dart test/adaptive_grid_preview_test.dart test/zz_fix_preview_capture_test.dart 2>&1 | tail -n 15
       - name: Toolbar tests, plain output
         continue-on-error: true
         run: flutter test --reporter expanded test/chart_toolbar_test.dart test/fullscreen_editor_test.dart 2>&1 | tee /tmp/new.log
@@ -79,6 +82,7 @@ jobs:
         run: |
           grep -E 'Some tests failed|All tests passed|\[E\]|FAILED|Error:|error:' /tmp/new.log | head -n 60 > test/goldens/ci_fix4_new_summary.txt || true
           tail -n 5 /tmp/new.log >> test/goldens/ci_fix4_new_summary.txt || true
+          grep -A14 'EXCEPTION CAUGHT\|Expected:' /tmp/new.log | head -n 60 >> test/goldens/ci_fix4_new_summary.txt || true
           grep -E 'Some tests failed|All tests passed|\[E\]|FAILED' /tmp/full.log | head -n 60 > test/goldens/ci_fix4_full_summary.txt || true
           tail -n 5 /tmp/full.log >> test/goldens/ci_fix4_full_summary.txt || true
       - name: Commit to this branch
