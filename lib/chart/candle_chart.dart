@@ -4726,7 +4726,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     ];
     final current = st != null && !st.usingRange ? st.interval.code : null;
     return SizedBox(
-      height: 34,
+      height: 20,
       child: Row(
         children: [
           const SizedBox(width: 8),
@@ -4741,7 +4741,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                 },
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
                   decoration: BoxDecoration(
                     color: current == o.$1
                         ? const Color(0xFF2962FF)
@@ -4753,7 +4753,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                     style: TextStyle(
                       color:
                           current == o.$1 ? Colors.white : Colors.white70,
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
