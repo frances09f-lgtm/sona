@@ -167,7 +167,11 @@ class CandleChartPanel extends StatefulWidget {
     this.marketSnapshot,
     this.signalZones = const [],
     this.signalStats,
+    this.xmTheme = false,
   });
+
+  /// Dark-navy palette of the fullscreen Trade chart (XM360 reference).
+  final bool xmTheme;
 
   @override
   State<CandleChartPanel> createState() => CandleChartPanelState();
@@ -2386,6 +2390,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
               prevDayHL: prevLevelsOn ? previousDayHL(candles) : null,
               prevWeekHL: prevLevelsOn ? previousWeekHL(candles) : null,
               priceScale: _priceScale,
+              bullC: widget.xmTheme ? const Color(0xFF069B7E) : CandlePainter.bull,
+              bearC: widget.xmTheme ? const Color(0xFFF13745) : CandlePainter.bear,
+              bgColor: widget.xmTheme ? const Color(0xFF0F1829) : Colors.black,
+              dotGrid: widget.xmTheme ? const Color(0xFF1F2A40) : const Color(0xFF282C34),
               firstVisible: _fv,
               visibleCount: _vc,
               livePrice: chartPrice,
@@ -2901,6 +2909,7 @@ class CandlePainter extends CustomPainter {
   final List<SignalZone> signalZones;
   final (int, int)? signalStats;
   final double priceScale;
+  final Color bullC, bearC, bgColor, dotGrid;
 
   /// Wall clock for the candle-close countdown; null hides the countdown.
   final DateTime? now;
@@ -2917,6 +2926,10 @@ class CandlePainter extends CustomPainter {
     this.now,
     this.showCountdown = false,
     this.priceScale = 1.0,
+    this.bullC = bull,
+    this.bearC = bear,
+    this.bgColor = Colors.black,
+    this.dotGrid = const Color(0xFF282C34),
     this.positions = const [],
     this.macdSlow = 26,
     this.macdSignalPeriod = 9,
@@ -2989,7 +3002,7 @@ class CandlePainter extends CustomPainter {
     final plotH = size.height - bottomPad - rsiH - macdH;
     if (candles.isEmpty || plotW <= 0 || plotH <= 0) return;
     // True black chart background (user request).
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
+    canvas.drawRect(Offset.zero & size, Paint()..color = bgColor);
 
     final n0 = candles.length;
     final vc0 = visibleCount <= 0 || visibleCount > n0 ? n0 : visibleCount;
@@ -3011,7 +3024,14 @@ class CandlePainter extends CustomPainter {
       hi = math.max(hi, hl.$1);
       lo = math.min(lo, hl.$2);
     }
+    // A box far from the visible candles must not stretch the price axis
+    // (it flattened the candles); only boxes within 15% of the candle
+    // range widen it. Farther boxes stay off-screen.
+    final dataSpan = hi - lo;
+    final zoneReach = dataSpan * 0.15;
+    final dataHi = hi, dataLo = lo;
     for (final z in signalZones) {
+      if (z.low > dataHi + zoneReach || z.high < dataLo - zoneReach) continue;
       hi = math.max(hi, z.high);
       lo = math.min(lo, z.low);
     }
@@ -3046,7 +3066,7 @@ class CandlePainter extends CustomPainter {
     final stepG = niceStep(hi - lo);
     // A price/time-anchored grid, not a fixed screen texture. It shares the
     // candle viewport and price transform so zoom/pan/axis scaling stay aligned.
-    final gridPaint = Paint()..color = const Color(0xFF282C34);
+    final gridPaint = Paint()..color = dotGrid;
     void dots(Offset from, Offset to) {
       final distance = (to - from).distance;
       if (distance <= 0) return;
@@ -3162,8 +3182,9 @@ class CandlePainter extends CustomPainter {
     // Signal zones: full-width translucent buy (support) / sell (resistance)
     // boxes with a left-edge label, drawn under the candles.
     for (final z in signalZones) {
-      final zc = z.isBuy ? bull : bear;
+      final zc = z.isBuy ? bullC : bearC;
       final zTop = y(z.high), zBot = y(z.low);
+      if (zTop > plotH || zBot < 0) continue; // fully off-screen
       canvas.drawRect(
         Rect.fromLTRB(0, zTop, plotW, zBot),
         Paint()..color = zc.withValues(alpha: 0.10),
@@ -3204,7 +3225,7 @@ class CandlePainter extends CustomPainter {
     for (int i = fv0; i < iEnd; i++) {
       final c = eff[i];
       final up = c.close >= c.open;
-      final paint = Paint()..color = up ? bull : bear;
+      final paint = Paint()..color = up ? bullC : bearC;
       final cx = step * (i - fv0 + 0.5);
       if (chartStyle == ChartStyle.line) {
         if (i == fv0) {
@@ -3270,12 +3291,12 @@ class CandlePainter extends CustomPainter {
           const TextSpan(text: 'Today: ', style: chipStyle),
           TextSpan(
             text: '${ss.$1} correct',
-            style: chipStyle.copyWith(color: bull, fontWeight: FontWeight.w700),
+            style: chipStyle.copyWith(color: bullC, fontWeight: FontWeight.w700),
           ),
           const TextSpan(text: '  ·  ', style: chipStyle),
           TextSpan(
             text: '${ss.$2} wrong',
-            style: chipStyle.copyWith(color: bear, fontWeight: FontWeight.w700),
+            style: chipStyle.copyWith(color: bearC, fontWeight: FontWeight.w700),
           ),
         ]),
         textDirection: TextDirection.ltr,
@@ -3337,8 +3358,8 @@ class CandlePainter extends CustomPainter {
           '${i + 1} ${p.buy ? 'BUY' : 'SELL'} entry',
           const Color(0xFF4EA1FF),
         ),
-        (p.stop, '${i + 1} SL', bear),
-        (p.target, '${i + 1} TP', bull),
+        (p.stop, '${i + 1} SL', bearC),
+        (p.target, '${i + 1} TP', bullC),
       ]) {
         final price = level.$1;
         if (price == null || !price.isFinite || price <= 0) continue;
@@ -3978,7 +3999,7 @@ class CandlePainter extends CustomPainter {
               x + 1.5,
               y0 > y1 ? y0 : y1,
             ),
-            Paint()..color = v >= 0 ? bull : bear,
+            Paint()..color = v >= 0 ? bullC : bearC,
           );
         }
       }
@@ -4350,7 +4371,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Colors.black;
+    const bg = Color(0xFF0F1829);
     return PopScope<Map<String, dynamic>>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -4384,37 +4405,50 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: _pop,
+                        _topBox(
+                          const Icon(Icons.close, color: Colors.white),
+                          onTap: _pop,
                         ),
-                        const Icon(Icons.widgets,
-                            color: Color(0xFFF5C242), size: 18),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'GOLD',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _topBox(
+                            const Row(
+                              children: [
+                                SizedBox(width: 10),
+                                Icon(Icons.widgets,
+                                    color: Color(0xFFF5C242), size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'GOLD',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Spacer(),
+                                Icon(Icons.keyboard_arrow_down,
+                                    color: Colors.white),
+                                SizedBox(width: 8),
+                              ],
+                            ),
+                            width: null,
                           ),
                         ),
-                        const Icon(Icons.keyboard_arrow_down,
-                            color: Colors.white70),
-                        const Spacer(),
-                        const Icon(Icons.search,
-                            color: Color(0x558A93A6)), // single instrument
-                        const SizedBox(width: 14),
-                        const Icon(Icons.space_dashboard_outlined,
-                            color: Color(0x558A93A6)), // templates pending
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
+                        _topBox(const Icon(Icons.search,
+                            color: Color(0x99FFFFFF))), // single instrument
+                        const SizedBox(width: 8),
+                        _topBox(const Icon(Icons.space_dashboard_outlined,
+                            color: Color(0x99FFFFFF))), // templates pending
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  const Divider(height: 1, color: Color(0xFF2A3347)),
                   // ---- tool row ----
-                  SizedBox(
+                  Container(
                     height: 44,
+                    color: const Color(0xFF080E1C),
                     child: Row(
                       children: [
                         const SizedBox(width: 8),
@@ -4525,7 +4559,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  const Divider(height: 1, color: Color(0xFF2A3347)),
                   // ---- chart + left toolbar ----
                   Expanded(
                     child: Row(
@@ -4536,7 +4570,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                           decoration: const BoxDecoration(
                             border: Border(
                               right:
-                                  BorderSide(color: Color(0xFF1C2230)),
+                                  BorderSide(color: Color(0xFF2A3347)),
                             ),
                           ),
                           child: SingleChildScrollView(
@@ -4572,14 +4606,14 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                 _toolIcon(Icons.emoji_emotions_outlined,
                                     enabled: false),
                                 const Divider(
-                                    color: Color(0xFF1C2230), height: 14),
+                                    color: Color(0xFF2A3347), height: 14),
                                 _toolIcon(Icons.straighten,
                                     active: st?.rulerMode == true,
                                     onTap: () =>
                                         _mode((s) => s.rulerMode = true)),
                                 _toolIcon(Icons.zoom_in, enabled: false),
                                 const Divider(
-                                    color: Color(0xFF1C2230), height: 14),
+                                    color: Color(0xFF2A3347), height: 14),
                                 _toolIcon(Icons.vertical_align_center,
                                     active: st?.magnetOn == true,
                                     onTap: () => st?.setState(
@@ -4619,6 +4653,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   livePrice: _livePrice,
                                   expand: true,
                                   chromeless: true,
+                                  xmTheme: true,
                                   rangeMode: widget.rangeMode,
                                   signalZones: _signalZones,
                                   signalStats: _signalStats,
@@ -4655,7 +4690,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   child: Row(
                                     children: [
                                       _tradePill('SELL', bid,
-                                          const Color(0xFFE5486C)),
+                                          const Color(0xFFF23644)),
                                       if (spread != null)
                                         Padding(
                                           padding: const EdgeInsets
@@ -4668,7 +4703,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                           ),
                                         ),
                                       _tradePill('BUY', ask,
-                                          const Color(0xFF26A69A)),
+                                          const Color(0xFF17B26A)),
                                     ],
                                   ),
                                 ),
@@ -4678,10 +4713,11 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: Color(0xFF1C2230)),
+                  const Divider(height: 1, color: Color(0xFF2A3347)),
                   // ---- bottom bar: Date Range | clock | auto ----
-                  SizedBox(
+                  Container(
                     height: 40,
+                    color: const Color(0xFF040D1E),
                     child: Row(
                       children: [
                         const SizedBox(width: 10),
@@ -4785,8 +4821,24 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     );
   }
 
+  Widget _topBox(Widget child, {VoidCallback? onTap, double? width = 44}) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: width,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFF121A2C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF3A4254)),
+          ),
+          child: child,
+        ),
+      );
+
   Widget _vr() =>
-      const VerticalDivider(width: 12, color: Color(0xFF1C2230));
+      const VerticalDivider(width: 12, color: Color(0xFF2A3347));
 
   /// Reference-style change figure: price, then +/- change and percent
   /// against the first bar of the last candle's UTC day.

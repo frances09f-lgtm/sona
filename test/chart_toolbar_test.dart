@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sona/chart/candle_chart.dart';
 import 'package:sona/market_data/models.dart';
+import 'package:sona/signal_zones.dart';
 
 import 'fullscreen_editor_test.dart' show fakeCandles, loadFonts;
 
@@ -69,5 +70,41 @@ void main() {
     await tester.pumpAndSettle();
     expect(panel.smaOn, isTrue);
   });
+
+  testWidgets('a far-away signal box does not stretch the price axis',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await loadFonts();
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    final data = fakeCandles(96);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: FullscreenChartPage(
+          loader: (iv) async => data,
+          livePrice: data.last.close,
+          rangeMode: true,
+          signalZones: const [
+            SignalZone(isBuy: false, low: 4400, high: 4410),
+            SignalZone(isBuy: true, low: 3700, high: 3710),
+          ],
+          onTradeSide: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('4,400'), findsNothing);
+    expect(find.textContaining('3,700'), findsNothing);
+    final hi = data.map((c) => c.high).reduce((a, b) => a > b ? a : b);
+    final lo = data.map((c) => c.low).reduce((a, b) => a < b ? a : b);
+    // Every price label on the axis lies near the candles, not near 4400.
+    final labels = find.textContaining(RegExp(r'^\d,\d{3}\.00$'));
+    for (final e in labels.evaluate()) {
+      final v =
+          double.parse((e.widget as Text).data!.replaceAll(',', ''));
+      expect(v, inInclusiveRange(lo - 40, hi + 40));
+    }
+  });
 }
-// render rerun
