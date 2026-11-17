@@ -1,8 +1,9 @@
-00:00 +0 -1: /home/runner/work/sona/sona/test/chart_toolbar_test.dart: no separate timeframe chip row; 1D range shows 15m candles [E]
-00:01 +0 -2: /home/runner/work/sona/sona/test/chart_toolbar_test.dart: toolbar menu picks candle size and marks the current one [E]
-00:01 +5 -2: Some tests failed.
-00:01 +5 -2: Some tests failed.
+00:01 +2 -1: /home/runner/work/sona/sona/test/chart_toolbar_test.dart: toolbar menu picks candle size and marks the current one [E]
+00:02 +4 -2: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden) [E]
+00:02 +4 -3: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden) [E]
+00:02 +4 -3: Some tests failed.
 
 Failing tests:
-  /home/runner/work/sona/sona/test/chart_toolbar_test.dart: no separate timeframe chip row; 1D range shows 15m candles
   /home/runner/work/sona/sona/test/chart_toolbar_test.dart: toolbar menu picks candle size and marks the current one
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden)
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden)

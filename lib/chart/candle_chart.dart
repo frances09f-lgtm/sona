@@ -4117,8 +4117,17 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   bool get _isTest => Platform.environment.containsKey('FLUTTER_TEST');
 
   /// Candle size as the user reads it: the 1-day interval is shown as 1D.
-  String _tfLabel(CandleChartPanelState? st) {
-    final l = st?.interval.label ?? '';
+  /// Toolbar label: the candle size actually on screen (a range shows the
+  /// bar size it loads; the range itself is marked in the menu).
+  String _tfLabel(CandleChartPanelState? st) => _barLabel(st);
+
+  /// Candle size only (header line), never a range label.
+  String _barLabel(CandleChartPanelState? st) {
+    if (st == null) return '';
+    final code = st.usingRange
+        ? tradeRangeSpec(st.interval.code).$1
+        : st.interval.code;
+    final l = intervals.where((e) => e.code == code).firstOrNull?.label ?? code;
     return l == 'D1' ? '1D' : l;
   }
 
@@ -4403,7 +4412,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                     ),
                   ),
                   const Divider(height: 1, color: Color(0xFF1C2230)),
-                  if (widget.quickTimeframes) _quickTimeframeRow(st),
                   // ---- tool row ----
                   SizedBox(
                     height: 44,
@@ -4418,10 +4426,16 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                           },
                           itemBuilder: (_) => [
                             for (final iv in intervals)
-                              PopupMenuItem(value: iv.code, child: Text(iv.label)),
+                              PopupMenuItem(
+                                  value: iv.code,
+                                  child: Text(
+                                      '${st != null && !st.usingRange && st.interval.code == iv.code ? '\u2713 ' : ''}${iv.label == 'D1' ? '1D' : iv.label}')),
                             const PopupMenuDivider(),
                             for (final r in tradeRanges)
-                              PopupMenuItem(value: r.code, child: Text(r.label)),
+                              PopupMenuItem(
+                                  value: r.code,
+                                  child: Text(
+                                      '${st != null && st.usingRange && st.interval.code == r.code ? '\u2713 ' : ''}${r.label} range')),
                           ],
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -4615,7 +4629,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'GOLD · ${_tfLabel(st)}',
+                                      'GOLD · ${_barLabel(st)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
