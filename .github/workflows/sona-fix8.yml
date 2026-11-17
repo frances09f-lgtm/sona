@@ -22,8 +22,6 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f ci/fix8.trigger ]; then
-            base64 -d ci/fix8.trigger > /tmp/fix8.patch
-            git apply --whitespace=nowarn /tmp/fix8.patch
             git rm -q ci/fix8.trigger
           fi
           git status --short
