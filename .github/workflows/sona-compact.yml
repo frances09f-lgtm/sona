@@ -1,0 +1,168 @@
+name: Sona 1.2.39 compact controls signed TEST
+on:
+  push:
+    branches: [compact-controls-141]
+    paths: ['.github/workflows/sona-compact.yml']
+  workflow_dispatch:
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/btc-weekend
+      - name: Apply approved compact controls patch
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 60a1e91f7ff03fcf4a99146dc090fea12934f428
+          printf '%s' ZGlmZiAtLWdpdCBhL2xpYi9jaGFydC9jYW5kbGVfY2hhcnQuZGFydCBiL2xpYi9jaGFydC9jYW5kbGVfY2hhcnQuZGFydAppbmRleCBlMDdlY2U3Li5kNTVhZjBiIDEwMDY0NAotLS0gYS9saWIvY2hhcnQvY2FuZGxlX2NoYXJ0LmRhcnQKKysrIGIvbGliL2NoYXJ0L2NhbmRsZV9jaGFydC5kYXJ0CkBAIC0zMTk2LDcgKzMxOTYsNyBAQCBjbGFzcyBDYW5kbGVQYWludGVyIGV4dGVuZHMgQ3VzdG9tUGFpbnRlciB7CiAgICAgICBmaW5hbCBzcyA9IHNpZ25hbFN0YXRzITsKICAgICAgIC8vIEZ1bGxzY3JlZW46IHRoZSBHT0xEIGhlYWRpbmcgKyBwcmljZSBsaW5lIG93biB0aGUgdG9wLWxlZnQsIHNvIHRoZQogICAgICAgLy8gY291bnQgY2hpcCBzaXRzIGp1c3QgYmVsb3cgdGhlbSAodXNlcjogIkNvcnJlY3QgaXMgZ29pbmcgdW5kZXIgMUQiKS4KLSAgICAgIGZpbmFsIGNoaXBUb3AgPSByZXNlcnZlVG9wTGVmdCA/IDY2LjAgOiA2LjA7CisgICAgICBmaW5hbCBjaGlwVG9wID0gcmVzZXJ2ZVRvcExlZnQgPyA0NC4wIDogNi4wOwogICAgICAgY29uc3QgY2hpcFN0eWxlID0gVGV4dFN0eWxlKAogICAgICAgICBjb2xvcjogYXhpcywKICAgICAgICAgZm9udFNpemU6IDEwLApAQCAtNDYyOSw3ICs0NjI5LDYgQEAgY2xhc3MgX0Z1bGxzY3JlZW5DaGFydFBhZ2VTdGF0ZSBleHRlbmRzIFN0YXRlPEZ1bGxzY3JlZW5DaGFydFBhZ2U+IHsKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBpZiAoX2xpdmVQcmljZSAhPSBudWxsKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBfY2hhbmdlTGluZShzdCksCi0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBfY2FuZGxlU291cmNlTGluZShzdCksCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgXSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICksCkBAIC00NjM4LDcgKzQ2MzcsNyBAQCBjbGFzcyBfRnVsbHNjcmVlbkNoYXJ0UGFnZVN0YXRlIGV4dGVuZHMgU3RhdGU8RnVsbHNjcmVlbkNoYXJ0UGFnZT4gewogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGJpZCAhPSBudWxsICYmCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYXNrICE9IG51bGwpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIFBvc2l0aW9uZWQoCi0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgdG9wOiBfc2lnbmFsU3RhdHMgIT0gbnVsbCA/IDkyIDogNzIsCisgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgdG9wOiBfc2lnbmFsU3RhdHMgIT0gbnVsbCA/IDcwIDogNDgsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbGVmdDogMTAsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2hpbGQ6IFJvdygKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNoaWxkcmVuOiBbCkBAIC00NzkzLDIwICs0NzkyLDYgQEAgY2xhc3MgX0Z1bGxzY3JlZW5DaGFydFBhZ2VTdGF0ZSBleHRlbmRzIFN0YXRlPEZ1bGxzY3JlZW5DaGFydFBhZ2U+IHsKICAgV2lkZ2V0IF92cigpID0+CiAgICAgICBjb25zdCBWZXJ0aWNhbERpdmlkZXIod2lkdGg6IDEyLCBjb2xvcjogQ29sb3IoMHhGRjJBMzM0NykpOwogCi0gIFdpZGdldCBfY2FuZGxlU291cmNlTGluZShDYW5kbGVDaGFydFBhbmVsU3RhdGU/IHN0KSB7Ci0gICAgZmluYWwgY3MgPSBzdD8uY2FuZGxlczsKLSAgICBmaW5hbCBjID0gY3MgPT0gbnVsbCB8fCBjcy5pc0VtcHR5ID8gbnVsbCA6IGNzLmxhc3Q7Ci0gICAgZmluYWwgbm93ID0gRGF0ZVRpbWUubm93KCk7Ci0gICAgZmluYWwgY29kZSA9IHN0ID09IG51bGwgPyAnJyA6IChzdC51c2luZ1JhbmdlID8gdHJhZGVSYW5nZVNwZWMoc3QuaW50ZXJ2YWwuY29kZSkuJDEgOiBzdC5pbnRlcnZhbC5jb2RlKTsKLSAgICBmaW5hbCBkdXJhdGlvbiA9IENhbmRsZUNoYXJ0UGFuZWxTdGF0ZS5fYmFyRHVyYXRpb24oY29kZSk7Ci0gICAgZmluYWwgZGVsYXllZCA9IGMgIT0gbnVsbCAmJiBkdXJhdGlvbiAhPSBudWxsICYmIG5vdy5pc0FmdGVyKGMudGltZS5hZGQoZHVyYXRpb24gKiAyKSk7Ci0gICAgU3RyaW5nIHR3byhpbnQgdikgPT4gdi50b1N0cmluZygpLnBhZExlZnQoMiwnMCcpOwotICAgIGZpbmFsIGF0ID0gYz8udGltZS50b0xvY2FsKCk7Ci0gICAgZmluYWwgbGFiZWwgPSBhdCA9PSBudWxsID8gJ0NhbmRsZXM6IHVuYXZhaWxhYmxlJyA6ICdURCAke3R3byhhdC5ob3VyKX06JHt0d28oYXQubWludXRlKX0ke2RlbGF5ZWQgPyAiIGRlbGF5ZWQiIDogIiJ9IMK3IGxpdmUgU1Egc2VwYXJhdGUnOwotICAgIHJldHVybiBUb29sdGlwKG1lc3NhZ2U6ICdDYW5kbGVzOiBUd2VsdmUgRGF0YSBwcm92aWRlciBPSExDLCBsYXN0IGJhciBvcGVuaW5nIHRpbWUuIExpdmUgYmlkL2FzazogU3dpc3NxdW90ZSwgc2VwYXJhdGUgZnJvbSBjYW5kbGVzLiBBIGdhcCBpcyBub3QgZmlsbGVkIHdpdGggaW52ZW50ZWQgYmFycy4nLAotICAgICAgY2hpbGQ6IFRleHQobGFiZWwsIGtleTogY29uc3QgVmFsdWVLZXkoJ2NhbmRsZS1zb3VyY2UnKSwgc3R5bGU6IGNvbnN0IFRleHRTdHlsZShjb2xvcjogQ29sb3IoMHhGRjhBOTNBNiksZm9udFNpemU6IDkpKSk7Ci0gIH0KLQogICAvLy8gSW5kZXBlbmRlbnQgcHJvdmlkZXIgZGFpbHkgcmVmZXJlbmNlLCBuZXZlciBhbiBpbnRyYWRheS13aW5kb3cgb3Blbi4KICAgV2lkZ2V0IF9jaGFuZ2VMaW5lKENhbmRsZUNoYXJ0UGFuZWxTdGF0ZT8gc3QpIHsKICAgICBmaW5hbCBweCA9IF9saXZlUHJpY2UhOwpAQCAtNDgyMyw3ICs0ODA4LDYgQEAgY2xhc3MgX0Z1bGxzY3JlZW5DaGFydFBhZ2VTdGF0ZSBleHRlbmRzIFN0YXRlPEZ1bGxzY3JlZW5DaGFydFBhZ2U+IHsKICAgICAgICAgICA/ICdEYWlseSBjaGFuZ2UgdW5hdmFpbGFibGU6IG5vIGN1cnJlbnQgcHJvdmlkZXItZGF5IG9wZW4gb3IgZnJlc2ggbGl2ZSBxdW90ZS4gUmVwbGF5IGhhcyBubyBsaXZlIGRhaWx5IGNoYW5nZS4nCiAgICAgICAgICAgOiAnVHdlbHZlIERhdGEgcHJvdmlkZXIgZGF5IG9wZW4gJHtfZGF5T3BlbiEub3Blbi50b1N0cmluZ0FzRml4ZWQoMil9IMK3ICR7X2RheU9wZW4hLnNlc3Npb25EYXRlfSDCtyAke19kYXlPcGVuIS5leGNoYW5nZVRpbWV6b25lfS4gTm90IGFuIFhNMzYwIHNlc3Npb24gcmVmZXJlbmNlLicsCiAgICAgICBjaGlsZDogQ29sdW1uKGNyb3NzQXhpc0FsaWdubWVudDogQ3Jvc3NBeGlzQWxpZ25tZW50LnN0YXJ0LCBjaGlsZHJlbjogWwotICAgICAgICBUZXh0KENhbmRsZVBhaW50ZXIuZm10QXhpc1ByaWNlKHB4KSwgc3R5bGU6IFRleHRTdHlsZShjb2xvcjogY29sb3IsIGZvbnRTaXplOiAxMikpLAogICAgICAgICBUZXh0KGxhYmVsLCBrZXk6IGNvbnN0IFZhbHVlS2V5KCdwcm92aWRlci1kYXktY2hhbmdlJyksIHN0eWxlOiBUZXh0U3R5bGUoY29sb3I6IGNvbG9yLCBmb250U2l6ZTogMTEpKSwKICAgICAgIF0pLAogICAgICk7CkBAIC00ODU5LDcgKzQ4NDMsMTAgQEAgY2xhc3MgX0Z1bGxzY3JlZW5DaGFydFBhZ2VTdGF0ZSBleHRlbmRzIFN0YXRlPEZ1bGxzY3JlZW5DaGFydFBhZ2U+IHsKICAgICAgICk7CiAKICAgV2lkZ2V0IF90cmFkZVBpbGwoU3RyaW5nIHNpZGUsIGRvdWJsZSBwcmljZSwgQ29sb3IgY29sb3IpIHsKLSAgICByZXR1cm4gTWF0ZXJpYWwoCisgICAgcmV0dXJuIENvbnN0cmFpbmVkQm94KAorICAgICAga2V5OiBWYWx1ZUtleSgnY29tcGFjdC10cmFkZS0kc2lkZScpLAorICAgICAgY29uc3RyYWludHM6IGNvbnN0IEJveENvbnN0cmFpbnRzKG1pbkhlaWdodDogNDQpLAorICAgICAgY2hpbGQ6IE1hdGVyaWFsKAogICAgICAgY29sb3I6IGNvbG9yLAogICAgICAgYm9yZGVyUmFkaXVzOiBCb3JkZXJSYWRpdXMuY2lyY3VsYXIoMTApLAogICAgICAgY2hpbGQ6IElua1dlbGwoCkBAIC00ODY5LDcgKzQ4NTYsNyBAQCBjbGFzcyBfRnVsbHNjcmVlbkNoYXJ0UGFnZVN0YXRlIGV4dGVuZHMgU3RhdGU8RnVsbHNjcmVlbkNoYXJ0UGFnZT4gewogICAgICAgICAgIHdpZGdldC5vblRyYWRlU2lkZSEoc2lkZS50b0xvd2VyQ2FzZSgpKTsKICAgICAgICAgfSwKICAgICAgICAgY2hpbGQ6IFBhZGRpbmcoCi0gICAgICAgICAgcGFkZGluZzogY29uc3QgRWRnZUluc2V0cy5zeW1tZXRyaWMoaG9yaXpvbnRhbDogMTgsIHZlcnRpY2FsOiA4KSwKKyAgICAgICAgICBwYWRkaW5nOiBjb25zdCBFZGdlSW5zZXRzLnN5bW1ldHJpYyhob3Jpem9udGFsOiAxNCwgdmVydGljYWw6IDYpLAogICAgICAgICAgIGNoaWxkOiBDb2x1bW4oCiAgICAgICAgICAgICBjaGlsZHJlbjogWwogICAgICAgICAgICAgICBUZXh0KApAQCAtNDg3NywxNCArNDg2NCwxNCBAQCBjbGFzcyBfRnVsbHNjcmVlbkNoYXJ0UGFnZVN0YXRlIGV4dGVuZHMgU3RhdGU8RnVsbHNjcmVlbkNoYXJ0UGFnZT4gewogICAgICAgICAgICAgICAgIHN0eWxlOiBjb25zdCBUZXh0U3R5bGUoCiAgICAgICAgICAgICAgICAgICBjb2xvcjogQ29sb3JzLndoaXRlLAogICAgICAgICAgICAgICAgICAgZm9udFdlaWdodDogRm9udFdlaWdodC53ODAwLAotICAgICAgICAgICAgICAgICAgZm9udFNpemU6IDE0LAorICAgICAgICAgICAgICAgICAgZm9udFNpemU6IDEyLAogICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgIFRleHQoCiAgICAgICAgICAgICAgICAgc2lkZSwKICAgICAgICAgICAgICAgICBzdHlsZTogY29uc3QgVGV4dFN0eWxlKAogICAgICAgICAgICAgICAgICAgY29sb3I6IENvbG9ycy53aGl0ZSwKLSAgICAgICAgICAgICAgICAgIGZvbnRTaXplOiAxMCwKKyAgICAgICAgICAgICAgICAgIGZvbnRTaXplOiA5LAogICAgICAgICAgICAgICAgICAgZm9udFdlaWdodDogRm9udFdlaWdodC53NzAwLAogICAgICAgICAgICAgICAgICAgbGV0dGVyU3BhY2luZzogMSwKICAgICAgICAgICAgICAgICApLApAQCAtNDg5Myw2ICs0ODgwLDcgQEAgY2xhc3MgX0Z1bGxzY3JlZW5DaGFydFBhZ2VTdGF0ZSBleHRlbmRzIFN0YXRlPEZ1bGxzY3JlZW5DaGFydFBhZ2U+IHsKICAgICAgICAgICApLAogICAgICAgICApLAogICAgICAgKSwKKyAgICApLAogICAgICk7CiAgIH0KIH0KZGlmZiAtLWdpdCBhL2xpYi9jaGFydF9kaWFnbm9zdGljcy5kYXJ0IGIvbGliL2NoYXJ0X2RpYWdub3N0aWNzLmRhcnQKaW5kZXggMGVlMmY2My4uYmJkMDdkMSAxMDA2NDQKLS0tIGEvbGliL2NoYXJ0X2RpYWdub3N0aWNzLmRhcnQKKysrIGIvbGliL2NoYXJ0X2RpYWdub3N0aWNzLmRhcnQKQEAgLTEyNCw2ICsxMjQsNyBAQCBjbGFzcyBDaGFydERpYWdub3N0aWNzU2NyZWVuIGV4dGVuZHMgU3RhdGVsZXNzV2lkZ2V0IHsKICAgICAgICAgICAgIC4ud3JpdGVsbigKICAgICAgICAgICAgICAgICAnZmV0Y2ggYXQgKFVUQyk6ICR7Q2FuZGxlRGVidWdTaW5rLmZldGNoQXRVdGM/LnRvSXNvODYwMVN0cmluZygpID8/ICdub25lIHlldCd9JykKICAgICAgICAgICAgIC4ud3JpdGVsbigncGF5bG9hZCBiYXJzOiAke0NhbmRsZURlYnVnU2luay50b3RhbFZhbHVlc30nKQorICAgICAgICAgICAgLi53cml0ZWxuKENhbmRsZURlYnVnU2luay5sYXRlc3RCYXJTdGF0dXMoKSkKICAgICAgICAgICAgIC4ud3JpdGVsbignZm9sZDogJGZvbGRSZWFzb24nKQogICAgICAgICAgICAgLi53cml0ZWxuKCdxdW90ZTogJHF1b3RlVGV4dCcpCiAgICAgICAgICAgICAuLndyaXRlbG4oJ2xpdmUgdGlja3MgYnVmZmVyZWQ6ICR0aWNrc1RleHQnKQpAQCAtMTUxLDYgKzE1Miw3IEBAIGNsYXNzIENoYXJ0RGlhZ25vc3RpY3NTY3JlZW4gZXh0ZW5kcyBTdGF0ZWxlc3NXaWRnZXQgewogICAgICAgICAgICAgICAgIENhbmRsZURlYnVnU2luay5mZXRjaEF0VXRjPy50b0lzbzg2MDFTdHJpbmcoKSA/PyAnbm9uZSB5ZXQnLAogICAgICAgICAgICAgICApLAogICAgICAgICAgICAgICBfcm93KCdQYXlsb2FkIGJhcnMnLCAnJHtDYW5kbGVEZWJ1Z1NpbmsudG90YWxWYWx1ZXN9JyksCisgICAgICAgICAgICAgIF9yb3coJ0NhbmRsZSB0aW1pbmcnLCBDYW5kbGVEZWJ1Z1NpbmsubGF0ZXN0QmFyU3RhdHVzKCkpLAogICAgICAgICAgICAgICBfcm93KCdGb3JtaW5nLWJhciBmb2xkJywgZm9sZFJlYXNvbiksCiAgICAgICAgICAgICAgIF9yb3coJ1F1b3RlJywgcXVvdGVUZXh0KSwKICAgICAgICAgICAgICAgRnV0dXJlQnVpbGRlcjxTdHJpbmc+KApkaWZmIC0tZ2l0IGEvbGliL21hcmtldF9kYXRhL2NhbmRsZV9kZWJ1Zy5kYXJ0IGIvbGliL21hcmtldF9kYXRhL2NhbmRsZV9kZWJ1Zy5kYXJ0CmluZGV4IGZlNzI1MDkuLjAyOTI0NTEgMTAwNjQ0Ci0tLSBhL2xpYi9tYXJrZXRfZGF0YS9jYW5kbGVfZGVidWcuZGFydAorKysgYi9saWIvbWFya2V0X2RhdGEvY2FuZGxlX2RlYnVnLmRhcnQKQEAgLTEyNyw2ICsxMjcsMjMgQEAgY2xhc3MgQ2FuZGxlRGVidWdTaW5rIHsKICAgICB9OwogICB9CiAKKyAgLy8vIENvbXBhY3QtY2hhcnQgc291cmNlIGxhYmVsIGxpdmVzIGhlcmUgaW5zdGVhZCBvZiBjb3ZlcmluZyBjYW5kbGVzLgorICAvLy8gVGhpcyBkZXNjcmliZXMgY2FwdHVyZWQgcHJvdmlkZXIgZGF0YSwgbm90IGFuIFhNMzYwIHBhcml0eSBjbGFpbS4KKyAgc3RhdGljIFN0cmluZyBsYXRlc3RCYXJTdGF0dXMoe0RhdGVUaW1lPyBub3d9KSB7CisgICAgZmluYWwgbmV3ZXN0ID0gbmV3ZXN0UmF3Q2xvc2UoKTsKKyAgICBmaW5hbCBkdXJhdGlvbiA9IGludGVydmFsRHVyYXRpb24oKTsKKyAgICBpZiAobmV3ZXN0ID09IG51bGwgfHwgZHVyYXRpb24gPT0gbnVsbCkgeworICAgICAgcmV0dXJuICdMYXN0IGNhbmRsZSBvcGVuL2RlbGF5OiB1bmtub3duIChubyBjYXB0dXJlZCBiYXIgb3IgaW50ZXJ2YWwpLiAnCisgICAgICAgICAgJ0NhbmRsZXM6IFR3ZWx2ZSBEYXRhIE9ITEMuIExpdmUgYmlkL2FzazogU3dpc3NxdW90ZSwgc2VwYXJhdGUgZmVlZC4nOworICAgIH0KKyAgICBmaW5hbCBkZWxheWVkID0gKG5vdyA/PyBEYXRlVGltZS5ub3coKSkudG9VdGMoKQorICAgICAgICAuaXNBZnRlcihuZXdlc3QuJDEuYWRkKGR1cmF0aW9uICogMikpOworICAgIHJldHVybiAnTGFzdCBjYW5kbGUgb3BlbiAoVVRDKTogJHtuZXdlc3QuJDEudG9Jc284NjAxU3RyaW5nKCl9OyAnCisgICAgICAgICdkZWxheWVkOiAke2RlbGF5ZWQgPyAieWVzIiA6ICJubyJ9IChtb3JlIHRoYW4gdHdvIHJlcXVlc3RlZCBpbnRlcnZhbHMpLiAnCisgICAgICAgICdDYW5kbGVzOiBUd2VsdmUgRGF0YSBPSExDLiBMaXZlIGJpZC9hc2s6IFN3aXNzcXVvdGUsIHNlcGFyYXRlIGZlZWQuICcKKyAgICAgICAgJ05vIGludmVudGVkIGdhcC1maWxsIGJhcnMuJzsKKyAgfQorCiAgIC8vLyBPbmUgbGluZSBwZXIgY2FwdHVyZWQgcmF3IGJhcjogY2xvc2VkIG9yIHN0aWxsIGZvcm1pbmcgYXQgZmV0Y2ggdGltZSwKICAgLy8vIGZyb20gYmFyIHN0YXJ0ICsgdGhlIFJFUVVFU1RFRCBpbnRlcnZhbCB2ZXJzdXMgdGhlIGZldGNoIGNsb2NrLiBBIGJhcgogICAvLy8gc3RpbGwgZm9ybWluZyBhdCBmZXRjaCB3aWxsIGtlZXAgY2hhbmdpbmcsIHNvIGNvbXBhcmluZyBpdCB3aXRoIGEKZGlmZiAtLWdpdCBhL3B1YnNwZWMueWFtbCBiL3B1YnNwZWMueWFtbAppbmRleCA4MWEyYzhhLi5iYTgxMTQ3IDEwMDY0NAotLS0gYS9wdWJzcGVjLnlhbWwKKysrIGIvcHVic3BlYy55YW1sCkBAIC0xNiw3ICsxNiw3IEBAIHB1Ymxpc2hfdG86ICdub25lJyAjIFJlbW92ZSB0aGlzIGxpbmUgaWYgeW91IHdpc2ggdG8gcHVibGlzaCB0byBwdWIuZGV2CiAjIGh0dHBzOi8vZGV2ZWxvcGVyLmFwcGxlLmNvbS9saWJyYXJ5L2FyY2hpdmUvZG9jdW1lbnRhdGlvbi9HZW5lcmFsL1JlZmVyZW5jZS9JbmZvUGxpc3RLZXlSZWZlcmVuY2UvQXJ0aWNsZXMvQ29yZUZvdW5kYXRpb25LZXlzLmh0bWwKICMgSW4gV2luZG93cywgYnVpbGQtbmFtZSBpcyB1c2VkIGFzIHRoZSBtYWpvciwgbWlub3IsIGFuZCBwYXRjaCBwYXJ0cwogIyBvZiB0aGUgcHJvZHVjdCBhbmQgZmlsZSB2ZXJzaW9ucyB3aGlsZSBidWlsZC1udW1iZXIgaXMgdXNlZCBhcyB0aGUgYnVpbGQgc3VmZml4LgotdmVyc2lvbjogMS4yLjM4KzE0MAordmVyc2lvbjogMS4yLjM5KzE0MQogCiBlbnZpcm9ubWVudDoKICAgc2RrOiBeMy4xMy41CmRpZmYgLS1naXQgYS90ZXN0L2NvbXBhY3RfY2hhcnRfY29udHJvbHNfdGVzdC5kYXJ0IGIvdGVzdC9jb21wYWN0X2NoYXJ0X2NvbnRyb2xzX3Rlc3QuZGFydApuZXcgZmlsZSBtb2RlIDEwMDY0NAppbmRleCAwMDAwMDAwLi5jMTY1YWYyCi0tLSAvZGV2L251bGwKKysrIGIvdGVzdC9jb21wYWN0X2NoYXJ0X2NvbnRyb2xzX3Rlc3QuZGFydApAQCAtMCwwICsxLDY3IEBACitpbXBvcnQgJ2RhcnQ6aW8nOworaW1wb3J0ICdkYXJ0OnVpJyBhcyB1aTsKK2ltcG9ydCAncGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQnOworaW1wb3J0ICdwYWNrYWdlOmZsdXR0ZXIvcmVuZGVyaW5nLmRhcnQnOworaW1wb3J0ICdwYWNrYWdlOmZsdXR0ZXJfdGVzdC9mbHV0dGVyX3Rlc3QuZGFydCc7CitpbXBvcnQgJ3BhY2thZ2U6c2hhcmVkX3ByZWZlcmVuY2VzL3NoYXJlZF9wcmVmZXJlbmNlcy5kYXJ0JzsKK2ltcG9ydCAncGFja2FnZTpzb25hL2NoYXJ0L2NhbmRsZV9jaGFydC5kYXJ0JzsKK2ltcG9ydCAncGFja2FnZTpzb25hL2NoYXJ0L2NoYXJ0X3Rvb2xzLmRhcnQnOworaW1wb3J0ICdwYWNrYWdlOnNvbmEvbWFya2V0X2RhdGEvY2FuZGxlX2RlYnVnLmRhcnQnOworaW1wb3J0ICdmdWxsc2NyZWVuX2VkaXRvcl90ZXN0LmRhcnQnIHNob3cgZmFrZUNhbmRsZXMsIGxvYWRGb250czsKKwordm9pZCBtYWluKCkgeworICB0ZXN0KCdoaWRkZW4gY2hhcnQgdGltaW5nIHJlbWFpbnMgZXhwbGljaXQgaW4gZGlhZ25vc3RpY3MnLCAoKSB7CisgICAgQ2FuZGxlRGVidWdTaW5rLmNsZWFyKCk7CisgICAgZXhwZWN0KENhbmRsZURlYnVnU2luay5sYXRlc3RCYXJTdGF0dXMoKSwgY29udGFpbnMoJ3Vua25vd24nKSk7CisgICAgQ2FuZGxlRGVidWdTaW5rLnJlY29yZEZldGNoKHNvdXJjZU5hbWU6ICdUd2VsdmUgRGF0YScsIGludGVydmFsOiAnNW1pbicsIHZhbHVlczogWworICAgICAgeydkYXRldGltZSc6JzIwMjYtMTEtMTcgMTg6NTA6MDAnLCdvcGVuJzonMzg1OCcsJ2Nsb3NlJzonMzg1NSd9CisgICAgXSk7CisgICAgZmluYWwgZnJlc2ggPSBDYW5kbGVEZWJ1Z1NpbmsubGF0ZXN0QmFyU3RhdHVzKG5vdzogRGF0ZVRpbWUudXRjKDIwMjYsMTEsMTcsMTgsNTkpKTsKKyAgICBleHBlY3QoZnJlc2gsIGNvbnRhaW5zKCdkZWxheWVkOiBubycpKTsKKyAgICBleHBlY3QoZnJlc2gsIGNvbnRhaW5zKCdTd2lzc3F1b3RlLCBzZXBhcmF0ZSBmZWVkJykpOworICAgIGV4cGVjdChmcmVzaCwgY29udGFpbnMoJzIwMjYtMTEtMTdUMTg6NTA6MDAuMDAwWicpKTsKKyAgICBleHBlY3QoQ2FuZGxlRGVidWdTaW5rLmxhdGVzdEJhclN0YXR1cyhub3c6IERhdGVUaW1lLnV0YygyMDI2LDExLDE3LDE5LDEpKSwgY29udGFpbnMoJ2RlbGF5ZWQ6IHllcycpKTsKKyAgICBDYW5kbGVEZWJ1Z1NpbmsuY2xlYXIoKTsKKyAgfSk7CisgIGZvciAoZmluYWwgd2lkdGggaW4gWzM2MC4wLCA0MTEuMF0pIHsKKyAgICB0ZXN0V2lkZ2V0cygnY29tcGFjdCBmdWxsc2NyZWVuIGNvbnRyb2xzIHByZXNlcnZlIHByaWNlcyBhbmQgZGF5IGF0ICR3aWR0aCcsICh0KSBhc3luYyB7CisgICAgICBTaGFyZWRQcmVmZXJlbmNlcy5zZXRNb2NrSW5pdGlhbFZhbHVlcyh7fSk7CisgICAgICBhd2FpdCBsb2FkRm9udHMoKTsKKyAgICAgIHQudmlldy5waHlzaWNhbFNpemUgPSBTaXplKHdpZHRoICogMiwgMTgwMCk7CisgICAgICB0LnZpZXcuZGV2aWNlUGl4ZWxSYXRpbyA9IDI7CisgICAgICBhZGRUZWFyRG93bih0LnZpZXcucmVzZXQpOworICAgICAgZmluYWwgYm91bmRhcnkgPSBHbG9iYWxLZXkoKTsKKyAgICAgIGZpbmFsIGRhdGEgPSBmYWtlQ2FuZGxlcyg2MCk7CisgICAgICBhd2FpdCB0LnB1bXBXaWRnZXQoTWF0ZXJpYWxBcHAoZGVidWdTaG93Q2hlY2tlZE1vZGVCYW5uZXI6ZmFsc2UsaG9tZTpSZXBhaW50Qm91bmRhcnkoa2V5OmJvdW5kYXJ5LGNoaWxkOkZ1bGxzY3JlZW5DaGFydFBhZ2UoCisgICAgICAgIGxvYWRlcjogKF8pIGFzeW5jID0+IGRhdGEsCisgICAgICAgIGxpdmVQcmljZTogMzg1NS4xMCwKKyAgICAgICAgc2lnbmFsU3RhdHM6KDAsMSksCisgICAgICAgIG1hcmtldFNuYXBzaG90OiAoKSA9PiBjb25zdCBDaGFydE1hcmtldFNuYXBzaG90KHByaWNlOjM4NTUuMTAsZnJlc2g6dHJ1ZSxiaWQ6Mzg1NS4xMCxhc2s6Mzg1NS43NyksCisgICAgICAgIG9uVHJhZGVTaWRlOiAoXykge30sCisgICAgICApKSkpOworICAgICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CisgICAgICBleHBlY3QoZmluZC5ieUtleShjb25zdCBWYWx1ZUtleSgncHJvdmlkZXItZGF5LWNoYW5nZScpKSwgZmluZHNPbmVXaWRnZXQpOworICAgICAgZXhwZWN0KGZpbmQuYnlLZXkoY29uc3QgVmFsdWVLZXkoJ2NhbmRsZS1zb3VyY2UnKSksIGZpbmRzTm90aGluZyk7CisgICAgICBleHBlY3QoZmluZC50ZXh0Q29udGFpbmluZygnbGl2ZSBTUSBzZXBhcmF0ZScpLCBmaW5kc05vdGhpbmcpOworICAgICAgLy8gQXhpcyBwcmljZXMgYXJlIHBhaW50ZWQsIG5vdCBUZXh0OyBvbmx5IGVhY2ggcGlsbCBvd25zIGl0cyBwcmljZSBUZXh0LgorICAgICAgZXhwZWN0KGZpbmQudGV4dCgnMyw4NTUuMTAnKSwgZmluZHNPbmVXaWRnZXQpOworICAgICAgZXhwZWN0KGZpbmQudGV4dCgnMyw4NTUuNzcnKSwgZmluZHNPbmVXaWRnZXQpOworICAgICAgZmluYWwgc2VsbD10LmdldFJlY3QoZmluZC5ieUtleShjb25zdCBWYWx1ZUtleSgnY29tcGFjdC10cmFkZS1TRUxMJykpKTsKKyAgICAgIGZpbmFsIGJ1eT10LmdldFJlY3QoZmluZC5ieUtleShjb25zdCBWYWx1ZUtleSgnY29tcGFjdC10cmFkZS1CVVknKSkpOworICAgICAgZXhwZWN0KHNlbGwuaGVpZ2h0LCBncmVhdGVyVGhhbk9yRXF1YWxUbyg0NCkpOworICAgICAgZXhwZWN0KHNlbGwud2lkdGgsIGxlc3NUaGFuKDEwMCkpOworICAgICAgZXhwZWN0KHNlbGwucmlnaHQsIGxlc3NUaGFuKGJ1eS5sZWZ0KSk7CisgICAgICBleHBlY3QoYnV5LnJpZ2h0LCBsZXNzVGhhbih3aWR0aCkpOworICAgICAgZXhwZWN0KHQudGFrZUV4Y2VwdGlvbigpLCBpc051bGwpOworICAgICAgaWYoUGxhdGZvcm0uZW52aXJvbm1lbnRbJ0NPTVBBQ1RfQ0FQVFVSRSddPT0nMScpIHsKKyAgICAgICAgYXdhaXQgdC5ydW5Bc3luYygoKSBhc3luYyB7CisgICAgICAgICAgZmluYWwgaW1hZ2U9YXdhaXQgKGJvdW5kYXJ5LmN1cnJlbnRDb250ZXh0IS5maW5kUmVuZGVyT2JqZWN0KCkgYXMgUmVuZGVyUmVwYWludEJvdW5kYXJ5KS50b0ltYWdlKHBpeGVsUmF0aW86Mik7CisgICAgICAgICAgZmluYWwgYnl0ZXM9YXdhaXQgaW1hZ2UudG9CeXRlRGF0YShmb3JtYXQ6dWkuSW1hZ2VCeXRlRm9ybWF0LnBuZyk7CisgICAgICAgICAgYXdhaXQgRmlsZSgnL3RtcC9jb21wYWN0LSR7d2lkdGgudG9JbnQoKX0ucG5nJykud3JpdGVBc0J5dGVzKGJ5dGVzIS5idWZmZXIuYXNVaW50OExpc3QoKSk7CisgICAgICAgICAgaW1hZ2UuZGlzcG9zZSgpOworICAgICAgICB9KTsKKyAgICAgIH0KKyAgICAgIGF3YWl0IHQucHVtcFdpZGdldChjb25zdCBTaXplZEJveC5zaHJpbmsoKSk7CisgICAgfSk7CisgIH0KK30KZGlmZiAtLWdpdCBhL3Rlc3QvZnVsbHNjcmVlbl9saXZlX2ZpeF90ZXN0LmRhcnQgYi90ZXN0L2Z1bGxzY3JlZW5fbGl2ZV9maXhfdGVzdC5kYXJ0CmluZGV4IGIzYjA2MGEuLmMzZDkyZjUgMTAwNjQ0Ci0tLSBhL3Rlc3QvZnVsbHNjcmVlbl9saXZlX2ZpeF90ZXN0LmRhcnQKKysrIGIvdGVzdC9mdWxsc2NyZWVuX2xpdmVfZml4X3Rlc3QuZGFydApAQCAtMTEwLDEzICsxMTAsMTMgQEAgdm9pZCBtYWluKCkgewogICAgICk7CiAgIH0KIAotICB0ZXN0V2lkZ2V0cygnZnVsbHNjcmVlbiBoZWFkaW5nLCBjb3VudCBjaGlwIGFuZCBzaWduYWwgYm94ZXMgZm9sbG93IHRoZSAnCisgIHRlc3RXaWRnZXRzKCdmdWxsc2NyZWVuIHRyYWRlIHByaWNlcywgY291bnQgY2hpcCBhbmQgc2lnbmFsIGJveGVzIGZvbGxvdyB0aGUgJwogICAgICAgJ2xpdmUgc291cmNlIGFmdGVyIG9wZW5pbmcnLCAodCkgYXN5bmMgewogICAgIGZpbmFsIGggPSBhd2FpdCBwdW1wRnVsbHNjcmVlbih0KTsKICAgICBleHBlY3QocGFpbnRlck9mKHQpLnNpZ25hbFN0YXRzLCAoMCwgMCkpOwogICAgIGV4cGVjdChwYWludGVyT2YodCkuc2lnbmFsWm9uZXMuc2luZ2xlLmlzQnV5LCBpc1RydWUpOwogICAgIGV4cGVjdChwYWludGVyT2YodCkuc2lnbmFsWm9uZXMuc2luZ2xlLmxvdywgMzg4MCk7Ci0gICAgZXhwZWN0KGZpbmQudGV4dENvbnRhaW5pbmcoJzMsOTAwLjAwJyksIGZpbmRzV2lkZ2V0cyk7CisgICAgZXhwZWN0KGZpbmQudGV4dCgnMyw4OTkuNzAnKSwgZmluZHNPbmVXaWRnZXQpOwogICAgIGguc2V0KDM4NTAuMjUsICgyLCAxKSwgWwogICAgICAgY29uc3QgU2lnbmFsWm9uZShpc0J1eTogZmFsc2UsIGxvdzogMzkwNSwgaGlnaDogMzkwNyksCiAgICAgICBjb25zdCBTaWduYWxab25lKGlzQnV5OiB0cnVlLCBsb3c6IDM4NDAsIGhpZ2g6IDM4NDMpLApAQCAtMTI2LDggKzEyNiw4IEBAIHZvaWQgbWFpbigpIHsKICAgICBleHBlY3QocGFpbnRlck9mKHQpLnNpZ25hbFpvbmVzLmxlbmd0aCwgMik7CiAgICAgZXhwZWN0KHBhaW50ZXJPZih0KS5zaWduYWxab25lcy5maXJzdC5pc0J1eSwgaXNGYWxzZSk7CiAgICAgZXhwZWN0KHBhaW50ZXJPZih0KS5zaWduYWxab25lcy5sYXN0LmxvdywgMzg0MCk7Ci0gICAgZXhwZWN0KGZpbmQudGV4dENvbnRhaW5pbmcoJzMsODUwLjI1JyksIGZpbmRzV2lkZ2V0cyk7Ci0gICAgZXhwZWN0KGZpbmQudGV4dENvbnRhaW5pbmcoJzMsOTAwLjAwJyksIGZpbmRzTm90aGluZyk7CisgICAgZXhwZWN0KGZpbmQudGV4dCgnMyw4NDkuOTUnKSwgZmluZHNPbmVXaWRnZXQpOworICAgIGV4cGVjdChmaW5kLnRleHQoJzMsODk5LjcwJyksIGZpbmRzTm90aGluZyk7CiAgIH0pOwogCiAgIHRlc3RXaWRnZXRzKCcxbS81bS8xaC80aC8xRCBtZW51IHBpY2tzIGxvYWQgdGhhdCBleGFjdCBjYW5kbGUgc2l6ZScsICh0KSBhc3luYyB7Cg== | base64 -d > /tmp/compact.patch
+          git apply --check /tmp/compact.patch
+          git apply /tmp/compact.patch
+      - id: java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: flutter_sdk
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - id: signing
+        name: Restore existing signing identity
+        run: |
+          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
+          cat >> android/gradle.properties <<GP
+          ORO_KEYSTORE_FILE=$RUNNER_TEMP/sona-release.jks
+          ORO_KEYSTORE_PASSWORD=${{ secrets.ORO_KEYSTORE_PASSWORD }}
+          ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
+          ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
+          GP
+      - id: dependencies
+        run: flutter pub get
+      - name: Format scoped files, test and render approved compact controls
+        id: compact_preview
+        run: |
+          set -euo pipefail
+          dart format test/compact_chart_controls_test.dart
+          COMPACT_CAPTURE=1 flutter test test/compact_chart_controls_test.dart --reporter expanded
+          flutter test test/fullscreen_editor_test.dart --update-goldens
+      - name: Keep real Flutter preview images in draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "compact-preview-${GITHUB_RUN_ID}" /tmp/compact-360.png /tmp/compact-411.png --repo "$GITHUB_REPOSITORY" --draft --target feature/btc-weekend --title 'Sona compact controls Flutter proof - TEST only' --notes 'Synthetic fixture preview only. Not an installed phone screenshot. No app release publication.'
+      - id: flutter_tests
+        name: Safety tests and exact source contracts
+        run: |
+          set -o pipefail
+          flutter test --machine > /tmp/flutter-results.jsonl
+      - name: Save tested compact source without a second build
+        run: |
+          set -euo pipefail
+          git config user.name sona-repair
+          git config user.email sona-repair@users.noreply.github.com
+          git add lib/chart/candle_chart.dart lib/chart_diagnostics.dart lib/market_data/candle_debug.dart pubspec.yaml test/compact_chart_controls_test.dart test/fullscreen_live_fix_test.dart test/goldens/fullscreen_editor.png test/goldens/fullscreen_editor_positions.png
+          git commit -m 'Sona 1.2.39 TEST: compact fullscreen controls and clear chart header [skip ci]'
+          git push origin HEAD:feature/btc-weekend
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - id: gradle_setup
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - id: native_task_check
+        name: Verify release unit-test task exists before APK compilation
+        run: |
+          set -euo pipefail
+          printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")" "$ANDROID_HOME" > android/local.properties
+          cd android
+          gradle :app:tasks --all > /tmp/sona-task-inventory.txt
+          grep -E '^testReleaseUnitTest[[:space:]-]' /tmp/sona-task-inventory.txt
+      - id: apk_build
+        run: flutter build apk --release --target-platform android-arm64
+      - id: native_tests
+        name: Native caller and concurrent claim tests
+        run: |
+          set -euo pipefail
+          (cd android && ./gradlew :app:testReleaseUnitTest)
+          python3 - <<'PYTEST'
+          import glob, xml.etree.ElementTree as E
+          paths=glob.glob('build/app/test-results/testReleaseUnitTest/TEST-*.xml')
+          roots=[E.parse(p).getroot() for p in paths]
+          cases=[c for r in roots for c in r.findall('testcase')]
+          expected={'concurrentUiAndHeadlessClaimOnlyOnce','replayedIdNeverBecomesExecutableAgain','distinctOrderCanBeClaimedAfterPriorConsumption','unrelatedUidIsDenied'}
+          found={c.attrib['name'] for c in cases if c.attrib.get('classname')=='com.ambi.gold_paper_trading.FridayOrderStoreTest'}
+          assert expected <= found, (paths,found)
+          assert all(int(r.attrib.get(k,0))==0 for r in roots for k in ('failures','errors','skipped'))
+          print('Native JUnit executed:',len(cases),'failures=0 errors=0 skipped=0')
+          for c in cases: print(c.attrib['classname']+'.'+c.attrib['name'])
+          PYTEST
+      - id: apk_verify_transport
+        name: Verify signed APK identity and PRIVATE draft transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
+          grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          "$AAPT" dump badging "$APK" > /tmp/badging.txt
+          sed -n '1p' /tmp/badging.txt > /tmp/package.txt
+          cat /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='141' versionName='1.2.39'" /tmp/package.txt
+          cp "$APK" /tmp/Sona.apk
+          (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
+          cat /tmp/Sona.apk.sha256
+          printf 'Source: %s\nRun: %s/%s/actions/runs/%s\nPrivate test only. Full Flutter and native JUnit gates passed. Entry-price orders require open app and internet. Phone behavior unverified. Do not publish.\n' "$SOURCE_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/Sona-test-source.txt
+          TAG="test-compact-141-${GITHUB_RUN_ID}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$SOURCE_SHA" -f name='Sona 1.2.39 TEST - approved compact chart controls' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
+          DRAFT=$(jq -er '.id' /tmp/draft-before.json)
+          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
+          gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
+      - name: Record private diagnostic step outcomes
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STEP_RESULTS: ${{ toJSON(steps) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYDIAG'
+          import os,json
+          steps=json.loads(os.environ['STEP_RESULTS'])
+          out={'source':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'],'steps':{k:{'outcome':v.get('outcome'),'conclusion':v.get('conclusion')} for k,v in steps.items()},'note':'Private diagnostics only; no credentials, raw logs, or APK publication.'}
+          tests={}; failures=[]; errors=[]
+          try:
+            for line in open('/tmp/flutter-results.jsonl'):
+              try: e=json.loads(line)
+              except ValueError: continue
+              if not isinstance(e,dict): continue
+              if e.get('type')=='error':
+                text=str(e.get('error',''))[:1200]
+                import re
+                text=re.sub(r'https?://\S+','[URL]',text)
+                text=re.sub(r'(?:gsk_|ghp_|github_pat_|sb_secret_)[A-Za-z0-9_\-]+','[REDACTED]',text)
+                errors.append({'test':tests.get(e.get('testID'),'load/setup'),'summary':text})
+              if e.get('type')=='testStart': tests[e['test']['id']]=e['test'].get('name','unnamed')
+              if e.get('type')=='testDone' and e.get('result') in ('failure','error'): failures.append(tests.get(e.get('testID'),'unknown test'))
+            out['failed_test_names']=failures
+            out['test_error_summaries']=errors[:8]
+          except FileNotFoundError: pass
+          open('/tmp/diagnostic-final.txt','w').write(json.dumps(out,indent=2))
+          PYDIAG
+          gh release create "compact-status-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --target feature/btc-weekend --title "Compact controls TEST pipeline status" --notes-file /tmp/diagnostic-final.txt
+          for IMAGE in test/failures/fullscreen_editor*.png; do
+            if [ -f "$IMAGE" ]; then gh release upload "compact-status-${GITHUB_RUN_ID}" "$IMAGE" --repo "$GITHUB_REPOSITORY" --clobber; fi
+          done
+          if [ -f /tmp/Sona.apk ] && [ -f /tmp/cert.txt ] && [ -f /tmp/package.txt ]; then
+            gh release upload "compact-status-${GITHUB_RUN_ID}" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt /tmp/cert.txt /tmp/package.txt --repo "$GITHUB_REPOSITORY" --clobber
+          fi
