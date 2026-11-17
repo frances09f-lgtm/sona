@@ -1,0 +1,27 @@
+Targeted outcome: success
+Full outcome: failure
+00:03 +18: All tests passed!
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:03 +14: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: fullscreen preserves layout, listens to live updates, returns settings, restores orientation
+00:03 +15: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: invalid history is refused; fresh quote marker never rewrites historic candles
+00:03 +16: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: provider OHLC retained, live marker separate
+00:03 +17: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:03 +18: All tests passed!
+Golden "goldens/fullscreen_editor_positions.png": Pixel test failed, 0.34%, 1114px diff detected.
+00:04 +61 -1: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden) [E]
+Golden "goldens/fullscreen_editor.png": Pixel test failed, 0.34%, 1114px diff detected.
+00:04 +61 -2: /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden) [E]
+Expected: null
+  Actual: FlutterError:<Golden "goldens/adaptive_grid_normal.png": Pixel test failed, 0.25%, 3242px
+00:39 +427 ~1 -3: /home/runner/work/sona/sona/test/adaptive_grid_preview_test.dart: preview dotted grid normal, zoomed, panned, price-scaled [E]
+00:43 +452 ~1 -3: Some tests failed.
+00:43 +450 ~1 -3: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: lagging candle feed: provider OHLC retained, live marker separate
+00:43 +451 ~1 -3: /home/runner/work/sona/sona/test/chart_upgrade_test.dart: candle-feed outage: no bar is fabricated beyond 3 bars of lag
+00:43 +452 ~1 -3: Some tests failed.
+
+Failing tests:
+  /home/runner/work/sona/sona/test/adaptive_grid_preview_test.dart: preview dotted grid normal, zoomed, panned, price-scaled
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: fullscreen editor renders like the broker reference (golden)
+  /home/runner/work/sona/sona/test/fullscreen_editor_test.dart: v1.2.3: open-trade levels stay, strategy markers gone (golden)

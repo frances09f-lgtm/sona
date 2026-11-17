@@ -196,85 +196,9 @@ class CandleChartPanelState extends State<CandleChartPanel>
       market.fresh && (market.price?.isFinite ?? false) && market.price! > 0
       ? market.price
       : null;
-  /// Candles with the live quote folded into the still-forming last bar,
-  /// so the last-price line and the last candle agree. Provider history
-  /// is never rewritten: only the bar whose window contains now, and
-  /// only that bar's close/high/low.
-  List<Candle> get _liveCandles {
-    final p = chartPrice;
-    if (p == null || candles.isEmpty) return candles;
-    final bar = _barDuration(interval.code);
-    if (bar == null) return candles;
-    final last = candles.last;
-    final now = chartNow(); // frozen under flutter_test: stable goldens
-    if (now.isBefore(last.time)) {
-      return candles; // provider data ahead of the clock: leave it alone
-    }
-    // Recent bars are built from the SAME live tick stream that drives the
-    // price line, so the last candle and the line cannot diverge.
-    final buf = TickBuffer()..ticks.addAll(market.liveTicks ?? const []);
-
-    if (now.isBefore(last.time.add(bar))) {
-      // The provider's last bar is still forming: fold the quote and any
-      // tick extremes since the bar was stamped into it.
-      final tw = buf.ohlc(last.time, now.add(const Duration(seconds: 1)));
-      return [
-        ...candles.take(candles.length - 1),
-        Candle(
-          time: last.time,
-          open: last.open,
-          high: math.max(last.high, math.max(tw?.$2 ?? p, p)),
-          low: math.min(last.low, math.min(tw?.$3 ?? p, p)),
-          close: p,
-          volume: last.volume,
-        ),
-      ];
-    }
-    // The provider's last bar already closed (the free candle feed lags a
-    // minute or two): extend with bars aggregated from the live tick
-    // stream. Bars built from real ticks are DATA, not fabrication, so the
-    // only limit is tick coverage (~12 min). Gap minutes with no ticks
-    // (e.g. just after app start, before the buffer fills) are skipped,
-    // and the currently forming bar is ALWAYS drawn: from ticks when they
-    // exist, otherwise anchored at the last real close for up to 3 bars of
-    // lag. Beyond that (candle-feed outage) nothing is fabricated.
-    final lagBars =
-        now.difference(last.time).inMilliseconds / bar.inMilliseconds;
-    final k = now.difference(last.time).inMilliseconds ~/ bar.inMilliseconds;
-    final out = [...candles];
-    var prevClose = last.close;
-    for (var j = 1; j <= k; j++) {
-      final start = last.time.add(bar * j);
-      final isCurrent = j == k;
-      final end =
-          isCurrent ? now.add(const Duration(seconds: 1)) : start.add(bar);
-      final tw = buf.ohlc(start, end);
-      if (tw == null) {
-        if (isCurrent) {
-          if (lagBars > 3) break; // feed outage: fabricate nothing
-        } else {
-          continue; // no ticks for that minute: leave the time gap
-        }
-      }
-      // Bars connect like a real chart: open is always the previous bar's
-      // close; high/low come from real ticks (plus that anchor); close is
-      // the window's last tick - the live quote for the forming bar.
-      final o = prevClose;
-      final c = isCurrent ? p : tw!.$4;
-      out.add(
-        Candle(
-          time: start,
-          open: o,
-          high: math.max(o, math.max(tw?.$2 ?? c, c)),
-          low: math.min(o, math.min(tw?.$3 ?? c, c)),
-          close: c,
-          volume: 0,
-        ),
-      );
-      prevClose = c;
-    }
-    return out;
-  }
+  /// Provider-only OHLC. The live Swissquote marker is separate and must
+  /// never rewrite candles or bridge missing history with anchored bars.
+  List<Candle> get _liveCandles => candles;
 
   DateTime _lastChartTap = DateTime.fromMillisecondsSinceEpoch(0);
   // Price-axis drag (TradingView-style vertical price scale): 1.0 = auto.
@@ -482,10 +406,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
   double _kineticVelBars = 0; // bars per second, + = scroll back (right drag)
   static const double rightPad = 52.0;
 
-  /// The series actually drawn: provider candles with the live quote
-  /// folded in (and a synthesized forming bar appended when the feed lags).
-  /// Every piece of visible-window math must use THIS length - using the
-  /// provider length clips the forming bar off the right edge.
+  /// The series actually drawn is provider-only, including the last bar.
   List<Candle> get _drawn => _liveCandles;
 
   /// Deterministic clock under flutter_test so goldens never flake.
@@ -2134,7 +2055,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
     if (selected != null && _drawn.isNotEmpty) {
       c = _drawn[selected!.clamp(0, _drawn.length - 1)];
     } else if (candles.isNotEmpty) {
-      c = _liveCandles.last; // forming bar folded with the live quote
+      c = _liveCandles.last; // exact provider OHLC
     }
     if (error != null) {
       return Text(
@@ -3207,7 +3128,7 @@ class CandlePainter extends CustomPainter {
       // Keep the label clear of the "Today" stats chip painted over the
       // top-left corner (chip bottom is ~22px: y=6 + 10pt text + padding).
       final zMidY = math.max((zTop + zBot) / 2 - zLabel.height / 2,
-          signalStats != null ? (reserveTopLeft ? 66.0 : 26.0) : 0.0);
+          signalStats != null ? (reserveTopLeft ? 82.0 : 26.0) : 0.0);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(4, zMidY - 2, zLabel.width + 8, zLabel.height + 4),
@@ -3275,7 +3196,7 @@ class CandlePainter extends CustomPainter {
       final ss = signalStats!;
       // Fullscreen: the GOLD heading + price line own the top-left, so the
       // count chip sits just below them (user: "Correct is going under 1D").
-      final chipTop = reserveTopLeft ? 46.0 : 6.0;
+      final chipTop = reserveTopLeft ? 66.0 : 6.0;
       const chipStyle = TextStyle(
         color: axis,
         fontSize: 10,
@@ -4700,6 +4621,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                     ),
                                     if (_livePrice != null)
                                       _changeLine(st),
+                                    _candleSourceLine(st),
                                   ],
                                 ),
                               ),
@@ -4862,6 +4784,20 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
 
   Widget _vr() =>
       const VerticalDivider(width: 12, color: Color(0xFF2A3347));
+
+  Widget _candleSourceLine(CandleChartPanelState? st) {
+    final cs = st?.candles;
+    final c = cs == null || cs.isEmpty ? null : cs.last;
+    final now = DateTime.now();
+    final code = st == null ? '' : (st.usingRange ? tradeRangeSpec(st.interval.code).$1 : st.interval.code);
+    final duration = CandleChartPanelState._barDuration(code);
+    final delayed = c != null && duration != null && now.isAfter(c.time.add(duration * 2));
+    String two(int v) => v.toString().padLeft(2,'0');
+    final at = c?.time.toLocal();
+    final label = at == null ? 'Candles: unavailable' : 'TD ${two(at.hour)}:${two(at.minute)}${delayed ? " delayed" : ""} · live SQ separate';
+    return Tooltip(message: 'Candles: Twelve Data provider OHLC, last bar opening time. Live bid/ask: Swissquote, separate from candles. A gap is not filled with invented bars.',
+      child: Text(label, key: const ValueKey('candle-source'), style: const TextStyle(color: Color(0xFF8A93A6),fontSize: 9)));
+  }
 
   /// Independent provider daily reference, never an intraday-window open.
   Widget _changeLine(CandleChartPanelState? st) {

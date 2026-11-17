@@ -10,7 +10,7 @@ import 'chart_upgrade_test.dart' show painter;
 
 void main() {
   testWidgets(
-    '3 consecutive minute rollovers: one forming bar, open == prior close, close == line',
+    'live ticks never rewrite or append provider candles',
     (t) async {
       SharedPreferences.setMockInitialValues({});
       await loadFonts();
@@ -59,31 +59,31 @@ void main() {
       await t.pumpAndSettle();
       final p = painter(t);
       final cs = p.candles;
-      // 40 provider bars + tick-built bars for the covered minutes + forming.
-      final added = cs.length - 40;
-      expect(added, greaterThanOrEqualTo(2));
-      // Every tick-built bar opens at the previous bar's close.
-      for (var i = 40; i < cs.length; i++) {
-        expect(cs[i].open, closeTo(cs[i - 1].close, 1e-9),
-            reason: 'bar $i open != prior close');
-      }
-      // Forming bar: close == line, and it is the LAST bar (exactly one).
-      expect(cs.last.close, live);
+      expect(cs.length, bars.length);
+      expect(cs.map((c) => (c.time,c.open,c.high,c.low,c.close,c.volume)).toList(),
+          bars.map((c) => (c.time,c.open,c.high,c.low,c.close,c.volume)).toList());
       expect(p.livePrice, live);
-      // Forming bar is inside the visible window.
-      expect(p.firstVisible + p.visibleCount, greaterThanOrEqualTo(cs.length));
-      // High/low never exceed the real tick extremes plus the anchor chain.
-      final tickHi = ticks.map((e) => e.$2).reduce((a, b) => a > b ? a : b);
-      final tickLo = ticks.map((e) => e.$2).reduce((a, b) => a < b ? a : b);
-      final anchor = bars.last.close;
-      var hiBound = tickHi > anchor ? tickHi : anchor;
-      if (live > hiBound) hiBound = live;
-      final loBound = tickLo < anchor ? tickLo : anchor;
-      for (var i = 40; i < cs.length; i++) {
-        expect(cs[i].high, lessThanOrEqualTo(hiBound + 1e-9));
-        expect(cs[i].low, greaterThanOrEqualTo(loBound - 1e-9));
-      }
+      expect(cs.last.close, isNot(live));
       await t.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('forming provider OHLC survives extreme live ticks and a missing interval', (t) async {
+    SharedPreferences.setMockInitialValues({}); await loadFonts();
+    final now=CandleChartPanelState.chartNow();
+    final bars=[
+      Candle(time:now.subtract(const Duration(minutes:40)),open:100,high:110,low:90,close:105),
+      Candle(time:now.subtract(const Duration(minutes:2)),open:106,high:108,low:104,close:107),
+    ];
+    await t.pumpWidget(MaterialApp(home:Scaffold(body:CandleChartPanel(
+      loader:(_) async=>bars,
+      marketSnapshot:()=>ChartMarketSnapshot(price:150,fresh:true,liveTicks:[(now.millisecondsSinceEpoch,150),(now.subtract(const Duration(seconds:1)).millisecondsSinceEpoch,50)]),
+    ))));
+    await t.pumpAndSettle();final p=painter(t);
+    expect(p.candles.length,2);
+    expect(p.candles.last.open,106);expect(p.candles.last.high,108);
+    expect(p.candles.last.low,104);expect(p.candles.last.close,107);
+    expect(p.livePrice,150);
+    await t.pumpWidget(const SizedBox());
+  });
+
 }
