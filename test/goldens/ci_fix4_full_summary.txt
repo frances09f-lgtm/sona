@@ -1,0 +1,8 @@
+00:42 +381 ~1 -1: /home/runner/work/sona/sona/test/chart_toolbar_test.dart: no separate timeframe chip row; 1D range shows 15m candles [E]
+00:42 +381 ~1 -2: /home/runner/work/sona/sona/test/chart_toolbar_test.dart: toolbar menu picks candle size and marks the current one [E]
+00:47 +444 ~1 -2: Some tests failed.
+00:47 +444 ~1 -2: Some tests failed.
+
+Failing tests:
+  /home/runner/work/sona/sona/test/chart_toolbar_test.dart: no separate timeframe chip row; 1D range shows 15m candles
+  /home/runner/work/sona/sona/test/chart_toolbar_test.dart: toolbar menu picks candle size and marks the current one
