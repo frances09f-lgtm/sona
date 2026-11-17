@@ -127,6 +127,23 @@ class CandleDebugSink {
     };
   }
 
+  /// Compact-chart source label lives here instead of covering candles.
+  /// This describes captured provider data, not an XM360 parity claim.
+  static String latestBarStatus({DateTime? now}) {
+    final newest = newestRawClose();
+    final duration = intervalDuration();
+    if (newest == null || duration == null) {
+      return 'Last candle open/delay: unknown (no captured bar or interval). '
+          'Candles: Twelve Data OHLC. Live bid/ask: Swissquote, separate feed.';
+    }
+    final delayed = (now ?? DateTime.now()).toUtc()
+        .isAfter(newest.$1.add(duration * 2));
+    return 'Last candle open (UTC): ${newest.$1.toIso8601String()}; '
+        'delayed: ${delayed ? "yes" : "no"} (more than two requested intervals). '
+        'Candles: Twelve Data OHLC. Live bid/ask: Swissquote, separate feed. '
+        'No invented gap-fill bars.';
+  }
+
   /// One line per captured raw bar: closed or still forming at fetch time,
   /// from bar start + the REQUESTED interval versus the fetch clock. A bar
   /// still forming at fetch will keep changing, so comparing it with a

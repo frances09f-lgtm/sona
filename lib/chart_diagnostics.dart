@@ -124,6 +124,7 @@ class ChartDiagnosticsScreen extends StatelessWidget {
             ..writeln(
                 'fetch at (UTC): ${CandleDebugSink.fetchAtUtc?.toIso8601String() ?? 'none yet'}')
             ..writeln('payload bars: ${CandleDebugSink.totalValues}')
+            ..writeln(CandleDebugSink.latestBarStatus())
             ..writeln('fold: $foldReason')
             ..writeln('quote: $quoteText')
             ..writeln('live ticks buffered: $ticksText')
@@ -151,6 +152,7 @@ class ChartDiagnosticsScreen extends StatelessWidget {
                 CandleDebugSink.fetchAtUtc?.toIso8601String() ?? 'none yet',
               ),
               _row('Payload bars', '${CandleDebugSink.totalValues}'),
+              _row('Candle timing', CandleDebugSink.latestBarStatus()),
               _row('Forming-bar fold', foldReason),
               _row('Quote', quoteText),
               FutureBuilder<String>(

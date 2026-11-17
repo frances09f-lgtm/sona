@@ -3196,7 +3196,7 @@ class CandlePainter extends CustomPainter {
       final ss = signalStats!;
       // Fullscreen: the GOLD heading + price line own the top-left, so the
       // count chip sits just below them (user: "Correct is going under 1D").
-      final chipTop = reserveTopLeft ? 66.0 : 6.0;
+      final chipTop = reserveTopLeft ? 44.0 : 6.0;
       const chipStyle = TextStyle(
         color: axis,
         fontSize: 10,
@@ -4629,7 +4629,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                     ),
                                     if (_livePrice != null)
                                       _changeLine(st),
-                                    _candleSourceLine(st),
                                   ],
                                 ),
                               ),
@@ -4638,7 +4637,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                   bid != null &&
                                   ask != null)
                                 Positioned(
-                                  top: _signalStats != null ? 92 : 72,
+                                  top: _signalStats != null ? 70 : 48,
                                   left: 10,
                                   child: Row(
                                     children: [
@@ -4793,20 +4792,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
   Widget _vr() =>
       const VerticalDivider(width: 12, color: Color(0xFF2A3347));
 
-  Widget _candleSourceLine(CandleChartPanelState? st) {
-    final cs = st?.candles;
-    final c = cs == null || cs.isEmpty ? null : cs.last;
-    final now = DateTime.now();
-    final code = st == null ? '' : (st.usingRange ? tradeRangeSpec(st.interval.code).$1 : st.interval.code);
-    final duration = CandleChartPanelState._barDuration(code);
-    final delayed = c != null && duration != null && now.isAfter(c.time.add(duration * 2));
-    String two(int v) => v.toString().padLeft(2,'0');
-    final at = c?.time.toLocal();
-    final label = at == null ? 'Candles: unavailable' : 'TD ${two(at.hour)}:${two(at.minute)}${delayed ? " delayed" : ""} · live SQ separate';
-    return Tooltip(message: 'Candles: Twelve Data provider OHLC, last bar opening time. Live bid/ask: Swissquote, separate from candles. A gap is not filled with invented bars.',
-      child: Text(label, key: const ValueKey('candle-source'), style: const TextStyle(color: Color(0xFF8A93A6),fontSize: 9)));
-  }
-
   /// Independent provider daily reference, never an intraday-window open.
   Widget _changeLine(CandleChartPanelState? st) {
     final px = _livePrice!;
@@ -4823,7 +4808,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
           ? 'Daily change unavailable: no current provider-day open or fresh live quote. Replay has no live daily change.'
           : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} · ${_dayOpen!.sessionDate} · ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(CandlePainter.fmtAxisPrice(px), style: TextStyle(color: color, fontSize: 12)),
         Text(label, key: const ValueKey('provider-day-change'), style: TextStyle(color: color, fontSize: 11)),
       ]),
     );
@@ -4859,7 +4843,10 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
       );
 
   Widget _tradePill(String side, double price, Color color) {
-    return Material(
+    return ConstrainedBox(
+      key: ValueKey('compact-trade-$side'),
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Material(
       color: color,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
@@ -4869,7 +4856,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
           widget.onTradeSide!(side.toLowerCase());
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           child: Column(
             children: [
               Text(
@@ -4877,14 +4864,14 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontSize: 12,
                 ),
               ),
               Text(
                 side,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1,
                 ),
@@ -4893,6 +4880,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
           ),
         ),
       ),
+    ),
     );
   }
 }

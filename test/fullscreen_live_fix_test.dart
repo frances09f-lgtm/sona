@@ -110,13 +110,13 @@ void main() {
     );
   }
 
-  testWidgets('fullscreen heading, count chip and signal boxes follow the '
+  testWidgets('fullscreen trade prices, count chip and signal boxes follow the '
       'live source after opening', (t) async {
     final h = await pumpFullscreen(t);
     expect(painterOf(t).signalStats, (0, 0));
     expect(painterOf(t).signalZones.single.isBuy, isTrue);
     expect(painterOf(t).signalZones.single.low, 3880);
-    expect(find.textContaining('3,900.00'), findsWidgets);
+    expect(find.text('3,899.70'), findsOneWidget);
     h.set(3850.25, (2, 1), [
       const SignalZone(isBuy: false, low: 3905, high: 3907),
       const SignalZone(isBuy: true, low: 3840, high: 3843),
@@ -126,8 +126,8 @@ void main() {
     expect(painterOf(t).signalZones.length, 2);
     expect(painterOf(t).signalZones.first.isBuy, isFalse);
     expect(painterOf(t).signalZones.last.low, 3840);
-    expect(find.textContaining('3,850.25'), findsWidgets);
-    expect(find.textContaining('3,900.00'), findsNothing);
+    expect(find.text('3,849.95'), findsOneWidget);
+    expect(find.text('3,899.70'), findsNothing);
   });
 
   testWidgets('1m/5m/1h/4h/1D menu picks load that exact candle size', (t) async {
