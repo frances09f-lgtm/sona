@@ -1,0 +1,41 @@
+name: Sona 1.2.40 TEST transfer (read-only copy of private draft assets)
+on:
+  push:
+    branches: [refresh-signals-142]
+    paths: ['.github/workflows/sona-xfer.yml']
+permissions:
+  contents: write
+jobs:
+  xfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy draft APK and preview, verify, upload to gofile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eo pipefail
+          mkdir -p /tmp/x && cd /tmp/x
+          gh api repos/$GITHUB_REPOSITORY/releases --paginate > rel.json
+          python3 - <<'PY'
+          import json
+          rels=json.load(open('rel.json'))
+          apk=[r for r in rels if r['name']=='Sona 1.2.40 TEST - Refresh signals in chart sigma menu' and r['draft']]
+          pre=[r for r in rels if r['name']=='Sona refresh signals Flutter proof - TEST only' and r['draft']]
+          assert len(apk)==1 and len(pre)==1,(len(apk),len(pre))
+          out=[]
+          for r,n in ((apk[0],'Sona.apk'),(pre[0],'refresh-menu.png')):
+              a=[x for x in r['assets'] if x['name']==n]
+              assert len(a)==1
+              out.append(n+' '+str(a[0]['id']))
+          open('ids.txt','w').write('\n'.join(out))
+          PY
+          while read n id; do gh api -H 'Accept: application/octet-stream' repos/$GITHUB_REPOSITORY/releases/assets/$id > $n; done < ids.txt
+          sha256sum Sona.apk refresh-menu.png
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/aapt2 dump badging Sona.apk | grep -E "^package:" || $BT/aapt dump badging Sona.apk | grep -E "^package:"
+          $BT/apksigner verify --print-certs Sona.apk | grep -E "Signer #1 certificate SHA-256|Verifies"
+          ls -l Sona.apk
+          for f in Sona.apk refresh-menu.png; do
+            echo "UPLOAD $f"
+            curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
+          done
