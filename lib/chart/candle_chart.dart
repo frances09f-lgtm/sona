@@ -4026,6 +4026,11 @@ class FullscreenChartPage extends StatefulWidget {
   final List<SignalZone> Function()? signalZonesOf;
   final (int, int)? Function()? signalStatsOf;
 
+  /// Σ menu "Refresh signals": clears current signal boxes and asks for
+  /// new ones. Returns a short status line shown in a snackbar. Null hides
+  /// the menu item so other callers keep their menu unchanged.
+  final Future<String> Function()? onRefreshSignals;
+
   /// Adds a 1m / 5m / 1h / 4h / 1D candle-interval row (separate from the
   /// Date Range menu). Off by default so other callers keep their layout.
   final bool quickTimeframes;
@@ -4045,6 +4050,7 @@ class FullscreenChartPage extends StatefulWidget {
     this.livePriceOf,
     this.signalZonesOf,
     this.signalStatsOf,
+    this.onRefreshSignals,
     this.quickTimeframes = false,
     this.livePrice,
     this.rangeMode = false,
@@ -4446,7 +4452,16 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.functions,
                               color: Colors.white70, size: 20),
-                          onSelected: (v) {
+                          onSelected: (v) async {
+                            if (v == 'refresh_signals') {
+                              final cb = widget.onRefreshSignals;
+                              if (cb == null) return;
+                              final msg = await cb();
+                              if (!mounted) return;
+                              ScaffoldMessenger.maybeOf(context)
+                                  ?.showSnackBar(SnackBar(content: Text(msg)));
+                              return;
+                            }
                             if (st == null) return;
                             st.setState(() {
                               switch (v) {
@@ -4464,6 +4479,20 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                             });
                           },
                           itemBuilder: (_) => [
+                            if (widget.onRefreshSignals != null) ...[
+                              const PopupMenuItem<String>(
+                                value: 'refresh_signals',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.refresh,
+                                        size: 18, color: Colors.tealAccent),
+                                    SizedBox(width: 8),
+                                    Text('Refresh signals'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuDivider(),
+                            ],
                             _indItem('sma', 'SMA 20', st?.smaOn),
                             _indItem('ema', 'EMA 50', st?.emaOn),
                             _indItem('sma200', 'SMA 200', st?.sma200On),

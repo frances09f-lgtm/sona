@@ -57,6 +57,11 @@ class SignalBox {
   final double targetOffset;
   final double invalidationOffset;
 
+  /// True when the user's "Refresh signals" removed this unfinished box.
+  /// It is NOT a real outcome: it never counts, and unlike a genuinely
+  /// decided box it does not block its level from being proposed again.
+  final bool manualClear;
+
   const SignalBox({
     required this.id,
     required this.isBuy,
@@ -69,6 +74,7 @@ class SignalBox {
     required this.evaluatedUpToMs,
     this.targetOffset = kSignalTargetOffset,
     this.invalidationOffset = kSignalInvalidationOffset,
+    this.manualClear = false,
   });
 
   double get target =>
@@ -90,6 +96,7 @@ class SignalBox {
     int? touchedAtMs,
     int? decidedAtMs,
     int? evaluatedUpToMs,
+    bool? manualClear,
   }) =>
       SignalBox(
         id: id,
@@ -103,6 +110,7 @@ class SignalBox {
         evaluatedUpToMs: evaluatedUpToMs ?? this.evaluatedUpToMs,
         targetOffset: targetOffset,
         invalidationOffset: invalidationOffset,
+        manualClear: manualClear ?? this.manualClear,
       );
 
   Map<String, dynamic> toJson() => {
@@ -117,6 +125,7 @@ class SignalBox {
         'evaluatedUpToMs': evaluatedUpToMs,
         'targetOffset': targetOffset,
         'invalidationOffset': invalidationOffset,
+        if (manualClear) 'manualClear': true,
       };
 
   static SignalBox? fromJson(Map<String, dynamic> j) {
@@ -153,6 +162,7 @@ class SignalBox {
           (j['targetOffset'] as num?)?.toDouble() ?? kSignalTargetOffset,
       invalidationOffset: (j['invalidationOffset'] as num?)?.toDouble() ??
           kSignalInvalidationOffset,
+      manualClear: j['manualClear'] == true,
     );
   }
 }
@@ -502,11 +512,95 @@ class SignalBoxManager {
         ..addAll(list);
       _seq = boxes.length;
     } catch (_) {}
+    _gen = prefs.getInt(_genKey) ?? 0;
   }
 
+  /// Reset generation, bumped by every manual clear and stored beside the
+  /// boxes. The background worker holds its own copy of the boxes in
+  /// another isolate; without this a save made after a refresh could
+  /// write its older snapshot back over the cleared chart.
+  int _gen = 0;
+  String get _genKey => '${prefsKey}_gen';
+
   Future<void> save(SharedPreferences prefs) async {
-    await prefs.setString(
-        prefsKey, jsonEncode(boxes.map((b) => b.toJson()).toList()));
+    try {
+      await prefs.reload();
+    } catch (_) {}
+    final storedGen = prefs.getInt(_genKey) ?? 0;
+    if (storedGen > _gen) {
+      _reconcileWithStored(prefs);
+      _gen = storedGen;
+    }
+    if (_gen > storedGen) await prefs.setInt(_genKey, _gen);
+    // Test hook: lets a test run another isolate's clear inside the window
+    // between the check above and the write below.
+    if (debugBeforeWrite != null) await debugBeforeWrite!();
+    await _writeBoxes(prefs);
+    // Close the last window: a clear that landed after the check above
+    // bumped the generation before it wrote its boxes, so the generation
+    // now read back is newer. Its intent is re-applied to this copy and
+    // written again, so no stale write can leave live boxes on the chart.
+    try {
+      await prefs.reload();
+    } catch (_) {}
+    final after = prefs.getInt(_genKey) ?? 0;
+    if (after > _gen) {
+      _gen = after;
+      clearLive(DateTime.now().millisecondsSinceEpoch, bumpGen: false);
+      await _writeBoxes(prefs);
+    }
+  }
+
+  /// Test only.
+  Future<void> Function()? debugBeforeWrite;
+
+  Future<void> _writeBoxes(SharedPreferences prefs) => prefs.setString(
+      prefsKey, jsonEncode(boxes.map((b) => b.toJson()).toList()));
+
+  /// A clear happened after this copy was loaded. Stored boxes win, so
+  /// cleared boxes stay cleared and boxes this stale copy added after the
+  /// clear are dropped. A real correct/wrong result this copy reached
+  /// before the clear moment is kept, so genuine outcomes and counters
+  /// are not lost.
+  void _reconcileWithStored(SharedPreferences prefs) {
+    final raw = prefs.getString(prefsKey);
+    var stored = <SignalBox>[];
+    if (raw != null) {
+      try {
+        stored = (jsonDecode(raw) as List)
+            .whereType<Map<String, dynamic>>()
+            .map(SignalBox.fromJson)
+            .whereType<SignalBox>()
+            .toList();
+      } catch (_) {
+        return;
+      }
+    }
+    final mem = {for (final b in boxes) b.id: b};
+    final out = <SignalBox>[];
+    for (final s in stored) {
+      final m = mem[s.id];
+      if (m != null &&
+          s.manualClear &&
+          (m.countsCorrect || m.countsWrong) &&
+          m.decidedAtMs != null &&
+          s.decidedAtMs != null &&
+          m.decidedAtMs! <= s.decidedAtMs!) {
+        out.add(m);
+      } else if (m != null && m.decided && !s.decided) {
+        out.add(m);
+      } else {
+        out.add(s);
+      }
+    }
+    final ids = {for (final s in stored) s.id};
+    for (final m in boxes) {
+      if (!ids.contains(m.id) && m.decided) out.add(m);
+    }
+    boxes
+      ..clear()
+      ..addAll(out);
+    _seq = boxes.length;
   }
 
   /// Live-tick evaluation (1s quote cadence). Returns true when any box
@@ -581,7 +675,9 @@ class SignalBoxManager {
     bool overlapsRecentOrLive(double low, double high) {
       for (final b in boxes) {
         final live = !b.decided;
-        final recent = b.decided && (b.decidedAtMs ?? 0) >= recentCutoff;
+        final recent = b.decided &&
+            !b.manualClear &&
+            (b.decidedAtMs ?? 0) >= recentCutoff;
         if (!live && !recent) continue;
         if (low <= b.high && high >= b.low) return true;
       }
@@ -600,6 +696,28 @@ class SignalBoxManager {
       out.add(z);
     }
     return out;
+  }
+
+  /// Manual "Refresh signals": takes every live (pending or active) box
+  /// off the chart. Cleared boxes are marked expired AND manualClear, so
+  /// they never count as a correct/wrong result, history and the daily
+  /// counters are unchanged, and their levels may be proposed again if the
+  /// market still supports them. Returns true when any box was cleared.
+  bool clearLive(int nowMs, {bool bumpGen = true}) {
+    var changed = false;
+    for (var i = 0; i < boxes.length; i++) {
+      final b = boxes[i];
+      if (b.state == SignalBoxState.pending ||
+          b.state == SignalBoxState.active) {
+        boxes[i] = b.copyWith(
+            state: SignalBoxState.expired,
+            decidedAtMs: nowMs,
+            manualClear: true);
+        changed = true;
+      }
+    }
+    if (changed && bumpGen) _gen++;
+    return changed;
   }
 
   /// Draws a qualified zone as a new pending box, stamped with this

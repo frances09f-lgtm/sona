@@ -616,6 +616,9 @@ class AppState extends ChangeNotifier {
     final basis = chartBasis;
     final store = prefs;
     if (candles.isEmpty || basis == null || store == null) return;
+    _lastSignalCandles = candles;
+    // A manual refresh owns the box state while it runs.
+    if (SignalPass.refreshing) return;
     await store.reload();
     await signalBoxes.load(store);
     if (signalBoxes.onCandles(
@@ -626,9 +629,11 @@ class AppState extends ChangeNotifier {
     // Nov 16): also runs while the app is open, deduped across all
     // paths; fire-and-forget so a chart refresh never blocks on AI.
     if (signalBoxes.needsSetup) {
+      final epoch = SignalPass.epoch;
       unawaited(Future(() async {
         final added = await SignalPass.qualifyFreshSetup(
-            store, signalBoxes, candles, basis);
+            store, signalBoxes, candles, basis,
+            isCurrent: () => SignalPass.epoch == epoch);
         if (added) {
           await signalBoxes.save(store);
           notifyListeners();
@@ -636,6 +641,33 @@ class AppState extends ChangeNotifier {
       }));
     }
     notifyListeners();
+  }
+
+  List<Candle> _lastSignalCandles = const [];
+
+  /// Manual "Refresh signals" (chart Σ menu). See [SignalPass.refresh].
+  Future<String> refreshSignals() async {
+    final store = prefs;
+    final basis = chartBasis;
+    if (store == null || basis == null || _lastSignalCandles.isEmpty) {
+      return 'Chart data is not ready yet';
+    }
+    try {
+      final r = await SignalPass.refresh(
+          store, signalBoxes, _lastSignalCandles, basis);
+      notifyListeners();
+      return switch (r) {
+        RefreshOutcome.busy => 'Refresh already running',
+        RefreshOutcome.noData => 'Chart data is not ready yet',
+        RefreshOutcome.added => 'Signals refreshed: new setup drawn',
+        RefreshOutcome.clearedNoSetup =>
+          'Old signals cleared. No new setup qualified right now',
+        RefreshOutcome.noSetup => 'No new setup qualified right now',
+      };
+    } catch (_) {
+      notifyListeners();
+      return 'Refresh failed. Try again';
+    }
   }
 
   /// Zones proposed for the next AI read (Advice button): one per free
@@ -1967,6 +1999,7 @@ class _TradeTabState extends State<TradeTab> {
           livePriceOf: () => _replay?.price ?? app.chartBasis,
           signalZonesOf: () => app.signalChartZones,
           signalStatsOf: () => app.signalChipStats,
+          onRefreshSignals: () => app.refreshSignals(),
           quickTimeframes: true,
         ),
       ),

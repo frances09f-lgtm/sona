@@ -27,7 +27,57 @@ import 'user_api_keys.dart';
 /// a fresh candidate exists, at most once per [minQualGap] across every
 /// qualification path (this pass, the AutoTrade decision, the Advice
 /// button). While boxes stand or no setup exists: zero AI calls.
+enum RefreshOutcome { busy, noData, added, clearedNoSetup, noSetup }
+
 class SignalPass {
+  static bool _refreshing = false;
+  static int _epoch = 0;
+
+  /// True while a manual refresh runs (background paths skip meanwhile).
+  static bool get refreshing => _refreshing;
+
+  /// Bumped at the start of every manual refresh; background qualifiers
+  /// remember it and discard their answer if it changed.
+  static int get epoch => _epoch;
+
+  /// Manual "Refresh signals": removes every live box (pending and
+  /// touched, marked manualClear, never counted), then asks the AI once
+  /// for new setups on [candles] at [price], skipping the usual 15-minute
+  /// wait (one extra AI call per tap). One refresh at a time: taps while
+  /// one runs return [RefreshOutcome.busy] without another call. The AI
+  /// may still decline; nothing is forced and no trade is placed.
+  static Future<RefreshOutcome> refresh(
+    SharedPreferences prefs,
+    SignalBoxManager mgr,
+    List<Candle> candles,
+    double price, {
+    GroqBrain? brain,
+    int? nowMs,
+  }) async {
+    if (_refreshing) return RefreshOutcome.busy;
+    if (candles.isEmpty) return RefreshOutcome.noData;
+    _refreshing = true;
+    final myEpoch = ++_epoch;
+    try {
+      await prefs.reload();
+      await mgr.load(prefs);
+      final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+      final cleared = mgr.clearLive(now);
+      if (cleared) await mgr.save(prefs);
+      final added = await qualifyFreshSetup(prefs, mgr, candles, price,
+          brain: brain,
+          nowMs: now,
+          path: 'manual',
+          bypassGap: true,
+          isCurrent: () => _epoch == myEpoch);
+      if (added) await mgr.save(prefs);
+      if (added) return RefreshOutcome.added;
+      return cleared ? RefreshOutcome.clearedNoSetup : RefreshOutcome.noSetup;
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   /// SharedPreferences key of the last zone-qualification AI call,
   /// whichever path made it.
   static const String lastQualMsKey = 'tj_signal_qual_last_ms';
@@ -116,6 +166,8 @@ class SignalPass {
     GroqBrain? brain,
     int? nowMs,
     String path = 'foreground',
+    bool bypassGap = false,
+    bool Function()? isCurrent,
   }) async {
     final keyPresent = AiConfig.groqApiKey.isNotEmpty;
     Future<void> note(String outcome, [int? n, int? b, int? s]) =>
@@ -141,7 +193,7 @@ class SignalPass {
       return false;
     }
     final last = prefs.getInt(lastQualMsKey) ?? 0;
-    if (now - last < minQualGap.inMilliseconds) {
+    if (!bypassGap && now - last < minQualGap.inMilliseconds) {
       await note('gap_wait', nb + ns, nb, ns);
       return false;
     }
@@ -164,12 +216,21 @@ class SignalPass {
       await note('ai_no_reply', nb + ns, nb, ns);
       return false;
     }
+    // A refresh may have started while this call was in flight: its
+    // answer was computed for the old state, so drop it.
+    if (isCurrent != null && !isCurrent()) return false;
     var added = false;
-    if (buys.isNotEmpty && q.buyOk) {
+    // Never stack a second live box in a direction another call filled
+    // while this one was waiting on the AI.
+    if (buys.isNotEmpty &&
+        q.buyOk &&
+        !mgr.displayBoxes.any((b) => b.isBuy)) {
       mgr.addBox(buys.first, now, price: price);
       added = true;
     }
-    if (sells.isNotEmpty && q.sellOk) {
+    if (sells.isNotEmpty &&
+        q.sellOk &&
+        !mgr.displayBoxes.any((b) => !b.isBuy)) {
       mgr.addBox(sells.first, now, price: price);
       added = true;
     }
