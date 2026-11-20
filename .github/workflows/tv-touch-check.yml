@@ -1,0 +1,76 @@
+name: TradingView embed touch probe (investigation only, no app build)
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Embed URL to open in emulator Chrome'
+        required: true
+        default: 'https://www.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD&interval=5&theme=dark&style=1&timezone=Asia%2FKolkata&withdateranges=1&hide_side_toolbar=false&allow_symbol_change=false&locale=en'
+      tap1:
+        description: 'x,y first tap (0,0 skips)'
+        required: false
+        default: '0,0'
+      tap2:
+        description: 'x,y second tap (0,0 skips)'
+        required: false
+        default: '0,0'
+      tap3:
+        description: 'x,y third tap (0,0 skips)'
+        required: false
+        default: '0,0'
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Kolkata
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator, open embed URL in Chrome, capture staged screenshots
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb shell 'echo "chrome --disable-fre --no-first-run" > /data/local/tmp/chrome-command-line' || true
+            adb shell pm list packages > /tmp/pkgs.txt || true
+            grep -i chrome /tmp/pkgs.txt || true
+            adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
+            sleep 30
+            adb exec-out screencap -p > /tmp/tv-loaded.png
+            adb shell uiautomator dump /sdcard/ui1.xml || true
+            adb pull /sdcard/ui1.xml /tmp/ui1.xml || true
+            T1="${{ github.event.inputs.tap1 }}"; if [ "$T1" != "0,0" ]; then adb shell input tap ${T1%,*} ${T1#*,}; fi; sleep 4
+            adb exec-out screencap -p > /tmp/tv-tap1.png
+            adb shell uiautomator dump /sdcard/ui2.xml || true
+            adb pull /sdcard/ui2.xml /tmp/ui2.xml || true
+            T2="${{ github.event.inputs.tap2 }}"; if [ "$T2" != "0,0" ]; then adb shell input tap ${T2%,*} ${T2#*,}; fi; sleep 4
+            adb exec-out screencap -p > /tmp/tv-tap2.png
+            T3="${{ github.event.inputs.tap3 }}"; if [ "$T3" != "0,0" ]; then adb shell input tap ${T3%,*} ${T3#*,}; fi; sleep 4
+            adb exec-out screencap -p > /tmp/tv-tap3.png
+            adb shell uiautomator dump /sdcard/ui3.xml || true
+            adb pull /sdcard/ui3.xml /tmp/ui3.xml || true
+      - name: Upload probe artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-touch
+          path: |
+            /tmp/tv-*.png
+            /tmp/ui*.xml
+            /tmp/pkgs.txt
+          if-no-files-found: warn
+      - name: Copy captures to gofile for inspection
+        if: always()
+        run: |
+          set -uo pipefail
+          for f in /tmp/tv-*.png; do
+            [ -s "$f" ] || continue
+            curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', '$f', d.get('status'), d.get('data',{}).get('downloadPage'))" || true
+          done
