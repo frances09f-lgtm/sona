@@ -30,7 +30,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Boot emulator, open embed URL in Chrome, capture staged screenshots
+      - name: Boot emulator, dismiss Chrome first-run, open embed URL, capture staged screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -43,7 +43,42 @@ jobs:
             grep -i chrome /tmp/pkgs.txt || true
             adb shell wm size || true
             adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
-            sleep 30
+            sleep 8
+            python3 - <<'PYEOF'
+            import re, subprocess, time
+            for rnd in range(3):
+                subprocess.run(['adb', 'shell', 'uiautomator', 'dump', '/sdcard/ui0.xml'])
+                subprocess.run(['adb', 'pull', '/sdcard/ui0.xml', '/tmp/ui0.xml'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    data = open('/tmp/ui0.xml').read()
+                except Exception as e:
+                    print('ui0 unreadable', e)
+                    break
+                tapped = False
+                for pat in ['use without an account', 'accept & continue', 'accept and continue', 'no thanks']:
+                    for mm in re.finditer(r'<node[^>]*>', data):
+                        tag = mm.group(0)
+                        t = re.search(r'text="([^"]*)"', tag)
+                        c = re.search(r'content-desc="([^"]*)"', tag)
+                        label = ((t.group(1) if t else '') + ' ' + (c.group(1) if c else '')).lower()
+                        if pat in label:
+                            b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
+                            if b:
+                                x = (int(b.group(1)) + int(b.group(3))) // 2
+                                y = (int(b.group(2)) + int(b.group(4))) // 2
+                                print('FRE round', rnd, 'tap', pat, x, y)
+                                subprocess.run(['adb', 'shell', 'input', 'tap', str(x), str(y)])
+                                tapped = True
+                                break
+                    if tapped:
+                        break
+                if not tapped:
+                    print('FRE round', rnd, 'nothing to tap')
+                    break
+                time.sleep(4)
+            PYEOF
+            adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
+            sleep 27
             adb exec-out screencap -p > /tmp/tv-loaded.png
             adb shell uiautomator dump /sdcard/ui1.xml || true
             adb pull /sdcard/ui1.xml /tmp/ui1.xml || true
