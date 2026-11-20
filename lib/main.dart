@@ -2461,7 +2461,50 @@ class _TradeTabState extends State<TradeTab> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: const TvChartView(),
+                      child: Stack(
+                        children: [
+                          const TvChartView(),
+                          // Fullscreen entry, placed per the approved v3
+                          // mockup: floating inside the box at the plot's
+                          // top-right - below the widget toolbar, left of
+                          // the price axis. It is a Flutter overlay on top
+                          // of the WebView, so the widget's own controls
+                          // stay untouched.
+                          Positioned(
+                            top: 44,
+                            right: 60,
+                            child: Tooltip(
+                              message: 'Open full screen',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const TvChartPage(),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xD90D1420),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.fullscreen,
+                                      size: 20,
+                                      color: cDim,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 if (!_showTv)

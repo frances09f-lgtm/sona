@@ -32,7 +32,14 @@ class TvChartViewState extends State<TvChartView> {
       'https://www.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD'
       '&interval=5&theme=dark&style=1&timezone=Asia%2FKolkata'
       '&withdateranges=1&hide_side_toolbar=false&allow_symbol_change=false'
-      '&locale=en';
+      '&locale=en'
+      // enabled_features is live-effective on this hosted widget (verified
+      // by A/B on the exact embed URL): pinch_scale turns on pinch zoom on
+      // touch; show_zoom_and_move_buttons_on_touch adds +/- zoom buttons on
+      // time-scale tap. Pinch inside the Android WebView still needs
+      // verification on a real phone; the +/- buttons are the fallback.
+      '&enabled_features=%5B%22pinch_scale%22%2C'
+      '%22show_zoom_and_move_buttons_on_touch%22%5D';
 
   late final WebViewController _controller;
   bool _loading = true;
