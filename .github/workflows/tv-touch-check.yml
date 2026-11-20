@@ -41,6 +41,7 @@ jobs:
             adb shell 'echo "chrome --disable-fre --no-first-run" > /data/local/tmp/chrome-command-line' || true
             adb shell pm list packages > /tmp/pkgs.txt || true
             grep -i chrome /tmp/pkgs.txt || true
+            adb shell wm size || true
             adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
             sleep 30
             adb exec-out screencap -p > /tmp/tv-loaded.png
@@ -56,6 +57,24 @@ jobs:
             adb exec-out screencap -p > /tmp/tv-tap3.png
             adb shell uiautomator dump /sdcard/ui3.xml || true
             adb pull /sdcard/ui3.xml /tmp/ui3.xml || true
+            python3 - <<'PYEOF'
+            import re, glob
+            for path in sorted(glob.glob('/tmp/ui*.xml')):
+                try:
+                    data = open(path).read()
+                except Exception as e:
+                    print(path, 'unreadable', e)
+                    continue
+                print('--- NODES', path, '---')
+                for m in re.finditer(r'<node[^>]*>', data):
+                    tag = m.group(0)
+                    def attr(a):
+                        mm = re.search(a + '="([^"]*)"', tag)
+                        return mm.group(1) if mm else ''
+                    txt = attr('text'); desc = attr('content-desc'); b = attr('bounds')
+                    if txt or desc:
+                        print(b, (txt or desc)[:80])
+            PYEOF
       - name: Upload probe artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,6 +85,15 @@ jobs:
             /tmp/ui*.xml
             /tmp/pkgs.txt
           if-no-files-found: warn
+      - name: Print small captures into the log (gofile-independent)
+        if: always()
+        run: |
+          for f in /tmp/tv-*.png; do
+            [ -s "$f" ] || continue
+            echo "=== B64IMG $f ==="
+            convert "$f" -resize 420x png:- | base64 -w0 || true
+            echo ""
+          done
       - name: Copy captures to gofile for inspection
         if: always()
         run: |
