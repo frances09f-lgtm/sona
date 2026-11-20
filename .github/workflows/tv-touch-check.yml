@@ -18,6 +18,10 @@ on:
         description: 'x,y third tap (0,0 skips)'
         required: false
         default: '0,0'
+      swipe1:
+        description: 'x1,y1,x2,y2 swipe after taps (0 skips)'
+        required: false
+        default: '0'
 jobs:
   touch:
     runs-on: ubuntu-latest
@@ -59,6 +63,8 @@ jobs:
             adb exec-out screencap -p > /tmp/tv-tap2.png
             T3="${{ github.event.inputs.tap3 }}"; if [ "$T3" != "0,0" ]; then adb shell input tap ${T3%,*} ${T3#*,}; fi; sleep 4
             adb exec-out screencap -p > /tmp/tv-tap3.png
+            S1="${{ github.event.inputs.swipe1 }}"; if [ "$S1" != "0" ]; then adb shell input swipe $(echo $S1 | cut -d, -f1) $(echo $S1 | cut -d, -f2) $(echo $S1 | cut -d, -f3) $(echo $S1 | cut -d, -f4) 400; fi; sleep 4
+            adb exec-out screencap -p > /tmp/tv-swipe1.png
             adb shell uiautomator dump /sdcard/ui3.xml || true
             adb pull /sdcard/ui3.xml /tmp/ui3.xml || true
             echo aW1wb3J0IHJlLCBnbG9iCmZvciBwYXRoIGluIHNvcnRlZChnbG9iLmdsb2IoJy90bXAvdWkqLnhtbCcpKToKICAgIHRyeToKICAgICAgICBkYXRhID0gb3BlbihwYXRoKS5yZWFkKCkKICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICBwcmludChwYXRoLCAndW5yZWFkYWJsZScsIGUpCiAgICAgICAgY29udGludWUKICAgIHByaW50KCctLS0gTk9ERVMnLCBwYXRoLCAnLS0tJykKICAgIGZvciBtIGluIHJlLmZpbmRpdGVyKHInPG5vZGVbXj5dKj4nLCBkYXRhKToKICAgICAgICB0YWcgPSBtLmdyb3VwKDApCiAgICAgICAgZGVmIGF0dHIoYSk6CiAgICAgICAgICAgIG1tID0gcmUuc2VhcmNoKGEgKyAnPSIoW14iXSopIicsIHRhZykKICAgICAgICAgICAgcmV0dXJuIG1tLmdyb3VwKDEpIGlmIG1tIGVsc2UgJycKICAgICAgICB0eHQgPSBhdHRyKCd0ZXh0Jyk7IGRlc2MgPSBhdHRyKCdjb250ZW50LWRlc2MnKTsgYiA9IGF0dHIoJ2JvdW5kcycpCiAgICAgICAgaWYgdHh0IG9yIGRlc2M6CiAgICAgICAgICAgIHByaW50KGIsICh0eHQgb3IgZGVzYylbOjgwXSkK | base64 -d > /tmp/nodes.py
