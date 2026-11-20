@@ -295,6 +295,8 @@ jobs:
             if [ ! -s /tmp/tap2coords ]; then echo 75 540 > /tmp/tap2coords; fi
             cat /tmp/tap2coords
             adb shell input tap $(cat /tmp/tap2coords)
+            sleep 3
+            adb shell input tap 270 1182 || true
             sleep 4
             adb shell uiautomator dump /sdcard/ui3.xml || adb exec-out uiautomator dump /dev/tty > /tmp/ui3-x.xml 2>/dev/null || true
             adb pull /sdcard/ui3.xml /tmp/ui3.xml 2>/dev/null || cp /tmp/ui3-x.xml /tmp/ui3.xml 2>/dev/null || true
