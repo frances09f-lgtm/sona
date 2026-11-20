@@ -288,10 +288,10 @@ jobs:
             adb exec-out screencap -p > /tmp/sona-tv-opened.png
             adb shell input keyevent 4; sleep 8
             adb exec-out screencap -p > /tmp/sona-tv-returned.png
-            adb shell input swipe 700 2120 250 2120 400 || true
+            adb shell input swipe 700 1840 250 1840 400 || true
             sleep 5
             adb exec-out screencap -p > /tmp/sona-tv-axisdrag.png
-            adb shell input swipe 250 2120 700 2120 400 || true
+            adb shell input swipe 250 1840 700 1840 400 || true
             sleep 4
             adb exec-out screencap -p > /tmp/sona-tv-axisdrag2.png
             adb logcat -d -t 400 > /tmp/logcat.txt || true
