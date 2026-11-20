@@ -52,39 +52,8 @@ jobs:
             adb shell wm size || true
             adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
             sleep 8
-            python3 - <<'PYEOF'
-            import re, subprocess, time
-            for rnd in range(3):
-                subprocess.run(['adb', 'shell', 'uiautomator', 'dump', '/sdcard/ui0.xml'])
-                subprocess.run(['adb', 'pull', '/sdcard/ui0.xml', '/tmp/ui0.xml'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                try:
-                    data = open('/tmp/ui0.xml').read()
-                except Exception as e:
-                    print('ui0 unreadable', e)
-                    break
-                tapped = False
-                for pat in ['use without an account', 'accept & continue', 'accept and continue', 'no thanks']:
-                    for mm in re.finditer(r'<node[^>]*>', data):
-                        tag = mm.group(0)
-                        t = re.search(r'text="([^"]*)"', tag)
-                        c = re.search(r'content-desc="([^"]*)"', tag)
-                        label = ((t.group(1) if t else '') + ' ' + (c.group(1) if c else '')).lower()
-                        if pat in label:
-                            b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
-                            if b:
-                                x = (int(b.group(1)) + int(b.group(3))) // 2
-                                y = (int(b.group(2)) + int(b.group(4))) // 2
-                                print('FRE round', rnd, 'tap', pat, x, y)
-                                subprocess.run(['adb', 'shell', 'input', 'tap', str(x), str(y)])
-                                tapped = True
-                                break
-                    if tapped:
-                        break
-                if not tapped:
-                    print('FRE round', rnd, 'nothing to tap')
-                    break
-                time.sleep(4)
-            PYEOF
+            echo aW1wb3J0IHJlLCBzdWJwcm9jZXNzLCB0aW1lCmZvciBybmQgaW4gcmFuZ2UoMyk6CiAgICBzdWJwcm9jZXNzLnJ1bihbJ2FkYicsICdzaGVsbCcsICd1aWF1dG9tYXRvcicsICdkdW1wJywgJy9zZGNhcmQvdWkwLnhtbCddKQogICAgc3VicHJvY2Vzcy5ydW4oWydhZGInLCAncHVsbCcsICcvc2RjYXJkL3VpMC54bWwnLCAnL3RtcC91aTAueG1sJ10sIHN0ZG91dD1zdWJwcm9jZXNzLkRFVk5VTEwsIHN0ZGVycj1zdWJwcm9jZXNzLkRFVk5VTEwpCiAgICB0cnk6CiAgICAgICAgZGF0YSA9IG9wZW4oJy90bXAvdWkwLnhtbCcpLnJlYWQoKQogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogICAgICAgIHByaW50KCd1aTAgdW5yZWFkYWJsZScsIGUpCiAgICAgICAgYnJlYWsKICAgIHRhcHBlZCA9IEZhbHNlCiAgICBmb3IgcGF0IGluIFsndXNlIHdpdGhvdXQgYW4gYWNjb3VudCcsICdhY2NlcHQgJiBjb250aW51ZScsICdhY2NlcHQgYW5kIGNvbnRpbnVlJywgJ25vIHRoYW5rcyddOgogICAgICAgIGZvciBtbSBpbiByZS5maW5kaXRlcihyJzxub2RlW14+XSo+JywgZGF0YSk6CiAgICAgICAgICAgIHRhZyA9IG1tLmdyb3VwKDApCiAgICAgICAgICAgIHQgPSByZS5zZWFyY2gocid0ZXh0PSIoW14iXSopIicsIHRhZykKICAgICAgICAgICAgYyA9IHJlLnNlYXJjaChyJ2NvbnRlbnQtZGVzYz0iKFteIl0qKSInLCB0YWcpCiAgICAgICAgICAgIGxhYmVsID0gKCh0Lmdyb3VwKDEpIGlmIHQgZWxzZSAnJykgKyAnICcgKyAoYy5ncm91cCgxKSBpZiBjIGVsc2UgJycpKS5sb3dlcigpCiAgICAgICAgICAgIGlmIHBhdCBpbiBsYWJlbDoKICAgICAgICAgICAgICAgIGIgPSByZS5zZWFyY2gocidib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCB0YWcpCiAgICAgICAgICAgICAgICBpZiBiOgogICAgICAgICAgICAgICAgICAgIHggPSAoaW50KGIuZ3JvdXAoMSkpICsgaW50KGIuZ3JvdXAoMykpKSAvLyAyCiAgICAgICAgICAgICAgICAgICAgeSA9IChpbnQoYi5ncm91cCgyKSkgKyBpbnQoYi5ncm91cCg0KSkpIC8vIDIKICAgICAgICAgICAgICAgICAgICBwcmludCgnRlJFIHJvdW5kJywgcm5kLCAndGFwJywgcGF0LCB4LCB5KQogICAgICAgICAgICAgICAgICAgIHN1YnByb2Nlc3MucnVuKFsnYWRiJywgJ3NoZWxsJywgJ2lucHV0JywgJ3RhcCcsIHN0cih4KSwgc3RyKHkpXSkKICAgICAgICAgICAgICAgICAgICB0YXBwZWQgPSBUcnVlCiAgICAgICAgICAgICAgICAgICAgYnJlYWsKICAgICAgICBpZiB0YXBwZWQ6CiAgICAgICAgICAgIGJyZWFrCiAgICBpZiBub3QgdGFwcGVkOgogICAgICAgIHByaW50KCdGUkUgcm91bmQnLCBybmQsICdub3RoaW5nIHRvIHRhcCcpCiAgICAgICAgYnJlYWsKICAgIHRpbWUuc2xlZXAoNCkK | base64 -d > /tmp/fre.py
+            python3 /tmp/fre.py
             adb shell am start -a android.intent.action.VIEW -d "${{ github.event.inputs.url }}" com.android.chrome || true
             sleep 27
             adb exec-out screencap -p > /tmp/tv-loaded.png
@@ -104,24 +73,8 @@ jobs:
             adb exec-out screencap -p > /tmp/tv-swipe2.png
             adb shell uiautomator dump /sdcard/ui3.xml || true
             adb pull /sdcard/ui3.xml /tmp/ui3.xml || true
-            python3 - <<'PYEOF'
-            import re, glob
-            for path in sorted(glob.glob('/tmp/ui*.xml')):
-                try:
-                    data = open(path).read()
-                except Exception as e:
-                    print(path, 'unreadable', e)
-                    continue
-                print('--- NODES', path, '---')
-                for m in re.finditer(r'<node[^>]*>', data):
-                    tag = m.group(0)
-                    def attr(a):
-                        mm = re.search(a + '="([^"]*)"', tag)
-                        return mm.group(1) if mm else ''
-                    txt = attr('text'); desc = attr('content-desc'); b = attr('bounds')
-                    if txt or desc:
-                        print(b, (txt or desc)[:80])
-            PYEOF
+            echo aW1wb3J0IHJlLCBnbG9iCmZvciBwYXRoIGluIHNvcnRlZChnbG9iLmdsb2IoJy90bXAvdWkqLnhtbCcpKToKICAgIHRyeToKICAgICAgICBkYXRhID0gb3BlbihwYXRoKS5yZWFkKCkKICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICBwcmludChwYXRoLCAndW5yZWFkYWJsZScsIGUpCiAgICAgICAgY29udGludWUKICAgIHByaW50KCctLS0gTk9ERVMnLCBwYXRoLCAnLS0tJykKICAgIGZvciBtIGluIHJlLmZpbmRpdGVyKHInPG5vZGVbXj5dKj4nLCBkYXRhKToKICAgICAgICB0YWcgPSBtLmdyb3VwKDApCiAgICAgICAgZGVmIGF0dHIoYSk6CiAgICAgICAgICAgIG1tID0gcmUuc2VhcmNoKGEgKyAnPSIoW14iXSopIicsIHRhZykKICAgICAgICAgICAgcmV0dXJuIG1tLmdyb3VwKDEpIGlmIG1tIGVsc2UgJycKICAgICAgICB0eHQgPSBhdHRyKCd0ZXh0Jyk7IGRlc2MgPSBhdHRyKCdjb250ZW50LWRlc2MnKTsgYiA9IGF0dHIoJ2JvdW5kcycpCiAgICAgICAgaWYgdHh0IG9yIGRlc2M6CiAgICAgICAgICAgIHByaW50KGIsICh0eHQgb3IgZGVzYylbOjgwXSkK | base64 -d > /tmp/nodes.py
+            python3 /tmp/nodes.py
       - name: Upload probe artifacts
         if: always()
         uses: actions/upload-artifact@v4
