@@ -1,0 +1,310 @@
+name: Sona 1.2.41 TradingView chart view signed TEST
+on:
+  push:
+    branches: [refresh-signals-142]
+    paths: ['.github/workflows/sona-tv.yml']
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refresh-signals-src-44544863616
+      - name: Verify base is the delivered 1.2.40+142 source
+        run: test "$(git rev-parse HEAD)" = 362bee0ebcc4cc5004200eb81df56e0cc45a577f
+      - name: Apply TradingView chart view patch
+        run: |
+          set -euo pipefail
+          cat > /tmp/tv.patch <<'PATCH'
+          diff --git a/lib/chart/candle_chart.dart b/lib/chart/candle_chart.dart
+          index 03c2de9..67b20e2 100644
+          --- a/lib/chart/candle_chart.dart
+          +++ b/lib/chart/candle_chart.dart
+          @@ -13,6 +13,7 @@ import '../market_data/provider_day_open.dart';
+           import 'indicators.dart';
+           import '../strategy.dart' as strat;
+           import 'chart_tools.dart';
+          +import '../tv_chart_page.dart';
+           import 'session_levels.dart';
+           import '../chart_diagnostics.dart';
+           import '../practice_screen.dart';
+          @@ -4453,6 +4454,14 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
+                                     icon: const Icon(Icons.functions,
+                                         color: Colors.white70, size: 20),
+                                     onSelected: (v) async {
+          +                            if (v == 'tv_chart') {
+          +                              Navigator.of(context).push(
+          +                                MaterialPageRoute<void>(
+          +                                  builder: (_) => const TvChartPage(),
+          +                                ),
+          +                              );
+          +                              return;
+          +                            }
+                                       if (v == 'refresh_signals') {
+                                         final cb = widget.onRefreshSignals;
+                                         if (cb == null) return;
+          @@ -4479,6 +4488,18 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
+                                       });
+                                     },
+                                     itemBuilder: (_) => [
+          +                            const PopupMenuItem<String>(
+          +                              value: 'tv_chart',
+          +                              child: Row(
+          +                                children: [
+          +                                  Icon(Icons.tv,
+          +                                      size: 18, color: Colors.tealAccent),
+          +                                  SizedBox(width: 8),
+          +                                  Text('TradingView chart'),
+          +                                ],
+          +                              ),
+          +                            ),
+          +                            const PopupMenuDivider(),
+                                       if (widget.onRefreshSignals != null) ...[
+                                         const PopupMenuItem<String>(
+                                           value: 'refresh_signals',
+          diff --git a/lib/tv_chart_page.dart b/lib/tv_chart_page.dart
+          new file mode 100644
+          index 0000000..f8eb64e
+          --- /dev/null
+          +++ b/lib/tv_chart_page.dart
+          @@ -0,0 +1,124 @@
+          +import 'package:flutter/material.dart';
+          +import 'package:webview_flutter/webview_flutter.dart';
+          +
+          +/// TradingView's hosted "Advanced Real-Time Chart" widget (free embed),
+          +/// shown unmodified with its own attribution, as a separate full screen.
+          +///
+          +/// Approved Nov 20, 2026 (user picked the dark whole box after preview):
+          +/// dark theme, OANDA:XAUUSD, 5m default, IST, date ranges on, side toolbar
+          +/// on, symbol change locked.
+          +///
+          +/// Data note: the widget uses TradingView's own XAU/USD feed, NOT Sona's
+          +/// Twelve Data candles, so prices can differ slightly and Sona's signal
+          +/// boxes stay on the existing chart. Needs internet. Choices made inside
+          +/// the widget (e.g. added indicators) are session-scoped.
+          +class TvChartPage extends StatefulWidget {
+          +  const TvChartPage({super.key});
+          +
+          +  @override
+          +  State<TvChartPage> createState() => _TvChartPageState();
+          +}
+          +
+          +class _TvChartPageState extends State<TvChartPage> {
+          +  static const String _url =
+          +      'https://www.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD'
+          +      '&interval=5&theme=dark&style=1&timezone=Asia%2FKolkata'
+          +      '&withdateranges=1&hide_side_toolbar=false&allow_symbol_change=false'
+          +      '&locale=en';
+          +
+          +  late final WebViewController _controller;
+          +  bool _loading = true;
+          +  bool _failed = false;
+          +
+          +  @override
+          +  void initState() {
+          +    super.initState();
+          +    _controller = WebViewController()
+          +      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          +      ..setBackgroundColor(const Color(0xFF000000))
+          +      ..setNavigationDelegate(
+          +        NavigationDelegate(
+          +          onPageFinished: (_) {
+          +            if (mounted) setState(() => _loading = false);
+          +          },
+          +          onWebResourceError: (WebResourceError error) {
+          +            if ((error.isForMainFrame ?? false) && mounted) {
+          +              setState(() {
+          +                _loading = false;
+          +                _failed = true;
+          +              });
+          +            }
+          +          },
+          +        ),
+          +      )
+          +      ..loadRequest(Uri.parse(_url));
+          +  }
+          +
+          +  void _retry() {
+          +    setState(() {
+          +      _loading = true;
+          +      _failed = false;
+          +    });
+          +    _controller.loadRequest(Uri.parse(_url));
+          +  }
+          +
+          +  @override
+          +  Widget build(BuildContext context) {
+          +    return Scaffold(
+          +      backgroundColor: Colors.black,
+          +      appBar: AppBar(
+          +        backgroundColor: const Color(0xFF121A2C),
+          +        leading: IconButton(
+          +          icon: const Icon(Icons.close, color: Colors.white70),
+          +          onPressed: () => Navigator.of(context).maybePop(),
+          +        ),
+          +        title: const Text('GOLD - TradingView chart',
+          +            style: TextStyle(fontSize: 17)),
+          +      ),
+          +      body: Column(
+          +        children: [
+          +          Expanded(
+          +            child: Stack(
+          +              children: [
+          +                WebViewWidget(controller: _controller),
+          +                if (_loading)
+          +                  const Center(child: CircularProgressIndicator()),
+          +                if (_failed)
+          +                  Center(
+          +                    child: Column(
+          +                      mainAxisSize: MainAxisSize.min,
+          +                      children: [
+          +                        const Text(
+          +                          'Could not load the chart. Check internet.',
+          +                          style: TextStyle(color: Colors.white70),
+          +                        ),
+          +                        const SizedBox(height: 12),
+          +                        FilledButton(
+          +                          onPressed: _retry,
+          +                          child: const Text('Retry'),
+          +                        ),
+          +                      ],
+          +                    ),
+          +                  ),
+          +              ],
+          +            ),
+          +          ),
+          +          const ColoredBox(
+          +            color: Color(0xFF0D1420),
+          +            child: SizedBox(
+          +              width: double.infinity,
+          +              child: Padding(
+          +                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          +                child: Text(
+          +                  "TradingView's own XAU/USD feed - can differ slightly "
+          +                  "from Sona's candles. Signal boxes stay on the Sona chart.",
+          +                  style: TextStyle(color: Color(0xFF8A93A6), fontSize: 11),
+          +                ),
+          +              ),
+          +            ),
+          +          ),
+          +        ],
+          +      ),
+          +    );
+          +  }
+          +}
+          diff --git a/pubspec.yaml b/pubspec.yaml
+          index d8abf4f..9e2fcfc 100644
+          --- a/pubspec.yaml
+          +++ b/pubspec.yaml
+          @@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+           # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+           # In Windows, build-name is used as the major, minor, and patch parts
+           # of the product and file versions while build-number is used as the build suffix.
+          -version: 1.2.40+142
+          +version: 1.2.41+143
+           
+           environment:
+             sdk: ^3.13.5
+          @@ -43,6 +43,7 @@ dependencies:
+             flutter_secure_storage: ^11.2.0
+             package_info_plus: ^10.2.2
+             path_provider: ^2.1.4
+          +  webview_flutter: ^4.10.0
+           
+           dev_dependencies:
+             sqflite_common_ffi: ^2.4.0
+          PATCH
+          git apply --check /tmp/tv.patch
+          git apply /tmp/tv.patch
+      - id: java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: flutter_sdk
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - id: signing
+        name: Restore existing signing identity
+        run: |
+          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
+          cat >> android/gradle.properties <<GP
+          ORO_KEYSTORE_FILE=$RUNNER_TEMP/sona-release.jks
+          ORO_KEYSTORE_PASSWORD=${{ secrets.ORO_KEYSTORE_PASSWORD }}
+          ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
+          ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
+          GP
+      - id: dependencies
+        run: flutter pub get
+      - id: flutter_tests
+        name: Unit and widget tests
+        run: |
+          set -o pipefail
+          flutter test --machine > /tmp/flutter-results.jsonl
+          cat /tmp/flutter-results.jsonl | tail -3
+      - name: Save tested source
+        run: |
+          set -euo pipefail
+          git config user.name sona-repair
+          git config user.email sona-repair@users.noreply.github.com
+          git add lib/chart/candle_chart.dart lib/tv_chart_page.dart pubspec.yaml
+          git commit -m 'Sona 1.2.41 TEST: TradingView chart view (dark widget) [skip ci]'
+          git push origin HEAD:refs/heads/sona-tv-src-${GITHUB_RUN_ID}
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - id: gradle_setup
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - id: apk_build
+        run: flutter build apk --release --target-platform android-arm64
+      - id: apk_verify_transport
+        name: Verify signed APK identity and PRIVATE draft transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
+          grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          "$AAPT" dump badging "$APK" > /tmp/badging.txt
+          sed -n '1p' /tmp/badging.txt > /tmp/package.txt
+          cat /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='143' versionName='1.2.41'" /tmp/package.txt
+          grep -F "uses-permission: name='android.permission.INTERNET'" /tmp/badging.txt
+          cp "$APK" /tmp/Sona.apk
+          (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
+          cat /tmp/Sona.apk.sha256
+          printf 'Sona 1.2.41+143 TEST. Adds a separate TradingView chart screen (hosted dark widget, OANDA:XAUUSD, 5m, IST) reached from the chart sigma menu. TradingView feed is not Twelve Data; Sona signals stay on the existing chart. Source: %s\n' "$SOURCE_SHA" > /tmp/Sona-test-source.txt
+          TAG="test-tv-143-${GITHUB_RUN_ID}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$SOURCE_SHA" -f name='Sona 1.2.41 TEST - TradingView chart view (dark)' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Phone behavior unverified. Do not publish.' > /tmp/draft-before.json
+          DRAFT=$(jq -er '.id' /tmp/draft-before.json)
+          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
+          gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
+      - id: gofile
+        name: Copy verified APK to gofile for phone delivery
+        run: |
+          set -eo pipefail
+          curl -sS -F "file=@/tmp/Sona.apk" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
+      - name: Record private diagnostic step outcomes
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          {
+            echo "Sona 1.2.41 TradingView TEST pipeline status (run ${GITHUB_RUN_ID})"
+            echo "tests=${{ steps.flutter_tests.outcome }} build=${{ steps.apk_build.outcome }} verify=${{ steps.apk_verify_transport.outcome }} gofile=${{ steps.gofile.outcome }}"
+          } > /tmp/diagnostic-final.txt
+          gh release create "tv-status-${GITHUB_RUN_ID}" --repo "$GITHUB_REPOSITORY" --draft --target refresh-signals-142 --title "TradingView view TEST pipeline status" --notes-file /tmp/diagnostic-final.txt || true
