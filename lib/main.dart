@@ -19,6 +19,7 @@ import 'protection.dart';
 import 'protection_screen.dart';
 
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ import 'market_data/twelve_data_candles.dart';
 import 'market_data/provider_day_open.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
+import 'tv_chart_page.dart';
 import 'chart/chart_tools.dart' show TickBuffer;
 import 'chart/chart_tools.dart';
 import 'analytics.dart';
@@ -1820,6 +1822,48 @@ class _TradeTabState extends State<TradeTab> {
   final chartKey = GlobalKey<CandleChartPanelState>();
   bool explaining = false;
 
+  // Trade-tab chart source toggle. Default shows the TradingView box;
+  // the Sona chart with signals stays one tap away. Choice is persisted.
+  static const String _kTradeChartTvKey = 'trade_chart_tv';
+  // The TradingView box needs the Android WebView. Off-Android (tests,
+  // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
+  final bool _tvSupported = Platform.isAndroid;
+  bool _tradeTvChart = true;
+  bool get _showTv => _tvSupported && _tradeTvChart;
+
+  void _setTradeChartTv(bool v) {
+    if (v == _tradeTvChart) return;
+    setState(() => _tradeTvChart = v);
+    SharedPreferences.getInstance().then(
+      (p) => p.setBool(_kTradeChartTvKey, v),
+    );
+  }
+
+  Widget _chartModeChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF2962FF) : const Color(0xFF1B2330),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color:
+                selected ? const Color(0xFF2962FF) : const Color(0xFF2A3442),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF9AA4B2),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ---- Bar replay (practice trading over historical bars) ----
   ReplayController? _replay;
   List<Candle>? _replayCandles;
@@ -2222,6 +2266,13 @@ class _TradeTabState extends State<TradeTab> {
     // Keep the stage (d) risk row live as the user types.
     qtyCtrl.addListener(_refresh);
     slCtrl.addListener(_refresh);
+    // Restore the Trade-tab chart source choice (default: TradingView).
+    SharedPreferences.getInstance().then((p) {
+      final v = p.getBool(_kTradeChartTvKey);
+      if (v != null && v != _tradeTvChart && mounted) {
+        setState(() => _tradeTvChart = v);
+      }
+    });
   }
 
   void _refresh() => setState(() {});
@@ -2300,8 +2351,29 @@ class _TradeTabState extends State<TradeTab> {
                     ],
                   ),
                 ),
-                CandleChartPanel(
-                  key: chartKey,
+                if (_tvSupported)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _chartModeChip(
+                        'Sona chart',
+                        !_tradeTvChart,
+                        () => _setTradeChartTv(false),
+                      ),
+                      const SizedBox(width: 6),
+                      _chartModeChip(
+                        'TradingView',
+                        _tradeTvChart,
+                        () => _setTradeChartTv(true),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_showTv)
+                  CandleChartPanel(
+                    key: chartKey,
                   onAlertPrice: confirmChartAlert,
                   rangeMode: true,
                   chromeless: true,
@@ -2379,10 +2451,22 @@ class _TradeTabState extends State<TradeTab> {
                       ],
                     );
                   },
-                  livePrice: _replay?.price ?? app.chartBasis,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                    livePrice: _replay?.price ?? app.chartBasis,
+                  ),
+                if (_showTv)
+                  SizedBox(
+                    height: math.max(
+                      MediaQuery.of(context).size.height * 0.55,
+                      340.0,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: const TvChartView(),
+                    ),
+                  ),
+                if (!_showTv)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 2),
                   child: Row(
                     children: [
                       InkWell(
