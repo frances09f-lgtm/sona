@@ -20,7 +20,7 @@ jobs:
         run: |
           echo "base sha: $(git rev-parse HEAD)"
           grep -F 'version: 1.2.40+142' pubspec.yaml
-          grep -c 'prefsKey_gen' lib/signal_zones.dart
+          grep -F 'sona_signal_boxes_v1' lib/signal_zones.dart
           grep -F 'Refresh signals' lib/chart/candle_chart.dart
 
       - name: Apply TradingView chart view patch
