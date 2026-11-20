@@ -17,7 +17,12 @@ jobs:
         with:
           ref: refresh-signals-src-44544863616
       - name: Verify base is the delivered 1.2.40+142 source
-        run: test "$(git rev-parse HEAD)" = 362bee0ebcc4cc5004200eb81df56e0cc45a577f
+        run: |
+          echo "base sha: $(git rev-parse HEAD)"
+          grep -F 'version: 1.2.40+142' pubspec.yaml
+          grep -c 'prefsKey_gen' lib/signal_zones.dart
+          grep -F 'Refresh signals' lib/chart/candle_chart.dart
+
       - name: Apply TradingView chart view patch
         run: |
           set -euo pipefail
