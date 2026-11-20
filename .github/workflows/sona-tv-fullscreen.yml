@@ -302,13 +302,13 @@ jobs:
             adb pull /sdcard/ui3.xml /tmp/ui3.xml 2>/dev/null || cp /tmp/ui3-x.xml /tmp/ui3.xml 2>/dev/null || true
             python3 /tmp/nodes.py /tmp/ui3.xml '(?i)zzznomatch' /tmp/tap3coords || true
             adb exec-out screencap -p > /tmp/sona-tv-draw1.png
-            adb shell input swipe 526 1207 526 1100 1500 || true
+            adb shell 'input tap 526 1207; sleep 0.15; input tap 526 1207' || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw2.png
-            adb shell input tap 1019 461 || true
+            adb shell input swipe 526 1207 526 1000 600 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw3.png
-            adb shell input tap 990 545 || true
+            adb shell input swipe 526 1000 526 1250 800 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw4.png
             adb shell input keyevent 4; sleep 8
