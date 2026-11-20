@@ -286,24 +286,24 @@ jobs:
             if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); fi
             for i in $(seq 1 10); do sleep 6; adb exec-out screencap -p > /tmp/probe-open.png; S1=$(stat -c%s /tmp/probe-open.png); sleep 4; adb exec-out screencap -p > /tmp/probe-open2.png; S2=$(stat -c%s /tmp/probe-open2.png); if [ "$S1" = "$S2" ] && [ "$i" -ge 3 ]; then break; fi; done
             adb exec-out screencap -p > /tmp/sona-tv-opened.png
-            adb shell uiautomator dump /sdcard/ui2.xml || true
-            adb pull /sdcard/ui2.xml /tmp/ui2.xml || true
-            echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oc3lzLmFyZ3ZbMV0sIGVuY29kaW5nPSd1dGYtOCcsIGVycm9ycz0naWdub3JlJykucmVhZCgpCmV4Y2VwdCBFeGNlcHRpb246CiAgICBzeXMuZXhpdCgpCnBhdCA9IHN5cy5hcmd2WzJdIGlmIGxlbihzeXMuYXJndikgPiAyIGVsc2UgcicoP2kpdHJlbmQuP2xpbmV8bGluZSB0b29sc3xkcmF3aW5nJwpvdXQgPSBzeXMuYXJndlszXSBpZiBsZW4oc3lzLmFyZ3YpID4gMyBlbHNlICcvdG1wL3RhcGNvb3JkczInCm5vZGVzID0gcmUuZmluZGFsbChyJzxub2RlW14+XSo+JywgeCkKZm9yIG4gaW4gbm9kZXM6CiAgICBkID0gcmUuc2VhcmNoKHInY29udGVudC1kZXNjPSIoW14iXSopIicsIG4pCiAgICBiID0gcmUuc2VhcmNoKHInYm91bmRzPSJcWyhcZCspLChcZCspXF1cWyhcZCspLChcZCspXF0iJywgbikKICAgIGlmIGQgYW5kIGIgYW5kIGQuZ3JvdXAoMSk6CiAgICAgICAgcHJpbnQoJ05PREUnLCByZXByKGQuZ3JvdXAoMSkpLCBiLmdyb3VwKDApKQpwaWNrID0gTm9uZQpmb3IgbiBpbiBub2RlczoKICAgIGQgPSByZS5zZWFyY2gocidjb250ZW50LWRlc2M9IihbXiJdKikiJywgbikKICAgIGIgPSByZS5zZWFyY2gocidib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCBuKQogICAgaWYgZCBhbmQgYiBhbmQgcmUuc2VhcmNoKHBhdCwgZC5ncm91cCgxKSk6CiAgICAgICAgYSwgYmIsIGMsIGUgPSAoaW50KGcpIGZvciBnIGluIGIuZ3JvdXBzKCkpCiAgICAgICAgcGljayA9IGYneyhhK2MpLy8yfSB7KGJiK2UpLy8yfScKICAgICAgICBwcmludCgnUElDSycsIHJlcHIoZC5ncm91cCgxKSksIHBpY2spCiAgICAgICAgYnJlYWsKaWYgcGljazoKICAgIG9wZW4ob3V0LCAndycpLndyaXRlKHBpY2sp | base64 -d > /tmp/nodes.py
+            sleep 3
+            adb shell uiautomator dump /sdcard/ui2.xml || adb exec-out uiautomator dump /dev/tty > /tmp/ui2-x.xml 2>/dev/null || true
+            adb pull /sdcard/ui2.xml /tmp/ui2.xml 2>/dev/null || cp /tmp/ui2-x.xml /tmp/ui2.xml 2>/dev/null || true
+            rm -f /sdcard/ui2.xml || true
+            echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oc3lzLmFyZ3ZbMV0sIGVuY29kaW5nPSd1dGYtOCcsIGVycm9ycz0naWdub3JlJykucmVhZCgpCmV4Y2VwdCBFeGNlcHRpb246CiAgICBzeXMuZXhpdCgpCmkgPSB4LnJmaW5kKCc8L2hpZXJhcmNoeT4nKQppZiBpID4gMDoKICAgIHggPSB4WzppXQpwYXQgPSBzeXMuYXJndlsyXSBpZiBsZW4oc3lzLmFyZ3YpID4gMiBlbHNlIHInKD9pKXRyZW5kLj9saW5lfGxpbmUgdG9vbHN8ZHJhd2luZycKb3V0ID0gc3lzLmFyZ3ZbM10gaWYgbGVuKHN5cy5hcmd2KSA+IDMgZWxzZSAnL3RtcC90YXBjb29yZHMyJwpub2RlcyA9IHJlLmZpbmRhbGwocic8bm9kZVtePl0qPicsIHgpCmZvciBuIGluIG5vZGVzOgogICAgZCA9IHJlLnNlYXJjaChyJ2NvbnRlbnQtZGVzYz0iKFteIl0qKSInLCBuKQogICAgYiA9IHJlLnNlYXJjaChyJ2JvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIicsIG4pCiAgICBpZiBkIGFuZCBiIGFuZCBkLmdyb3VwKDEpOgogICAgICAgIHByaW50KCdOT0RFJywgcmVwcihkLmdyb3VwKDEpKSwgYi5ncm91cCgwKSkKcGljayA9IE5vbmUKZm9yIG4gaW4gbm9kZXM6CiAgICBkID0gcmUuc2VhcmNoKHInY29udGVudC1kZXNjPSIoW14iXSopIicsIG4pCiAgICBiID0gcmUuc2VhcmNoKHInYm91bmRzPSJcWyhcZCspLChcZCspXF1cWyhcZCspLChcZCspXF0iJywgbikKICAgIGlmIGQgYW5kIGIgYW5kIHJlLnNlYXJjaChwYXQsIGQuZ3JvdXAoMSkpOgogICAgICAgIGEsIGJiLCBjLCBlID0gKGludChnKSBmb3IgZyBpbiBiLmdyb3VwcygpKQogICAgICAgIHBpY2sgPSBmJ3soYStjKS8vMn0geyhiYitlKS8vMn0nCiAgICAgICAgcHJpbnQoJ1BJQ0snLCByZXByKGQuZ3JvdXAoMSkpLCBwaWNrKQogICAgICAgIGJyZWFrCmlmIHBpY2s6CiAgICBvcGVuKG91dCwgJ3cnKS53cml0ZShwaWNrKQ== | base64 -d > /tmp/nodes.py
             python3 /tmp/nodes.py /tmp/ui2.xml '(?i)trend.?line|line tools|drawing' /tmp/tap2coords || true
-            cat /tmp/tap2coords || true
-            if [ -s /tmp/tap2coords ]; then adb shell input tap $(cat /tmp/tap2coords); fi
-            sleep 2
-            adb shell uiautomator dump /sdcard/ui3.xml || true
-            adb pull /sdcard/ui3.xml /tmp/ui3.xml || true
-            python3 /tmp/nodes.py /tmp/ui3.xml '(?i)horizontal line' /tmp/tap3coords || true
-            cat /tmp/tap3coords || true
-            if [ -s /tmp/tap3coords ]; then adb shell input tap $(cat /tmp/tap3coords); fi
+            if [ ! -s /tmp/tap2coords ]; then echo 75 540 > /tmp/tap2coords; fi
+            cat /tmp/tap2coords
+            adb shell input tap $(cat /tmp/tap2coords)
             sleep 4
+            adb shell uiautomator dump /sdcard/ui3.xml || adb exec-out uiautomator dump /dev/tty > /tmp/ui3-x.xml 2>/dev/null || true
+            adb pull /sdcard/ui3.xml /tmp/ui3.xml 2>/dev/null || cp /tmp/ui3-x.xml /tmp/ui3.xml 2>/dev/null || true
+            python3 /tmp/nodes.py /tmp/ui3.xml '(?i)zzznomatch' /tmp/tap3coords || true
             adb exec-out screencap -p > /tmp/sona-tv-draw1.png
             adb shell input swipe 400 1000 400 1400 600 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw2.png
-            adb shell input tap 700 700 || true
+            adb shell input swipe 700 700 700 700 900 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw3.png
             adb shell input keyevent 4; sleep 8
