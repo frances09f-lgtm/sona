@@ -1,0 +1,455 @@
+name: Sona 1.2.42 TradingView on Trade tab signed TEST
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sona-tv-src-44698308947
+      - name: Verify base is the tested 1.2.41+143 source
+        run: |
+          git rev-parse HEAD | grep -qi '^02e0da3a'
+      - name: Apply Trade-tab TradingView toggle patch
+        run: |
+          set -euo pipefail
+          cat > /tmp/fix.patch <<'PATCH'
+          diff --git a/lib/main.dart b/lib/main.dart
+          index 6ec5b1b..ed7ff34 100644
+          --- a/lib/main.dart
+          +++ b/lib/main.dart
+          @@ -33,6 +33,7 @@ import 'market_data/twelve_data_candles.dart';
+           import 'market_data/provider_day_open.dart';
+           import 'market_data/swissquote_provider.dart';
+           import 'chart/candle_chart.dart';
+          +import 'tv_chart_page.dart';
+           import 'chart/chart_tools.dart' show TickBuffer;
+           import 'chart/chart_tools.dart';
+           import 'analytics.dart';
+          @@ -1820,6 +1821,44 @@ class _TradeTabState extends State<TradeTab> {
+             final chartKey = GlobalKey<CandleChartPanelState>();
+             bool explaining = false;
+
+          +  // Trade-tab chart source toggle. Default shows the TradingView box;
+          +  // the Sona chart with signals stays one tap away. Choice is persisted.
+          +  static const String _kTradeChartTvKey = 'trade_chart_tv';
+          +  bool _tradeTvChart = true;
+          +
+          +  void _setTradeChartTv(bool v) {
+          +    if (v == _tradeTvChart) return;
+          +    setState(() => _tradeTvChart = v);
+          +    SharedPreferences.getInstance().then(
+          +      (p) => p.setBool(_kTradeChartTvKey, v),
+          +    );
+          +  }
+          +
+          +  Widget _chartModeChip(String label, bool selected, VoidCallback onTap) {
+          +    return GestureDetector(
+          +      onTap: onTap,
+          +      child: Container(
+          +        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          +        decoration: BoxDecoration(
+          +          color: selected ? const Color(0xFF2962FF) : const Color(0xFF1B2330),
+          +          borderRadius: BorderRadius.circular(14),
+          +          border: Border.all(
+          +            color:
+          +                selected ? const Color(0xFF2962FF) : const Color(0xFF2A3442),
+          +          ),
+          +        ),
+          +        child: Text(
+          +          label,
+          +          style: TextStyle(
+          +            fontSize: 11,
+          +            fontWeight: FontWeight.w700,
+          +            color: selected ? Colors.white : const Color(0xFF9AA4B2),
+          +          ),
+          +        ),
+          +      ),
+          +    );
+          +  }
+          +
+             // ---- Bar replay (practice trading over historical bars) ----
+             ReplayController? _replay;
+             List<Candle>? _replayCandles;
+          @@ -2222,6 +2261,13 @@ class _TradeTabState extends State<TradeTab> {
+               // Keep the stage (d) risk row live as the user types.
+               qtyCtrl.addListener(_refresh);
+               slCtrl.addListener(_refresh);
+          +    // Restore the Trade-tab chart source choice (default: TradingView).
+          +    SharedPreferences.getInstance().then((p) {
+          +      final v = p.getBool(_kTradeChartTvKey);
+          +      if (v != null && v != _tradeTvChart && mounted) {
+          +        setState(() => _tradeTvChart = v);
+          +      }
+          +    });
+             }
+
+             void _refresh() => setState(() {});
+          @@ -2300,8 +2346,28 @@ class _TradeTabState extends State<TradeTab> {
+                               ],
+                             ),
+                           ),
+          -                CandleChartPanel(
+          -                  key: chartKey,
+          +                Padding(
+          +                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+          +                  child: Row(
+          +                    mainAxisAlignment: MainAxisAlignment.end,
+          +                    children: [
+          +                      _chartModeChip(
+          +                        'Sona chart',
+          +                        !_tradeTvChart,
+          +                        () => _setTradeChartTv(false),
+          +                      ),
+          +                      const SizedBox(width: 6),
+          +                      _chartModeChip(
+          +                        'TradingView',
+          +                        _tradeTvChart,
+          +                        () => _setTradeChartTv(true),
+          +                      ),
+          +                    ],
+          +                  ),
+          +                ),
+          +                if (!_tradeTvChart)
+          +                  CandleChartPanel(
+          +                    key: chartKey,
+                             onAlertPrice: confirmChartAlert,
+                             rangeMode: true,
+                             chromeless: true,
+          @@ -2379,10 +2445,22 @@ class _TradeTabState extends State<TradeTab> {
+                                 ],
+                               );
+                             },
+          -                  livePrice: _replay?.price ?? app.chartBasis,
+          -                ),
+          -                Padding(
+          -                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+          +                    livePrice: _replay?.price ?? app.chartBasis,
+          +                  ),
+          +                if (_tradeTvChart)
+          +                  SizedBox(
+          +                    height: math.max(
+          +                      MediaQuery.of(context).size.height * 0.55,
+          +                      340.0,
+          +                    ),
+          +                    child: ClipRRect(
+          +                      borderRadius: BorderRadius.circular(12),
+          +                      child: const TvChartView(),
+          +                    ),
+          +                  ),
+          +                if (!_tradeTvChart)
+          +                  Padding(
+          +                    padding: const EdgeInsets.only(top: 4, bottom: 2),
+                             child: Row(
+                               children: [
+                                 InkWell(
+          diff --git a/lib/tv_chart_page.dart b/lib/tv_chart_page.dart
+          index f8eb64e..27bf10f 100644
+          --- a/lib/tv_chart_page.dart
+          +++ b/lib/tv_chart_page.dart
+          @@ -2,24 +2,27 @@ import 'package:flutter/material.dart';
+           import 'package:webview_flutter/webview_flutter.dart';
+
+           /// TradingView's hosted "Advanced Real-Time Chart" widget (free embed),
+          -/// shown unmodified with its own attribution, as a separate full screen.
+          +/// shown unmodified with its own attribution.
+           ///
+          -/// Approved Nov 20, 2026 (user picked the dark whole box after preview):
+          -/// dark theme, OANDA:XAUUSD, 5m default, IST, date ranges on, side toolbar
+          -/// on, symbol change locked.
+          +/// Two hosts:
+          +///  * [TvChartPage] - separate full screen from the chart sigma menu
+          +///    (added in 1.2.41).
+          +///  * [TvChartView] - the same box embedded in the Trade tab behind the
+          +///    [Sona chart | TradingView] toggle (1.2.42; user approved the toggle
+          +///    mockup on WhatsApp Nov 20, 2026 with "Ok built").
+           ///
+           /// Data note: the widget uses TradingView's own XAU/USD feed, NOT Sona's
+           /// Twelve Data candles, so prices can differ slightly and Sona's signal
+          -/// boxes stay on the existing chart. Needs internet. Choices made inside
+          +/// boxes stay on the Sona chart. Needs internet. Choices made inside
+           /// the widget (e.g. added indicators) are session-scoped.
+          -class TvChartPage extends StatefulWidget {
+          -  const TvChartPage({super.key});
+          +class TvChartView extends StatefulWidget {
+          +  const TvChartView({super.key});
+
+             @override
+          -  State<TvChartPage> createState() => _TvChartPageState();
+          +  State<TvChartView> createState() => TvChartViewState();
+           }
+
+          -class _TvChartPageState extends State<TvChartPage> {
+          +class TvChartViewState extends State<TvChartView> {
+             static const String _url =
+                 'https://www.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD'
+                 '&interval=5&theme=dark&style=1&timezone=Asia%2FKolkata'
+          @@ -54,7 +57,7 @@ class _TvChartPageState extends State<TvChartPage> {
+                 ..loadRequest(Uri.parse(_url));
+             }
+
+          -  void _retry() {
+          +  void retry() {
+               setState(() {
+                 _loading = true;
+                 _failed = false;
+          @@ -62,6 +65,49 @@ class _TvChartPageState extends State<TvChartPage> {
+               _controller.loadRequest(Uri.parse(_url));
+             }
+
+          +  @override
+          +  Widget build(BuildContext context) {
+          +    return Stack(
+          +      children: [
+          +        Positioned.fill(child: WebViewWidget(controller: _controller)),
+          +        if (_loading)
+          +          const Positioned.fill(
+          +            child: ColoredBox(
+          +              color: Color(0xFF131722),
+          +              child: Center(child: CircularProgressIndicator()),
+          +            ),
+          +          ),
+          +        if (_failed)
+          +          Positioned.fill(
+          +            child: ColoredBox(
+          +              color: const Color(0xFF131722),
+          +              child: Center(
+          +                child: Column(
+          +                  mainAxisSize: MainAxisSize.min,
+          +                  children: [
+          +                    const Text(
+          +                      'Could not load the chart. Check internet.',
+          +                      style: TextStyle(color: Colors.white70),
+          +                    ),
+          +                    const SizedBox(height: 12),
+          +                    FilledButton(
+          +                      onPressed: retry,
+          +                      child: const Text('Retry'),
+          +                    ),
+          +                  ],
+          +                ),
+          +              ),
+          +            ),
+          +          ),
+          +      ],
+          +    );
+          +  }
+          +}
+          +
+          +/// Full-screen host reached from the chart sigma menu.
+          +class TvChartPage extends StatelessWidget {
+          +  const TvChartPage({super.key});
+          +
+             @override
+             Widget build(BuildContext context) {
+               return Scaffold(
+          @@ -75,35 +121,10 @@ class _TvChartPageState extends State<TvChartPage> {
+                   title: const Text('GOLD - TradingView chart',
+                       style: TextStyle(fontSize: 17)),
+                 ),
+          -      body: Column(
+          +      body: const Column(
+                   children: [
+          -          Expanded(
+          -            child: Stack(
+          -              children: [
+          -                WebViewWidget(controller: _controller),
+          -                if (_loading)
+          -                  const Center(child: CircularProgressIndicator()),
+          -                if (_failed)
+          -                  Center(
+          -                    child: Column(
+          -                      mainAxisSize: MainAxisSize.min,
+          -                      children: [
+          -                        const Text(
+          -                          'Could not load the chart. Check internet.',
+          -                          style: TextStyle(color: Colors.white70),
+          -                        ),
+          -                        const SizedBox(height: 12),
+          -                        FilledButton(
+          -                          onPressed: _retry,
+          -                          child: const Text('Retry'),
+          -                        ),
+          -                      ],
+          -                    ),
+          -                  ),
+          -              ],
+          -            ),
+          -          ),
+          -          const ColoredBox(
+          +          Expanded(child: TvChartView()),
+          +          ColoredBox(
+                       color: Color(0xFF0D1420),
+                       child: SizedBox(
+                         width: double.infinity,
+          diff --git a/pubspec.yaml b/pubspec.yaml
+          index 9e2fcfc..f57f5db 100644
+          --- a/pubspec.yaml
+          +++ b/pubspec.yaml
+          @@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+           # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+           # In Windows, build-name is used as the major, minor, and patch parts
+           # of the product and file versions while build-number is used as the build suffix.
+          -version: 1.2.41+143
+          +version: 1.2.42+144
+
+           environment:
+             sdk: ^3.13.5
+          PATCH
+          git apply --check /tmp/fix.patch
+          git apply /tmp/fix.patch
+      - id: java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: flutter_sdk
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - id: signing
+        name: Restore existing signing identity
+        run: |
+          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
+          cat >> android/gradle.properties <<GP
+          ORO_KEYSTORE_FILE=$RUNNER_TEMP/sona-release.jks
+          ORO_KEYSTORE_PASSWORD=${{ secrets.ORO_KEYSTORE_PASSWORD }}
+          ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
+          ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
+          GP
+      - id: dependencies
+        run: flutter pub get
+      - id: flutter_tests
+        name: Unit and widget tests
+        run: |
+          set -o pipefail
+          flutter test --machine > /tmp/flutter-results.jsonl
+          cat /tmp/flutter-results.jsonl | tail -3
+      - name: Save tested source
+        run: |
+          set -euo pipefail
+          git config user.name sona-repair
+          git config user.email sona-repair@users.noreply.github.com
+          git add lib/main.dart lib/tv_chart_page.dart pubspec.yaml
+          git commit -m 'Sona 1.2.42 TEST: TradingView box on Trade tab behind toggle [skip ci]'
+          git push origin HEAD:refs/heads/sona-tv-fix-src-${{ github.run_id }}
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - id: gradle_setup
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - id: apk_build
+        run: flutter build apk --release --target-platform android-arm64
+      - id: apk_verify_transport
+        name: Verify signed APK identity and PRIVATE draft transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
+          grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          "$AAPT" dump badging "$APK" > /tmp/badging.txt
+          sed -n '1p' /tmp/badging.txt > /tmp/package.txt
+          cat /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='144' versionName='1.2.42'" /tmp/package.txt
+          grep -F "uses-permission: name='android.permission.INTERNET'" /tmp/badging.txt
+          cp "$APK" /tmp/Sona.apk
+          (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
+          cat /tmp/Sona.apk.sha256
+          printf 'Sona 1.2.42+144 TEST. Trade tab gains a [Sona chart | TradingView] toggle: the TradingView hosted widget box (same dark OANDA:XAUUSD 5m embed as 1.2.41) shows directly on Trade; Sona chart with signals stays one tap away. Choice persists; default TradingView. TradingView feed is not Twelve Data. Source: %s\n' "$SOURCE_SHA" > /tmp/Sona-test-source.txt
+          TAG="test-tv-fix-144-${{ github.run_id }}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$SOURCE_SHA" -f name='Sona 1.2.42 TEST - TradingView on Trade tab (toggle)' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Do not publish.' > /tmp/draft-before.json
+          DRAFT=$(jq -er '.id' /tmp/draft-before.json)
+          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
+          gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
+          echo "DRAFT_URL=$(jq -r '.html_url' /tmp/draft-after.json)" >> "$GITHUB_ENV"
+      - name: Upload APK artifact for capture job
+        uses: actions/upload-artifact@v4
+        with:
+          name: sona-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+      - id: gofile
+        name: Copy verified APK to gofile for phone delivery
+        run: |
+          set -eo pipefail
+          curl -sS -F "file=@/tmp/Sona.apk" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
+  capture:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sona-apk
+          path: /tmp/apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator, install APK, capture Trade tab (TradingView default) and toggled Sona chart
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            set -x
+            adb install -r /tmp/apk/app-release.apk
+            adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1
+            sleep 35
+            adb exec-out screencap -p > /tmp/sona-trade-tv.png
+            adb shell uiautomator dump /sdcard/ui.xml || true
+            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oJy90bXAvdWkueG1sJywgZW5jb2Rpbmc9J3V0Zi04JywgZXJyb3JzPSdpZ25vcmUnKS5yZWFkKCkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIHN5cy5leGl0KCkKbSA9IHJlLnNlYXJjaChyJ3RleHQ9IlNvbmEgY2hhcnQiW14+XSpib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCB4KQppZiBtOgogICAgYSwgYiwgYywgZCA9IChpbnQoZykgZm9yIGcgaW4gbS5ncm91cHMoKSkKICAgIHByaW50KGYneyhhICsgYykgLy8gMn0geyhiICsgZCkgLy8gMn0nKQo= | base64 -d > /tmp/tap.py
+            TAP=$(python3 /tmp/tap.py)
+            echo "TAP=$TAP"
+            if [ -n "$TAP" ]; then
+              adb shell input tap $TAP
+              sleep 10
+            fi
+            adb exec-out screencap -p > /tmp/sona-trade-after-toggle.png
+      - name: Upload phone captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-captures
+          path: |
+            /tmp/sona-trade-tv.png
+            /tmp/sona-trade-after-toggle.png
+            /tmp/ui.xml
+          if-no-files-found: warn
+      - id: gofile_caps
+        name: Copy captures to gofile for inspection
+        if: always()
+        run: |
+          set -uo pipefail
+          for f in /tmp/sona-trade-tv.png /tmp/sona-trade-after-toggle.png; do
+            [ -s "$f" ] || continue
+            curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE-CAP', d.get('status'), d.get('data',{}).get('downloadPage'))" || true
+          done
+      - name: Record capture outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          { echo "capture outcome for run ${{ github.run_id }}"; ls -la /tmp/sona-trade-*.png 2>/dev/null || echo 'no screenshots produced'; } > /tmp/capture-final.txt
+          gh release create "tv-fix-capture-${{ github.run_id }}" --repo "$GITHUB_REPOSITORY" --draft --target main --title "Trade-tab toggle capture status" --notes-file /tmp/capture-final.txt || true
