@@ -302,7 +302,7 @@ jobs:
             adb pull /sdcard/ui3.xml /tmp/ui3.xml 2>/dev/null || cp /tmp/ui3-x.xml /tmp/ui3.xml 2>/dev/null || true
             python3 /tmp/nodes.py /tmp/ui3.xml '(?i)zzznomatch' /tmp/tap3coords || true
             adb exec-out screencap -p > /tmp/sona-tv-draw1.png
-            adb shell input swipe 400 1000 400 1400 600 || true
+            adb shell input swipe 500 1205 500 900 600 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw2.png
             adb shell input swipe 700 700 700 700 900 || true
