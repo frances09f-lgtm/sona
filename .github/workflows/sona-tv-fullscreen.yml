@@ -302,12 +302,15 @@ jobs:
             adb pull /sdcard/ui3.xml /tmp/ui3.xml 2>/dev/null || cp /tmp/ui3-x.xml /tmp/ui3.xml 2>/dev/null || true
             python3 /tmp/nodes.py /tmp/ui3.xml '(?i)zzznomatch' /tmp/tap3coords || true
             adb exec-out screencap -p > /tmp/sona-tv-draw1.png
-            adb shell input swipe 500 1205 500 900 600 || true
+            adb shell input tap 500 900 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw2.png
-            adb shell input swipe 700 700 700 700 900 || true
+            adb shell input swipe 526 1207 526 1000 1500 || true
             sleep 2
             adb exec-out screencap -p > /tmp/sona-tv-draw3.png
+            adb shell input swipe 526 1207 526 950 600 || true
+            sleep 2
+            adb exec-out screencap -p > /tmp/sona-tv-draw4.png
             adb shell input keyevent 4; sleep 8
             adb exec-out screencap -p > /tmp/sona-tv-returned.png
             adb logcat -d -t 400 > /tmp/logcat.txt || true
@@ -332,7 +335,7 @@ jobs:
         if: always()
         run: |
           set -uo pipefail
-          for f in /tmp/sona-trade-tv.png /tmp/sona-tv-opened.png /tmp/sona-tv-draw1.png /tmp/sona-tv-draw2.png /tmp/sona-tv-draw3.png /tmp/sona-tv-returned.png; do
+          for f in /tmp/sona-trade-tv.png /tmp/sona-tv-opened.png /tmp/sona-tv-draw1.png /tmp/sona-tv-draw2.png /tmp/sona-tv-draw3.png /tmp/sona-tv-draw4.png /tmp/sona-tv-returned.png; do
             [ -s "$f" ] || continue
             curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE-CAP', d.get('status'), d.get('data',{}).get('downloadPage'))" || true
           done
