@@ -456,6 +456,17 @@ jobs:
         run: |
           set -eo pipefail
           curl -sS -F "file=@/tmp/Sona.apk" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
+      - name: Build emulator-compatible x64 APK for capture (same source, same signing)
+        run: |
+          set -euo pipefail
+          flutter build apk --release --target-platform android-x64
+          cp build/app/outputs/flutter-apk/app-release.apk /tmp/sona-capture-x64.apk
+          ls -la /tmp/sona-capture-x64.apk
+      - name: Upload x64 capture APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sona-apk-x64
+          path: /tmp/sona-capture-x64.apk
   capture:
     needs: build
     runs-on: ubuntu-latest
@@ -467,7 +478,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: sona-apk
+          name: sona-apk-x64
           path: /tmp/apk
       - name: Enable KVM
         run: |
@@ -482,21 +493,20 @@ jobs:
           arch: x86_64
           profile: pixel_6
           script: |
-            set -x
-            adb install -r /tmp/apk/app-release.apk
-            adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1
-            sleep 35
+            adb install -r /tmp/apk/sona-capture-x64.apk
+            adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1 || true
+            for i in $(seq 1 24); do adb shell dumpsys activity activities | grep mResumedActivity | grep -q com.ambi.gold_paper_trading && break; sleep 5; done; true
+            adb shell dumpsys activity activities | grep mResumedActivity > /tmp/fg.txt || true
+            cat /tmp/fg.txt || true
             adb exec-out screencap -p > /tmp/sona-trade-tv.png
             adb shell uiautomator dump /sdcard/ui.xml || true
             adb pull /sdcard/ui.xml /tmp/ui.xml || true
             echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oJy90bXAvdWkueG1sJywgZW5jb2Rpbmc9J3V0Zi04JywgZXJyb3JzPSdpZ25vcmUnKS5yZWFkKCkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIHN5cy5leGl0KCkKbSA9IHJlLnNlYXJjaChyJ3RleHQ9IlNvbmEgY2hhcnQiW14+XSpib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCB4KQppZiBtOgogICAgYSwgYiwgYywgZCA9IChpbnQoZykgZm9yIGcgaW4gbS5ncm91cHMoKSkKICAgIHByaW50KGYneyhhICsgYykgLy8gMn0geyhiICsgZCkgLy8gMn0nKQo= | base64 -d > /tmp/tap.py
-            TAP=$(python3 /tmp/tap.py)
-            echo "TAP=$TAP"
-            if [ -n "$TAP" ]; then
-              adb shell input tap $TAP
-              sleep 10
-            fi
+            python3 /tmp/tap.py > /tmp/tapcoords || true
+            cat /tmp/tapcoords || true
+            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); sleep 10; fi
             adb exec-out screencap -p > /tmp/sona-trade-after-toggle.png
+            adb logcat -d -t 400 > /tmp/logcat.txt || true
       - name: Upload phone captures
         if: always()
         uses: actions/upload-artifact@v4
@@ -506,6 +516,8 @@ jobs:
             /tmp/sona-trade-tv.png
             /tmp/sona-trade-after-toggle.png
             /tmp/ui.xml
+            /tmp/logcat.txt
+            /tmp/fg.txt
           if-no-files-found: warn
       - id: gofile_caps
         name: Copy captures to gofile for inspection
