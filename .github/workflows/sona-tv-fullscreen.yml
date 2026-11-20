@@ -1,0 +1,320 @@
+name: Sona 1.2.43 TradingView fullscreen button and zoom flags signed TEST
+on:
+  workflow_dispatch:
+    inputs:
+      reuse_run_id:
+        description: 'Skip build job; reuse sona-apk-x64 artifact from this previous run id (capture-only iteration)'
+        required: false
+        default: ''
+jobs:
+  build:
+    if: ${{ github.event.inputs.reuse_run_id == '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sona-tv-fix-src-44714949650
+      - name: Verify base is the tested 1.2.42+144 source
+        run: |
+          git rev-parse HEAD | grep -qi '^cd058f94'
+      - name: Apply TradingView fullscreen button and zoom flags patch
+        run: |
+          set -euo pipefail
+          cat > /tmp/fix.patch <<'PATCH'
+          diff --git a/lib/main.dart b/lib/main.dart
+          index eaa84a9..b0bbad1 100644
+          --- a/lib/main.dart
+          +++ b/lib/main.dart
+          @@ -2461,7 +2461,50 @@ class _TradeTabState extends State<TradeTab> {
+                               ),
+                               child: ClipRRect(
+                                 borderRadius: BorderRadius.circular(12),
+          -                      child: const TvChartView(),
+          +                      child: Stack(
+          +                        children: [
+          +                          const TvChartView(),
+          +                          // Fullscreen entry, placed per the approved v3
+          +                          // mockup: floating inside the box at the plot's
+          +                          // top-right - below the widget toolbar, left of
+          +                          // the price axis. It is a Flutter overlay on top
+          +                          // of the WebView, so the widget's own controls
+          +                          // stay untouched.
+          +                          Positioned(
+          +                            top: 44,
+          +                            right: 60,
+          +                            child: Tooltip(
+          +                              message: 'Open full screen',
+          +                              child: Material(
+          +                                color: Colors.transparent,
+          +                                child: InkWell(
+          +                                  onTap: () {
+          +                                    Navigator.of(context).push(
+          +                                      MaterialPageRoute<void>(
+          +                                        builder: (_) => const TvChartPage(),
+          +                                      ),
+          +                                    );
+          +                                  },
+          +                                  borderRadius: BorderRadius.circular(10),
+          +                                  child: Container(
+          +                                    width: 44,
+          +                                    height: 44,
+          +                                    decoration: BoxDecoration(
+          +                                      color: const Color(0xD90D1420),
+          +                                      borderRadius: BorderRadius.circular(10),
+          +                                    ),
+          +                                    child: const Icon(
+          +                                      Icons.fullscreen,
+          +                                      size: 20,
+          +                                      color: cDim,
+          +                                    ),
+          +                                  ),
+          +                                ),
+          +                              ),
+          +                            ),
+          +                          ),
+          +                        ],
+          +                      ),
+                               ),
+                             ),
+                           if (!_showTv)
+          diff --git a/lib/tv_chart_page.dart b/lib/tv_chart_page.dart
+          index ccf68df..48734ba 100644
+          --- a/lib/tv_chart_page.dart
+          +++ b/lib/tv_chart_page.dart
+          @@ -32,7 +32,14 @@ class TvChartViewState extends State<TvChartView> {
+                 'https://www.tradingview.com/widgetembed/?symbol=OANDA%3AXAUUSD'
+                 '&interval=5&theme=dark&style=1&timezone=Asia%2FKolkata'
+                 '&withdateranges=1&hide_side_toolbar=false&allow_symbol_change=false'
+          -      '&locale=en';
+          +      '&locale=en'
+          +      // enabled_features is live-effective on this hosted widget (verified
+          +      // by A/B on the exact embed URL): pinch_scale turns on pinch zoom on
+          +      // touch; show_zoom_and_move_buttons_on_touch adds +/- zoom buttons on
+          +      // time-scale tap. Pinch inside the Android WebView still needs
+          +      // verification on a real phone; the +/- buttons are the fallback.
+          +      '&enabled_features=%5B%22pinch_scale%22%2C'
+          +      '%22show_zoom_and_move_buttons_on_touch%22%5D';
+           
+             late final WebViewController _controller;
+             bool _loading = true;
+          diff --git a/pubspec.yaml b/pubspec.yaml
+          index f564c6a..d039752 100644
+          --- a/pubspec.yaml
+          +++ b/pubspec.yaml
+          @@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+           # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+           # In Windows, build-name is used as the major, minor, and patch parts
+           # of the product and file versions while build-number is used as the build suffix.
+          -version: 1.2.42+144
+          +version: 1.2.43+145
+           
+           environment:
+             sdk: ^3.13.5
+          PATCH
+          git apply --check /tmp/fix.patch
+          git apply /tmp/fix.patch
+      - id: java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - id: flutter_sdk
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - id: signing
+        name: Restore existing signing identity
+        run: |
+          echo "${{ secrets.ORO_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/sona-release.jks
+          cat >> android/gradle.properties <<GP
+          ORO_KEYSTORE_FILE=$RUNNER_TEMP/sona-release.jks
+          ORO_KEYSTORE_PASSWORD=${{ secrets.ORO_KEYSTORE_PASSWORD }}
+          ORO_KEY_ALIAS=${{ secrets.ORO_KEY_ALIAS }}
+          ORO_KEY_PASSWORD=${{ secrets.ORO_KEY_PASSWORD }}
+          GP
+      - id: dependencies
+        run: flutter pub get
+      - id: flutter_tests
+        name: Unit and widget tests
+        run: |
+          set -o pipefail
+          flutter test --machine > /tmp/flutter-results.jsonl && OK=1 || OK=0
+          python3 - <<'PYEOF'
+          import json
+          names, fails, errs = {}, [], []
+          for line in open('/tmp/flutter-results.jsonl'):
+              try: ev = json.loads(line)
+              except Exception: continue
+              if not isinstance(ev, dict): continue
+              tev = ev.get('test')
+              if ev.get('type') == 'test' and isinstance(tev, dict) and 'id' in tev:
+                  names[tev['id']] = tev.get('name', '')
+              if ev.get('type') == 'testDone' and ev.get('result') != 'success' and not ev.get('skipped'):
+                  fails.append((ev.get('testID'), ev.get('result')))
+              if ev.get('type') == 'error' and len(errs) < 5:
+                  errs.append(str(ev.get('error'))[:400])
+          for tid, res in fails[:40]: print('FAILED_TEST', res, names.get(tid, tid))
+          for e in errs: print('TEST_ERROR', e)
+          print('TOTAL_FAILURES', len(fails))
+          PYEOF
+          cp /tmp/flutter-results.jsonl /tmp/flutter-results-copy.jsonl || true
+          [ "$OK" = 1 ]
+      - name: Preserve raw test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-raw
+          path: /tmp/flutter-results-copy.jsonl
+          if-no-files-found: warn
+      - name: Save tested source
+        run: |
+          set -euo pipefail
+          git config user.name sona-repair
+          git config user.email sona-repair@users.noreply.github.com
+          git add lib/main.dart lib/tv_chart_page.dart pubspec.yaml
+          git commit -m 'Sona 1.2.43 TEST: TradingView fullscreen button and zoom flags [skip ci]'
+          git push origin HEAD:refs/heads/sona-tv-fs-src-${{ github.run_id }}
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - id: gradle_setup
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - id: apk_build
+        run: flutter build apk --release --target-platform android-arm64
+      - id: apk_verify_transport
+        name: Verify signed APK identity and PRIVATE draft transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify --verbose --print-certs "$APK" > /tmp/cert.txt
+          grep -F '54cfa6b82110b0d377f1f93fd767e08bb93a97362996637cecdb9208858f24e0' /tmp/cert.txt
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          "$AAPT" dump badging "$APK" > /tmp/badging.txt
+          sed -n '1p' /tmp/badging.txt > /tmp/package.txt
+          cat /tmp/package.txt
+          grep -F "name='com.ambi.gold_paper_trading' versionCode='145' versionName='1.2.43'" /tmp/package.txt
+          grep -F "uses-permission: name='android.permission.INTERNET'" /tmp/badging.txt
+          cp "$APK" /tmp/Sona.apk
+          (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
+          cat /tmp/Sona.apk.sha256
+          printf 'Sona 1.2.43+145 TEST. On top of the 1.2.42 TradingView Trade-tab box: (1) floating fullscreen button inside the box, top-right of the plot, opens the existing GOLD - TradingView chart page; (2) widget URL gains enabled_features pinch_scale and show_zoom_and_move_buttons_on_touch (flags verified live-effective on the exact embed; pinch inside Android WebView still needs on-phone verification). No changes to data, signals, orders, or balances. Source: %s\n' "$SOURCE_SHA" > /tmp/Sona-test-source.txt
+          TAG="test-tv-fs-145-${{ github.run_id }}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$SOURCE_SHA" -f name='Sona 1.2.43 TEST - TV fullscreen button and zoom flags' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Do not publish.' > /tmp/draft-before.json
+          DRAFT=$(jq -er '.id' /tmp/draft-before.json)
+          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
+          gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
+          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
+          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
+          echo "DRAFT_URL=$(jq -r '.html_url' /tmp/draft-after.json)" >> "$GITHUB_ENV"
+      - name: Upload APK artifact for capture job
+        uses: actions/upload-artifact@v4
+        with:
+          name: sona-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+      - id: gofile
+        name: Copy verified APK to gofile for phone delivery
+        run: |
+          set -eo pipefail
+          curl -sS -F "file=@/tmp/Sona.apk" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
+      - name: Build emulator-compatible x64 APK for capture (same source, same signing)
+        run: |
+          set -euo pipefail
+          flutter build apk --release --target-platform android-x64
+          cp build/app/outputs/flutter-apk/app-release.apk /tmp/sona-capture-x64.apk
+          ls -la /tmp/sona-capture-x64.apk
+      - name: Upload x64 capture APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sona-apk-x64
+          path: /tmp/sona-capture-x64.apk
+  capture:
+    needs: build
+    if: ${{ always() && (needs.build.result == 'success' || github.event.inputs.reuse_run_id != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Kolkata
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.reuse_run_id == '' }}
+        with:
+          name: sona-apk-x64
+          path: /tmp/apk
+      - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.reuse_run_id != '' }}
+        with:
+          name: sona-apk-x64
+          path: /tmp/apk
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.inputs.reuse_run_id }}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator, install APK, capture Trade tab TV box with fullscreen button, opened page, and return
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install -r /tmp/apk/sona-capture-x64.apk
+            adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1 || true
+            adb shell pm grant com.ambi.gold_paper_trading android.permission.POST_NOTIFICATIONS || true
+            for i in $(seq 1 24); do adb shell dumpsys activity activities | grep -E "ResumedActivity" | grep -q com.ambi.gold_paper_trading && break; sleep 5; done; true
+            sleep 45
+            adb exec-out screencap -p > /tmp/sona-trade-tv.png
+            adb shell uiautomator dump /sdcard/ui.xml || true
+            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oJy90bXAvdWkueG1sJywgZW5jb2Rpbmc9J3V0Zi04JywgZXJyb3JzPSdpZ25vcmUnKS5yZWFkKCkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIHN5cy5leGl0KCkKbSA9IHJlLnNlYXJjaChyJ2NvbnRlbnQtZGVzYz0iT3BlbiBmdWxsIHNjcmVlbiJbXj5dKmJvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIicsIHgpCmlmIG5vdCBtOgogICAgbSA9IHJlLnNlYXJjaChyJ2JvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIltePl0qY29udGVudC1kZXNjPSJPcGVuIGZ1bGwgc2NyZWVuIicsIHgpCmlmIG06CiAgICBhLCBiLCBjLCBkID0gKGludChnKSBmb3IgZyBpbiBtLmdyb3VwcygpKQogICAgcHJpbnQoZid7KGEgKyBjKSAvLyAyfSB7KGIgKyBkKSAvLyAyfScpCg== | base64 -d > /tmp/tap.py
+            python3 /tmp/tap.py > /tmp/tapcoords || true
+            cat /tmp/tapcoords || true
+            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); fi; sleep 12
+            adb exec-out screencap -p > /tmp/sona-tv-opened.png
+            adb shell input keyevent 4; sleep 8
+            adb exec-out screencap -p > /tmp/sona-tv-returned.png
+            adb logcat -d -t 400 > /tmp/logcat.txt || true
+      - name: Upload phone captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-captures
+          path: |
+            /tmp/sona-trade-tv.png
+            /tmp/sona-tv-opened.png
+            /tmp/sona-tv-returned.png
+            /tmp/ui.xml
+            /tmp/logcat.txt
+            /tmp/fg.txt
+          if-no-files-found: warn
+      - id: gofile_caps
+        name: Copy captures to gofile for inspection
+        if: always()
+        run: |
+          set -uo pipefail
+          for f in /tmp/sona-trade-tv.png /tmp/sona-tv-opened.png /tmp/sona-tv-returned.png; do
+            [ -s "$f" ] || continue
+            curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE-CAP', d.get('status'), d.get('data',{}).get('downloadPage'))" || true
+          done
+      - name: Record capture outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          { echo "capture outcome for run ${{ github.run_id }}"; ls -la /tmp/sona-trade-*.png 2>/dev/null || echo 'no screenshots produced'; } > /tmp/capture-final.txt
+          gh release create "tv-fs-capture-${{ github.run_id }}" --repo "$GITHUB_REPOSITORY" --draft --target main --title "TV fullscreen capture status" --notes-file /tmp/capture-final.txt || true
