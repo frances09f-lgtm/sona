@@ -283,7 +283,8 @@ jobs:
             echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oJy90bXAvdWkueG1sJywgZW5jb2Rpbmc9J3V0Zi04JywgZXJyb3JzPSdpZ25vcmUnKS5yZWFkKCkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIHN5cy5leGl0KCkKbSA9IHJlLnNlYXJjaChyJ2NvbnRlbnQtZGVzYz0iT3BlbiBmdWxsIHNjcmVlbiJbXj5dKmJvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIicsIHgpCmlmIG5vdCBtOgogICAgbSA9IHJlLnNlYXJjaChyJ2JvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIltePl0qY29udGVudC1kZXNjPSJPcGVuIGZ1bGwgc2NyZWVuIicsIHgpCmlmIG06CiAgICBhLCBiLCBjLCBkID0gKGludChnKSBmb3IgZyBpbiBtLmdyb3VwcygpKQogICAgcHJpbnQoZid7KGEgKyBjKSAvLyAyfSB7KGIgKyBkKSAvLyAyfScpCg== | base64 -d > /tmp/tap.py
             python3 /tmp/tap.py > /tmp/tapcoords || true
             cat /tmp/tapcoords || true
-            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); fi; sleep 12
+            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); fi
+            for i in $(seq 1 10); do sleep 6; adb exec-out screencap -p > /tmp/probe-open.png; S1=$(stat -c%s /tmp/probe-open.png); sleep 4; adb exec-out screencap -p > /tmp/probe-open2.png; S2=$(stat -c%s /tmp/probe-open2.png); if [ "$S1" = "$S2" ] && [ "$i" -ge 3 ]; then break; fi; done
             adb exec-out screencap -p > /tmp/sona-tv-opened.png
             adb shell input keyevent 4; sleep 8
             adb exec-out screencap -p > /tmp/sona-tv-returned.png
