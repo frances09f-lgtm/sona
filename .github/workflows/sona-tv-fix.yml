@@ -382,14 +382,27 @@ jobs:
           for line in open('/tmp/flutter-results.jsonl'):
               try: ev = json.loads(line)
               except Exception: continue
-              if ev.get('type') == 'test' and ev.get('test'): names[ev['test']['id']] = ev['test'].get('name','')
-              if ev.get('type') == 'testDone' and ev.get('result') != 'success' and not ev.get('skipped'): fails.append((ev.get('testID'), ev.get('result')))
-              if ev.get('type') == 'error' and len(errs) < 5: errs.append(str(ev.get('error'))[:400])
+              if not isinstance(ev, dict): continue
+              tev = ev.get('test')
+              if ev.get('type') == 'test' and isinstance(tev, dict) and 'id' in tev:
+                  names[tev['id']] = tev.get('name', '')
+              if ev.get('type') == 'testDone' and ev.get('result') != 'success' and not ev.get('skipped'):
+                  fails.append((ev.get('testID'), ev.get('result')))
+              if ev.get('type') == 'error' and len(errs) < 5:
+                  errs.append(str(ev.get('error'))[:400])
           for tid, res in fails[:40]: print('FAILED_TEST', res, names.get(tid, tid))
           for e in errs: print('TEST_ERROR', e)
           print('TOTAL_FAILURES', len(fails))
           PYEOF
+          cp /tmp/flutter-results.jsonl /tmp/flutter-results-copy.jsonl || true
           [ "$OK" = 1 ]
+      - name: Preserve raw test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-raw
+          path: /tmp/flutter-results-copy.jsonl
+          if-no-files-found: warn
       - name: Save tested source
         run: |
           set -euo pipefail
