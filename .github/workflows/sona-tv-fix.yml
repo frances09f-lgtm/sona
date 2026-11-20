@@ -514,7 +514,7 @@ jobs:
             adb shell pm grant com.ambi.gold_paper_trading android.permission.POST_NOTIFICATIONS || true
             for i in $(seq 1 24); do adb shell dumpsys activity activities | grep -E "ResumedActivity" | grep -q com.ambi.gold_paper_trading && break; sleep 5; done; true
             adb shell dumpsys activity activities | grep -E "ResumedActivity" > /tmp/fg.txt || true
-            sleep 20
+            sleep 45
             cat /tmp/fg.txt || true
             adb exec-out screencap -p > /tmp/sona-trade-tv.png
             adb shell uiautomator dump /sdcard/ui.xml || true
@@ -522,7 +522,7 @@ jobs:
             echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oJy90bXAvdWkueG1sJywgZW5jb2Rpbmc9J3V0Zi04JywgZXJyb3JzPSdpZ25vcmUnKS5yZWFkKCkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIHN5cy5leGl0KCkKbSA9IHJlLnNlYXJjaChyJ3RleHQ9IlNvbmEgY2hhcnQiW14+XSpib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCB4KQppZiBtOgogICAgYSwgYiwgYywgZCA9IChpbnQoZykgZm9yIGcgaW4gbS5ncm91cHMoKSkKICAgIHByaW50KGYneyhhICsgYykgLy8gMn0geyhiICsgZCkgLy8gMn0nKQo= | base64 -d > /tmp/tap.py
             python3 /tmp/tap.py > /tmp/tapcoords || true
             cat /tmp/tapcoords || true
-            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); sleep 10; fi
+            if [ -s /tmp/tapcoords ]; then adb shell input tap $(cat /tmp/tapcoords); else adb shell input tap 670 637; fi; sleep 12
             adb exec-out screencap -p > /tmp/sona-trade-after-toggle.png
             adb logcat -d -t 400 > /tmp/logcat.txt || true
       - name: Upload phone captures
