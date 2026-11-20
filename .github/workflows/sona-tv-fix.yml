@@ -1,8 +1,14 @@
 name: Sona 1.2.42 TradingView on Trade tab signed TEST
 on:
   workflow_dispatch:
+    inputs:
+      reuse_run_id:
+        description: 'Skip build job; reuse sona-apk-x64 artifact from this previous run id (capture-only iteration)'
+        required: false
+        default: ''
 jobs:
   build:
+    if: ${{ github.event.inputs.reuse_run_id == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -469,17 +475,27 @@ jobs:
           path: /tmp/sona-capture-x64.apk
   capture:
     needs: build
+    if: ${{ always() && (needs.build.result == 'success' || github.event.inputs.reuse_run_id != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       TZ: Asia/Kolkata
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.reuse_run_id == '' }}
         with:
           name: sona-apk-x64
           path: /tmp/apk
+      - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.reuse_run_id != '' }}
+        with:
+          name: sona-apk-x64
+          path: /tmp/apk
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.inputs.reuse_run_id }}
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -495,8 +511,10 @@ jobs:
           script: |
             adb install -r /tmp/apk/sona-capture-x64.apk
             adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1 || true
-            for i in $(seq 1 24); do adb shell dumpsys activity activities | grep mResumedActivity | grep -q com.ambi.gold_paper_trading && break; sleep 5; done; true
-            adb shell dumpsys activity activities | grep mResumedActivity > /tmp/fg.txt || true
+            adb shell pm grant com.ambi.gold_paper_trading android.permission.POST_NOTIFICATIONS || true
+            for i in $(seq 1 24); do adb shell dumpsys activity activities | grep -E "ResumedActivity" | grep -q com.ambi.gold_paper_trading && break; sleep 5; done; true
+            adb shell dumpsys activity activities | grep -E "ResumedActivity" > /tmp/fg.txt || true
+            sleep 20
             cat /tmp/fg.txt || true
             adb exec-out screencap -p > /tmp/sona-trade-tv.png
             adb shell uiautomator dump /sdcard/ui.xml || true
