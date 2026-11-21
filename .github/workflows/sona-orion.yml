@@ -237,7 +237,7 @@ jobs:
         if: always()
         run: |
           set -eo pipefail
-          cd /tmp && tar czf sona-orion-captures.tgz sona-orion-*.png logcat.txt 2>/dev/null || tar czf sona-orion-captures.tgz $(ls sona-orion-*.png 2>/dev/null)
+          cd /tmp && tar czf sona-orion-captures.tgz $(ls sona-orion-*.png 2>/dev/null)
           curl -sS -F "file=@/tmp/sona-orion-captures.tgz" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE_CAPS', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
       - name: Upload phone captures
         if: always()
