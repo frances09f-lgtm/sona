@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'market_data/market_data_config.dart';
+import 'orion.dart' as zo;
 import 'market_data/models.dart';
 import 'market_data/twelve_data_candles.dart';
 import 'technical_gauge.dart';
@@ -265,11 +266,9 @@ class TechnicalSummaryCardView extends StatelessWidget {
                 labelStyle: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: chip == c
-                      ? const Color(0xFF1E6B3C)
-                      : const Color(0xFFBBBBBB),
+                  color: chip == c ? const Color(0xFF1E6B3C) : zo.O.soft,
                 ),
-                backgroundColor: const Color(0xFF1C1C1E),
+                backgroundColor: zo.O.panel2,
                 selectedColor: const Color(0xFFD8F0DC),
                 shape: const StadiumBorder(),
                 side: BorderSide.none,
