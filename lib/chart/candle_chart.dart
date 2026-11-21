@@ -139,6 +139,13 @@ class CandleChartPanel extends StatefulWidget {
   /// the chart in the page (range chips, style, fullscreen).
   final bool chromeless;
 
+  /// Inline Trade-page chart height in logical pixels. When set (the
+  /// Trade page passes a viewport-derived value), the chromeless inline
+  /// chart uses it instead of the default fraction expression, keeping
+  /// every other call site (fullscreen, embeds, tests) on the baseline
+  /// sizing.
+  final double? inlineHeight;
+
   /// When false, the panel does not load or follow the user's saved
   /// drawings, strategies, overlay migration or selection sync. The BTC
   /// practice chart uses this so gold's saved chart state never appears
@@ -164,6 +171,7 @@ class CandleChartPanel extends StatefulWidget {
     this.expand = false,
     this.rangeMode = false,
     this.chromeless = false,
+    this.inlineHeight,
     this.personalOverlays = true,
     this.initialLayout,
     this.marketUpdates,
@@ -1482,19 +1490,14 @@ class CandleChartPanelState extends State<CandleChartPanel>
     if (widget.chromeless) {
       if (widget.expand) return _body();
       return SizedBox(
-        // Approved Orion reference: the chart box is ~230px on an 840px
-        // phone (27%). The app Trade page stacks extra real rows the
-        // preview lacks (limits stats row, header chrome), so on tall
-        // screens 0.26 pushed the daily-limits card under the pinned order
-        // bar (measured on 1080x2400 captures: card needs 254px from
-        // y=1730 but the bar starts at y=1909). 0.21 clamped to
-        // [190, 230] keeps the full card plus ~12dp clearance above the
-        // bar on a 914dp viewport; shorter phones keep a usable chart and
-        // the list scrolls. Fullscreen keeps the expanded chart.
-        height: (MediaQuery.of(context).size.height * 0.21).clamp(
-              190.0,
-              230.0,
-            ) +
+        // Default (baseline behavior, unchanged): the chart box is ~230px
+        // on an 840px phone (27%); 0.26 keeps the daily-limits card fully
+        // visible above the pinned order bar on taller viewports (measured
+        // on 914dp). The Trade page passes an explicit inlineHeight derived
+        // from its measured stack instead; fullscreen and embedded call
+        // sites keep this default.
+        height: (widget.inlineHeight ??
+                math.max(MediaQuery.of(context).size.height * 0.26, 230.0)) +
             _rsiHeight +
             _macdHeight,
         child: _body(),
@@ -1646,7 +1649,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           ),
                           const PopupMenuItem(
                             value: 'configure',
-                            child: Text('Indicator settingsâ¦'),
+                            child: Text('Indicator settings…'),
                           ),
                           for (final item in <(String, String, bool)>[
                             ('SMA20', 'SMA 20', smaOn),
@@ -2007,7 +2010,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      f.score > 0 ? '+' : (f.score < 0 ? '-' : 'Â·'),
+                      f.score > 0 ? '+' : (f.score < 0 ? '-' : '·'),
                       style: TextStyle(
                         color: f.score > 0 ? green : (f.score < 0 ? red : dim),
                         fontSize: 11,
@@ -3223,7 +3226,7 @@ class CandlePainter extends CustomPainter {
             text: '${ss.$1} correct',
             style: chipStyle.copyWith(color: bullC, fontWeight: FontWeight.w700),
           ),
-          const TextSpan(text: '  Â·  ', style: chipStyle),
+          const TextSpan(text: '  ·  ', style: chipStyle),
           TextSpan(
             text: '${ss.$2} wrong',
             style: chipStyle.copyWith(color: bearC, fontWeight: FontWeight.w700),
@@ -4039,7 +4042,7 @@ class FullscreenChartPage extends StatefulWidget {
   final List<SignalZone> Function()? signalZonesOf;
   final (int, int)? Function()? signalStatsOf;
 
-  /// Î£ menu "Refresh signals": clears current signal boxes and asks for
+  /// Σ menu "Refresh signals": clears current signal boxes and asks for
   /// new ones. Returns a short status line shown in a snackbar. Null hides
   /// the menu item so other callers keep their menu unchanged.
   final Future<String> Function()? onRefreshSignals;
@@ -4682,7 +4685,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'GOLD Â· ${_barLabel(st)}',
+                                      'GOLD · ${_barLabel(st)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
@@ -4868,7 +4871,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     return Tooltip(
       message: pct == null
           ? 'Daily change unavailable: no current provider-day open or fresh live quote. Replay has no live daily change.'
-          : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} Â· ${_dayOpen!.sessionDate} Â· ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
+          : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} · ${_dayOpen!.sessionDate} · ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, key: const ValueKey('provider-day-change'), style: TextStyle(color: color, fontSize: 11)),
       ]),
