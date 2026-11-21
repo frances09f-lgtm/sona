@@ -94,8 +94,8 @@ void main() {
     (t) async {
       final app = await account();
       final key = await mount(t, AddTab(app: app));
-      expect(find.text('Buy at entry price'), findsOneWidget);
-      await t.tap(find.text('Buy at entry price'));
+      expect(find.text('Pending buy order'), findsOneWidget);
+      await t.tap(find.text('Pending buy order'));
       await t.pumpAndSettle();
       await t.ensureVisible(field('Entry price'));
       await t.enterText(field('Entry price'), '3990');
@@ -111,6 +111,8 @@ void main() {
         PendingPaperOrders.load(app.prefs!).orders.single.status,
         'pending',
       );
+      await t.tap(find.textContaining('at entry price 3,990.00'));
+      await t.pumpAndSettle();
       expect(
         find.textContaining('Waiting for Ask at or below 3,990.00'),
         findsOneWidget,
@@ -152,7 +154,7 @@ void main() {
     (t) async {
       final app = await account();
       await mount(t, AddTab(app: app));
-      await t.tap(find.text('Sell at entry price'));
+      await t.tap(find.text('Pending sell order'));
       await t.pumpAndSettle();
       await t.ensureVisible(field('Entry price'));
       await t.enterText(field('Entry price'), '4010');
@@ -241,7 +243,7 @@ void main() {
   testWidgets('Add manual journal remains non-executable', (t) async {
     final app = await account();
     await mount(t, AddTab(app: app));
-    await t.tap(find.text('Buy'));
+    await t.tap(find.text('Log buy'));
     await t.pumpAndSettle();
     await t.enterText(field('Entry'), '3900');
     await t.dragUntilVisible(
