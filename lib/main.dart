@@ -1170,14 +1170,18 @@ ThemeData buildAppTheme() => ThemeData(
   cardColor: cCard,
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
-    fillColor: cBg,
+    fillColor: const Color(0xFF2A2521),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: cBorder),
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide.none,
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: cBorder),
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: const BorderSide(color: Color(0xFF3A342E)),
     ),
   ),
 );
@@ -1336,20 +1340,58 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
           body: Column(
             children: [
               if (!app.unlocked)
-                MaterialBanner(
-                  content: Text(
-                    app.unlocking
-                        ? 'Connecting saved paper account...'
-                        : 'Paper account not connected. Quotes are available.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => LockScreen(app: app)),
-                      ),
-                      child: const Text('Connect'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  ],
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD9EAFB),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            app.unlocking
+                                ? 'Connecting saved paper account...'
+                                : 'Paper account not connected. Quotes are available.',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF12314F),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => LockScreen(app: app),
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF12314F),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Connect',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               Expanded(
                 child: IndexedStack(
@@ -1740,6 +1782,11 @@ class TradeTab extends StatefulWidget {
   State<TradeTab> createState() => _TradeTabState();
 }
 
+/// Test-only override for [TradeTab]'s TradingView support check
+/// (Platform.isAndroid is false under flutter test on desktop).
+@visibleForTesting
+bool? debugTradeTvSupported;
+
 class _TradeTabState extends State<TradeTab> {
   Future<void> confirmChartAlert(double level) async {
     bool above = app.price == null || level >= app.price!;
@@ -1836,7 +1883,7 @@ class _TradeTabState extends State<TradeTab> {
   static const String _kTradeChartTvKey = 'trade_chart_tv';
   // The TradingView box needs the Android WebView. Off-Android (tests,
   // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
-  final bool _tvSupported = Platform.isAndroid;
+  final bool _tvSupported = debugTradeTvSupported ?? Platform.isAndroid;
   bool _tradeTvChart = true;
   bool get _showTv => _tvSupported && _tradeTvChart;
 
@@ -1852,19 +1899,59 @@ class _TradeTabState extends State<TradeTab> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF2EDE6) : const Color(0xFF2A2521),
+          color: selected ? const Color(0xFFF2EDE6) : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFF2C2723)),
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: selected ? const Color(0xFF201A17) : const Color(0xFFB4ABA0),
+            color: selected
+                ? const Color(0xFF14110F)
+                : const Color(0xFFB4ABA0),
           ),
+        ),
+      ),
+    );
+  }
+
+  final Map<String, GlobalKey> _tfKeyFor = {};
+  bool _tfScrollDone = false;
+  void _ensureTfVisible(String label) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _tfKeyFor[label]?.currentContext;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5,
+          duration: Duration.zero,
+        );
+      }
+    });
+  }
+
+  Widget _tfIconBtn({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool on = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: on ? const Color(0xFFD8F0DC) : const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: on ? const Color(0xFF1E6B3C) : const Color(0xFFBBBBBB),
         ),
       ),
     );
@@ -2004,23 +2091,25 @@ class _TradeTabState extends State<TradeTab> {
       key: ValueKey('trade-tf-$label'),
       onTap: () => setState(() {
         chartKey.currentState?.applyChartSelection(range: false, code: code);
+        _ensureTfVisible(label);
       }),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2A2521) : Colors.transparent,
+          color: selected
+              ? const Color(0xFFD8F0DC)
+              : const Color(0xFF1C1C1E),
           borderRadius: BorderRadius.circular(999),
-          border: selected
-              ? Border.all(color: const Color(0xFF2C2723))
-              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: selected ? const Color(0xFFF2EDE6) : cDim,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: selected
+                ? const Color(0xFF1E6B3C)
+                : const Color(0xFFBBBBBB),
           ),
         ),
       ),
@@ -2401,75 +2490,121 @@ class _TradeTabState extends State<TradeTab> {
                 const SizedBox(height: 12),
                 if (_tvSupported)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _chartModeChip(
-                        'Sona chart',
-                        !_tradeTvChart,
-                        () => _setTradeChartTv(false),
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A2521),
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      const SizedBox(width: 6),
-                      _chartModeChip(
-                        'TradingView',
-                        _tradeTvChart,
-                        () => _setTradeChartTv(true),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!_showTv)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 2),
-                  child: Row(
-                    children: [
-                      InkWell(
-                        onTap: () => chartKey.currentState?.cycleChartStyle(),
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(
-                            Icons.candlestick_chart,
-                            size: 20,
-                            color: cDim,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _chartModeChip(
+                              'Sona chart',
+                              !_tradeTvChart,
+                              () => _setTradeChartTv(false),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _chartModeChip(
+                              'TradingView',
+                              _tradeTvChart,
+                              () => _setTradeChartTv(true),
+                            ),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            // Candle size only (1m / 5m / 1h / 4h / 1D). The
-                            // old history-range chips were removed at the
-                            // user's request.
-                            for (final o in const [
-                              ('1min', '1m'),
-                              ('5min', '5m'),
-                              ('1h', '1h'),
-                              ('4h', '4h'),
-                              ('1day', '1D'),
-                            ])
-                              _intervalChip(o.$1, o.$2),
-                          ],
-                        ),
-                      ),
-                      InkWell(
-                        onTap: _openChartFullscreen,
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(Icons.fullscreen, size: 20, color: cDim),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
                 if (!_showTv)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(28),
                     child: Container(
                       color: Colors.black,
                       padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                      child: CandleChartPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              _tfIconBtn(
+                                icon: Icons.candlestick_chart,
+                                onTap: () => chartKey.currentState
+                                    ?.cycleChartStyle(),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Builder(
+                                  builder: (ctx) {
+                                    final stNow = chartKey.currentState;
+                                    if (!_tfScrollDone && stNow != null) {
+                                      _tfScrollDone = true;
+                                      const codes = {
+                                        '1min': '1m',
+                                        '5min': '5m',
+                                        '1h': '1h',
+                                        '4h': '4h',
+                                        '1day': '1D',
+                                      };
+                                      final lbl = codes[stNow.interval.code];
+                                      if (lbl != null) _ensureTfVisible(lbl);
+                                    }
+                                    return SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      for (final o in const [
+                                        ('1min', '1m'),
+                                        ('5min', '5m'),
+                                        ('1h', '1h'),
+                                        ('4h', '4h'),
+                                        ('1day', '1D'),
+                                      ])
+                                        Padding(
+                                          key: _tfKeyFor.putIfAbsent(
+                                            o.$2,
+                                            GlobalKey.new,
+                                          ),
+                                          padding: const EdgeInsets.only(
+                                            right: 6,
+                                          ),
+                                          child: _intervalChip(o.$1, o.$2),
+                                        ),
+                                    ],
+                                  ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              _tfIconBtn(
+                                icon: Icons.notification_important_outlined,
+                                onTap: () {
+                                  final p = app.chartBasis;
+                                  if (p != null) confirmChartAlert(p);
+                                },
+                              ),
+                              const SizedBox(width: 6),
+                              _tfIconBtn(
+                                icon: Icons.play_circle_outline,
+                                on: _replay != null || _pickingReplayStart,
+                                onTap: _toggleReplay,
+                              ),
+                              const SizedBox(width: 6),
+                              _tfIconBtn(
+                                icon: Icons.lightbulb_outline,
+                                onTap: explainChart,
+                              ),
+                              const SizedBox(width: 6),
+                              _tfIconBtn(
+                                icon: Icons.fullscreen,
+                                onTap: _openChartFullscreen,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          CandleChartPanel(
                     key: chartKey,
                   onAlertPrice: confirmChartAlert,
                   rangeMode: true,
@@ -2549,6 +2684,17 @@ class _TradeTabState extends State<TradeTab> {
                     );
                   },
                     livePrice: _replay?.price ?? app.chartBasis,
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Sona chart with signals.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF8A8A8A),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -3060,7 +3206,9 @@ class _TradeTabState extends State<TradeTab> {
                   ),
                 const SizedBox(height: 6),
                 Text(
-                  'Spread USD/oz · ${fresh ? 'Live quote' : 'Quote stale or unavailable'} · Tap a side to open the order sheet',
+                  fresh
+                      ? 'Live quote · tap a side to order'
+                      : 'Quote stale or unavailable',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: cDim, fontSize: 10),
                 ),
@@ -3634,8 +3782,16 @@ class _PositionsTabState extends State<PositionsTab> {
     final tp = app.effectiveLimit(t, 'tp');
     final sl = app.effectiveLimit(t, 'sl');
     final isClosing = app.closing.contains(id);
-    return card(
-      Column(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD8F0DC),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: Color(0xFF201A17)),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           InkWell(
@@ -3745,8 +3901,8 @@ class _PositionsTabState extends State<PositionsTab> {
             _limitSwitch(t, 'sl', 'Stop Loss', sl),
           ],
         ],
+        ),
       ),
-      padding: const EdgeInsets.all(14),
     );
   }
 
@@ -5144,13 +5300,37 @@ class _StatsTabState extends State<StatsTab> {
                   days = n;
                   customRange = null;
                 }),
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: days == n && customRange == null
+                      ? const Color(0xFF1E6B3C)
+                      : const Color(0xFFBBBBBB),
+                ),
+                backgroundColor: const Color(0xFF1C1C1E),
+                selectedColor: const Color(0xFFD8F0DC),
+                shape: const StadiumBorder(),
+                side: BorderSide.none,
               ),
             ActionChip(
               label: Text(
                 customRange == null
                     ? 'Date range'
                     : '${customRange!.start.day}/${customRange!.start.month}–${customRange!.end.day}/${customRange!.end.month}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: customRange != null
+                      ? const Color(0xFF1E6B3C)
+                      : const Color(0xFFBBBBBB),
+                ),
               ),
+              backgroundColor: customRange != null
+                  ? const Color(0xFFD8F0DC)
+                  : const Color(0xFF1C1C1E),
+              shape: const StadiumBorder(),
+              side: BorderSide.none,
               onPressed: () async {
                 final range = await showDateRangePicker(
                   context: context,
@@ -5894,6 +6074,8 @@ class _AiTabState extends State<AiTab> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF201A17),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF201A17),
+                      disabledForegroundColor: Colors.white54,
                       shape: const StadiumBorder(),
                     ),
                     onPressed: _advising || !st.keyConfigured
@@ -6062,14 +6244,33 @@ class _AiTabState extends State<AiTab> {
                     fontSize: 12,
                   ),
                 ),
-                OutlinedButton(
-                  onPressed: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ApiKeysScreen()),
-                    );
-                    _refresh();
-                  },
-                  child: const Text('API settings'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ApiKeysScreen()),
+                      );
+                      _refresh();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A2521),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'API settings',
+                        style: TextStyle(
+                          color: Color(0xFFF2EDE6),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 if (st.keyConfigured)
                   const Text(
@@ -6173,6 +6374,8 @@ class _AiTabState extends State<AiTab> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF201A17),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF201A17),
+                      disabledForegroundColor: Colors.white54,
                       shape: const StadiumBorder(),
                     ),
                     onPressed: _thinking || !st.enabled
