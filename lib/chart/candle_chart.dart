@@ -1483,9 +1483,18 @@ class CandleChartPanelState extends State<CandleChartPanel>
       if (widget.expand) return _body();
       return SizedBox(
         // Approved Orion reference: the chart box is ~230px on an 840px
-        // phone (27%); 0.26 keeps the daily-limits card fully visible above
-        // the pinned order bar on taller viewports (measured on 914dp).
-        height: math.max(MediaQuery.of(context).size.height * 0.26, 230.0) +
+        // phone (27%). The app Trade page stacks extra real rows the
+        // preview lacks (limits stats row, header chrome), so on tall
+        // screens 0.26 pushed the daily-limits card under the pinned order
+        // bar (measured on 1080x2400 captures: card needs 254px from
+        // y=1730 but the bar starts at y=1909). 0.21 clamped to
+        // [190, 230] keeps the full card plus ~12dp clearance above the
+        // bar on a 914dp viewport; shorter phones keep a usable chart and
+        // the list scrolls. Fullscreen keeps the expanded chart.
+        height: (MediaQuery.of(context).size.height * 0.21).clamp(
+              190.0,
+              230.0,
+            ) +
             _rsiHeight +
             _macdHeight,
         child: _body(),
@@ -1637,7 +1646,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                           ),
                           const PopupMenuItem(
                             value: 'configure',
-                            child: Text('Indicator settings…'),
+                            child: Text('Indicator settingsâ¦'),
                           ),
                           for (final item in <(String, String, bool)>[
                             ('SMA20', 'SMA 20', smaOn),
@@ -1998,7 +2007,7 @@ class CandleChartPanelState extends State<CandleChartPanel>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      f.score > 0 ? '+' : (f.score < 0 ? '-' : '·'),
+                      f.score > 0 ? '+' : (f.score < 0 ? '-' : 'Â·'),
                       style: TextStyle(
                         color: f.score > 0 ? green : (f.score < 0 ? red : dim),
                         fontSize: 11,
@@ -3214,7 +3223,7 @@ class CandlePainter extends CustomPainter {
             text: '${ss.$1} correct',
             style: chipStyle.copyWith(color: bullC, fontWeight: FontWeight.w700),
           ),
-          const TextSpan(text: '  ·  ', style: chipStyle),
+          const TextSpan(text: '  Â·  ', style: chipStyle),
           TextSpan(
             text: '${ss.$2} wrong',
             style: chipStyle.copyWith(color: bearC, fontWeight: FontWeight.w700),
@@ -4030,7 +4039,7 @@ class FullscreenChartPage extends StatefulWidget {
   final List<SignalZone> Function()? signalZonesOf;
   final (int, int)? Function()? signalStatsOf;
 
-  /// Σ menu "Refresh signals": clears current signal boxes and asks for
+  /// Î£ menu "Refresh signals": clears current signal boxes and asks for
   /// new ones. Returns a short status line shown in a snackbar. Null hides
   /// the menu item so other callers keep their menu unchanged.
   final Future<String> Function()? onRefreshSignals;
@@ -4673,7 +4682,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'GOLD · ${_barLabel(st)}',
+                                      'GOLD Â· ${_barLabel(st)}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
@@ -4859,7 +4868,7 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
     return Tooltip(
       message: pct == null
           ? 'Daily change unavailable: no current provider-day open or fresh live quote. Replay has no live daily change.'
-          : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} · ${_dayOpen!.sessionDate} · ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
+          : 'Twelve Data provider day open ${_dayOpen!.open.toStringAsFixed(2)} Â· ${_dayOpen!.sessionDate} Â· ${_dayOpen!.exchangeTimezone}. Not an XM360 session reference.',
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, key: const ValueKey('provider-day-change'), style: TextStyle(color: color, fontSize: 11)),
       ]),
