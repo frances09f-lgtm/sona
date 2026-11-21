@@ -53,6 +53,7 @@ import 'friday_orders.dart';
 import 'notifications.dart';
 import 'usage_reporter.dart';
 import 'orion.dart' as zo;
+import 'orion_icons.dart' as zo;
 
 const String sbUrl = 'https://ncaialkmxhbtarmhoiei.supabase.co';
 const String sbKey = 'sb_publishable_oNw5xcfdpesEihrdmFXfgQ_HKgsVYAi';
@@ -1634,7 +1635,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.candlestick_chart_outlined),
+          leading: zo.OIcon(zo.OIconPaths.candle, color: zo.O.soft),
           title: const Text('Candle interval'),
           subtitle: Text(
             'Chart shows candle intervals - now: ${_labelFor(false, _intervalCode)}${_mode == 'candles' ? ' (active)' : ''}',
@@ -1655,7 +1656,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.date_range_outlined),
+          leading: zo.OIcon(zo.OIconPaths.range, color: zo.O.soft),
           title: const Text('History range'),
           subtitle: Text(
             'Chart shows history ranges - now: ${_labelFor(true, _rangeCode)}${_mode == 'range' ? ' (active)' : ''}',
@@ -1676,7 +1677,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.school_outlined),
+          leading: zo.OIcon(zo.OIconPaths.school, color: zo.O.soft),
           title: const Text('Practice replay'),
           subtitle: const Text(
             'Replay real candles fast and call up or down - training only',
@@ -1698,7 +1699,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.troubleshoot_outlined),
+          leading: zo.OIcon(zo.OIconPaths.diag, color: zo.O.soft),
           title: const Text('Chart diagnostics'),
           subtitle: const Text(
             'Test-build facts: raw provider bars, quote freshness, build id',
@@ -1723,7 +1724,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.psychology_outlined),
+          leading: zo.OIcon(zo.OIconPaths.brain, color: zo.O.soft),
           title: const Text('Strategies'),
           subtitle: const Text(
             'Custom price-action strategies: chart levels and backtests',
@@ -1748,7 +1749,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.shield_outlined),
+          leading: zo.OIcon(zo.OIconPaths.shield, color: zo.O.soft),
           title: const Text('Stop loss & take profit'),
           subtitle: Text(
             'For AI and Advice trades - now: ${_protection.describe()}',
@@ -1777,7 +1778,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontSize: 12,
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
-          leading: const Icon(Icons.show_chart),
+          leading: zo.OIcon(zo.OIconPaths.chartline, color: zo.O.soft),
           title: const Text('Show ask line'),
           subtitle: const Text(
             'Red dashed line at the buy (ask) price; the yellow bid line always shows',
@@ -1812,7 +1813,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.system_update_alt),
+          leading: zo.OIcon(zo.OIconPaths.update, color: zo.O.soft),
           title: const Text('Check for updates'),
           subtitle: const Text('Download and install the latest Sona release'),
           onTap: () => checkUpdateManually(context),
@@ -1831,7 +1832,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.key_outlined),
+          leading: zo.OIcon(zo.OIconPaths.key, color: zo.O.soft),
           title: const Text('API settings'),
           subtitle: const Text('Twelve Data candles and Groq AI keys'),
           onTap: () => Navigator.of(context)
@@ -1851,7 +1852,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.school_outlined),
+          leading: zo.OIcon(zo.OIconPaths.school, color: zo.O.soft),
           title: const Text('Learn paper trading'),
           subtitle: const Text('Oz, spread, TP/SL and estimated margin'),
           onTap: () =>
@@ -1872,7 +1873,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             fontFamily: 'Roboto',
           ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
-          leading: const Icon(Icons.account_circle_outlined),
+          leading: zo.OIcon(zo.OIconPaths.user, color: zo.O.soft),
           title: const Text('Paper account'),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => LockScreen(app: widget.app)),
@@ -3080,26 +3081,34 @@ class _TradeTabState extends State<TradeTab> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
-                            child: Text(
-                              'Daily limits',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Daily limits',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => _editSlippage(context),
+                                  child: Text(
+                                    'Block new trades at limit · Slippage: ${app.slippage.label}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: zo.O.soft,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          TextButton.icon(
-                            onPressed: () => _editSlippage(context),
-                            icon: Icon(
-                              Icons.speed,
-                              size: 14,
-                              color: zo.O.soft,
-                            ),
-                            label: Text(
-                              'Slippage: ${app.slippage.label}',
-                              style: TextStyle(color: zo.O.soft, fontSize: 12),
-                            ),
+                          zo.OSwitch(
+                            value: app.blockOnLimit,
+                            onChanged: (v) =>
+                                setState(() => app.setDailyLimits(block: v)),
                           ),
                           TextButton.icon(
                             onPressed: () => _editDailyLimits(context),
@@ -3127,6 +3136,7 @@ class _TradeTabState extends State<TradeTab> {
                               zo.O.soft,
                             ),
                           ),
+                          SizedBox(width: 16),
                           Expanded(
                             child: _balRow(
                               'P/L today',
@@ -3162,21 +3172,6 @@ class _TradeTabState extends State<TradeTab> {
                             ],
                           ),
                         ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Block new trades at limit',
-                              style: TextStyle(fontSize: 12, color: zo.O.soft),
-                            ),
-                          ),
-                          zo.OSwitch(
-                            value: app.blockOnLimit,
-                            onChanged: (v) =>
-                                setState(() => app.setDailyLimits(block: v)),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -4840,76 +4835,245 @@ class PendingOrdersPanel extends StatelessWidget {
                 ),
               )
             else
-              zo.oPastel(
-              color: zo.O.lav,
-              muted: false,
-              darkInk: true,
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5A3FA8),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          o.side == 'buy' ? 'B' : 'S',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '${o.side.toUpperCase()} GOLD · ${lotsStr(o.qty)}',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      if (o.status == 'pending' ||
-                          o.status == 'cancelled' ||
-                          o.status == 'filled' ||
-                          o.status == 'expired')
-                        PendingOrderRemoveButton(app: app, order: o),
-                    ],
-                  ),
-                    Text(switch (o.status) {
-                      'pending' =>
-                        'Waiting for ${o.side == "buy" ? "Ask" : "Bid"} at or ${o.above ? "above" : "below"} ${fmtG(o.trigger)}',
-                      'filled' => 'Filled',
-                      'cancelled' => 'Cancelled',
-                      'expired' => 'Expired',
-                      'submitting' => 'Submitting - do not place again',
-                      _ => 'Needs review - check positions before retrying',
-                    }),
-                    Text(
-                      '${o.gtc ? "GTC" : "Expires at local midnight"} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
-                      style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
-                    ),
-                    if (o.status == 'pending')
-                      Text(
-                        'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
-                        style: TextStyle(color: zo.O.cardSoft, fontSize: 11),
-                      ),
-                    if (o.note != null && o.note!.isNotEmpty)
-                      Text(
-                        o.note!,
-                        style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
-                      ),
-                ],
-              ),
-            ),
+              _ApprovedPendingCard(app: app, order: o),
         ],
       );
     },
   );
+}
+
+/// Approved-design compact pending-order card: one-line summary with the
+/// lavender treatment and a trash action; tap expands the full order details.
+/// Only used on the Add tab; the frozen Portfolio path is untouched.
+class _ApprovedPendingCard extends StatefulWidget {
+  final AppState app;
+  final PendingPaperOrder order;
+  const _ApprovedPendingCard({required this.app, required this.order});
+  @override
+  State<_ApprovedPendingCard> createState() => _ApprovedPendingCardState();
+}
+
+class _ApprovedPendingCardState extends State<_ApprovedPendingCard> {
+  bool open = false;
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    return zo.oPastel(
+      color: zo.O.lav,
+      muted: false,
+      darkInk: true,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => open = !open),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5A3FA8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    o.side == 'buy' ? 'B' : 'S',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${o.side == 'buy' ? 'Buy' : 'Sell'} at entry price ${fmtG(o.trigger)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${o.gtc ? "Good Until Cancelled" : "Expires at local midnight"} · fills while Sona is open',
+                        style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  open ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: zo.O.cardSoft,
+                ),
+                if (o.status == 'pending' ||
+                    o.status == 'cancelled' ||
+                    o.status == 'filled' ||
+                    o.status == 'expired')
+                  PendingOrderRemoveButton(app: widget.app, order: o),
+              ],
+            ),
+          ),
+          if (open) ...[
+            const SizedBox(height: 8),
+            Text(switch (o.status) {
+              'pending' =>
+                'Waiting for ${o.side == "buy" ? "Ask" : "Bid"} at or ${o.above ? "above" : "below"} ${fmtG(o.trigger)}',
+              'filled' => 'Filled',
+              'cancelled' => 'Cancelled',
+              'expired' => 'Expired',
+              'submitting' => 'Submitting - do not place again',
+              _ => 'Needs review - check positions before retrying',
+            }),
+            Text(
+              'Qty ${lotsStr(o.qty)} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
+              style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
+            ),
+            if (o.status == 'pending')
+              Text(
+                'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
+                style: TextStyle(color: zo.O.cardSoft, fontSize: 11),
+              ),
+            if (o.note != null && o.note!.isNotEmpty)
+              Text(
+                o.note!,
+                style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Approved-design compact logged-trade card: one-line summary with edit and
+/// delete icon actions; tap expands the recorded details.
+class _CompactTradeTile extends StatefulWidget {
+  final Map<String, dynamic> t;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _CompactTradeTile({
+    required this.t,
+    required this.onEdit,
+    required this.onDelete,
+  });
+  @override
+  State<_CompactTradeTile> createState() => _CompactTradeTileState();
+}
+
+class _CompactTradeTileState extends State<_CompactTradeTile> {
+  bool open = false;
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final buy = t['direction'] == 'buy';
+    final rawPnl = t['pnl'];
+    final pnl = rawPnl is num && rawPnl.toDouble().isFinite
+        ? rawPnl.toDouble()
+        : null;
+    final d = DateTime.tryParse(t['traded_at']?.toString() ?? '')?.toLocal();
+    final qty = (t['qty'] as num?)?.toDouble();
+    // qty is stored in oz; approved cards show the lot figure only.
+    final lots = qty == null ? null : qty / 100;
+    final qtyLot = lots == null
+        ? null
+        : '${lots.toStringAsFixed(2)} ${lots == 1 ? 'lot' : 'lot'}';
+    final title = qtyLot != null && pnl != null
+        ? '${buy ? 'Buy' : 'Sell'} $qtyLot · net ${money(pnl, sign: true)}'
+        : qtyLot != null
+        ? '${buy ? 'Buy' : 'Sell'} $qtyLot · open'
+        : '${buy ? 'Buy' : 'Sell'} · ${pnl != null ? 'net ${money(pnl, sign: true)}' : 'recorded'}';
+    final when = d != null
+        ? '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'
+        : '';
+    return card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => open = !open),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (when.isNotEmpty)
+                        Text(
+                          when,
+                          style: TextStyle(color: zo.O.soft, fontSize: 12),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  open ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: zo.O.soft,
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: widget.onEdit,
+                  icon: Icon(Icons.edit_outlined, size: 20, color: zo.O.soft),
+                  tooltip: 'Edit entry',
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: widget.onDelete,
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: cRed,
+                  ),
+                  tooltip: 'Delete entry',
+                ),
+              ],
+            ),
+          ),
+          if (open) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${t['instrument']?.toString() ?? 'XAU/USD'} · ${qty != null ? '${lotsStr(qty)} · ' : ''}costs ${money((t['costs'] as num?) ?? 0)}',
+              style: TextStyle(color: zo.O.soft, fontSize: 12),
+            ),
+            Text(
+              'Entry ${t['entry'] ?? '-'}'
+              '${t['exit'] != null ? ' → Exit ${t['exit']}' : ''}'
+              '${t['tp'] != null ? ' · TP ${t['tp']}' : ''}'
+              '${t['sl'] != null ? ' · SL ${t['sl']}' : ''}',
+              style: TextStyle(color: zo.O.soft, fontSize: 12, height: 1.4),
+            ),
+            if ((t['setup']?.toString() ?? '').isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Chip(label: Text(t['setup'].toString())),
+              ),
+            if (t['note'] != null && t['note'].toString().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  t['note'].toString(),
+                  style: TextStyle(fontSize: 12, color: zo.O.soft),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class AddTab extends StatefulWidget {
@@ -5048,38 +5212,38 @@ class _AddTabState extends State<AddTab> {
         Row(
           children: [
             Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: cGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: cGreen,
+                  side: BorderSide(color: cGreen.withValues(alpha: 0.6)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                     fontFamily: 'Roboto',
                   ),
                   shape: const StadiumBorder(),
                 ),
                 onPressed: () => openPending('buy'),
-                child: const Text('Buy at entry price'),
+                child: const Text('Pending buy order'),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: cRed,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: cRed,
+                  side: BorderSide(color: cRed.withValues(alpha: 0.6)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                     fontFamily: 'Roboto',
                   ),
                   shape: const StadiumBorder(),
                 ),
                 onPressed: () => openPending('sell'),
-                child: const Text('Sell at entry price'),
+                child: const Text('Pending sell order'),
               ),
             ),
           ],
@@ -5091,7 +5255,7 @@ class _AddTabState extends State<AddTab> {
         if (editingId.isEmpty && !journalOpen)
           Row(
             children: [
-              for (final e in const [('buy', 'Buy', cGreen), ('sell', 'Sell', cRed)])
+              for (final e in const [('buy', 'Log buy', cGreen), ('sell', 'Log sell', cRed)])
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(right: e.$1 == 'buy' ? 8 : 0),
@@ -5420,85 +5584,8 @@ class _AddTabState extends State<AddTab> {
     ),
   );
 
-  Widget _tradeTile(Map<String, dynamic> t) {
-    final buy = t['direction'] == 'buy';
-    final rawPnl = t['pnl'];
-    final pnl = rawPnl is num && rawPnl.toDouble().isFinite
-        ? rawPnl.toDouble()
-        : null;
-    final sizeDescription = t['qty'] == null
-        ? 'Legacy size unknown · recorded PnL'
-        : '${lotsStr((t['qty'] as num?) ?? 0)} · costs ${money((t['costs'] as num?) ?? 0)}';
-    final d = DateTime.tryParse(t['traded_at']?.toString() ?? '')?.toLocal();
-    return card(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  _pill(buy ? 'BUY' : 'SELL', buy),
-                  const SizedBox(width: 8),
-                  Text(
-                    t['instrument']?.toString() ?? 'XAU/USD',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              Text(
-                pnl == null ? 'open' : money(pnl, sign: true),
-                style: TextStyle(color: cls(pnl), fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            sizeDescription,
-            style: TextStyle(color: zo.O.soft, fontSize: 12),
-          ),
-          if ((t['setup']?.toString() ?? '').isNotEmpty)
-            Chip(label: Text(t['setup'].toString())),
-          Text(
-            'Entry ${t['entry'] ?? '-'}'
-            '${t['exit'] != null ? ' → Exit ${t['exit']}' : ''}'
-            '${t['tp'] != null ? ' · TP ${t['tp']}' : ''}'
-            '${t['sl'] != null ? ' · SL ${t['sl']}' : ''}'
-            '${d != null ? '\n${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}' : ''}',
-            style: TextStyle(color: zo.O.soft, fontSize: 12, height: 1.4),
-          ),
-          if (t['note'] != null && t['note'].toString().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                t['note'].toString(),
-                style: TextStyle(fontSize: 12, color: zo.O.soft),
-              ),
-            ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => editTrade(t),
-                child: Text(
-                  'Edit',
-                  style: TextStyle(color: zo.O.soft, fontSize: 12),
-                ),
-              ),
-              TextButton(
-                onPressed: () => _del(t),
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: cRed, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _tradeTile(Map<String, dynamic> t) =>
+      _CompactTradeTile(t: t, onEdit: () => editTrade(t), onDelete: () => _del(t));
 
   Future<void> _save() async {
     final en = pn(entryCtrl.text);
