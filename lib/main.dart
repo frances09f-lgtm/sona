@@ -2820,7 +2820,7 @@ class _TradeTabState extends State<TradeTab> {
                                 onTap: () => chartKey.currentState
                                     ?.cycleChartStyle(),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Builder(
                                   builder: (ctx) {
@@ -2854,7 +2854,7 @@ class _TradeTabState extends State<TradeTab> {
                                             GlobalKey.new,
                                           ),
                                           padding: const EdgeInsets.only(
-                                            right: 6,
+                                            right: 4,
                                           ),
                                           child: _intervalChip(o.$1, o.$2),
                                         ),
@@ -2871,18 +2871,18 @@ class _TradeTabState extends State<TradeTab> {
                                   if (p != null) confirmChartAlert(p);
                                 },
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               _tfIconBtn(
                                 icon: Icons.play_circle_outline,
                                 on: _replay != null || _pickingReplayStart,
                                 onTap: _toggleReplay,
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               _tfIconBtn(
                                 icon: Icons.lightbulb_outline,
                                 onTap: explainChart,
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               _tfIconBtn(
                                 icon: Icons.fullscreen,
                                 onTap: _openChartFullscreen,
