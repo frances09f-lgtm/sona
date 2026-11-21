@@ -49,6 +49,7 @@ void main() {
         find.text('Sona chart').evaluate().length.toString() +
         ' gold=' +
         find.text('GOLD').evaluate().length.toString());
+    debugDumpApp();
     expect(find.text('1D'), findsWidgets);
     await t.runAsync(() async {
       final im =
