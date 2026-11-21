@@ -35,6 +35,8 @@ jobs:
           set -euo pipefail
           sed -i '0,/<application/s//<application android:debuggable="true"/' android/app/src/main/AndroidManifest.xml
           grep -n 'android:debuggable="true"' android/app/src/main/AndroidManifest.xml
+          printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<lint>' '    <issue id="HardcodedDebugMode" severity="ignore" />' '</lint>' > android/app/lint.xml
+          cat android/app/lint.xml
       - id: dependencies
         run: flutter pub get
       - id: gradle_setup
