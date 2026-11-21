@@ -3401,7 +3401,55 @@ class _PositionsTabState extends State<PositionsTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              zo.oPastel(
+                radius: 32,
+                padding: const EdgeInsets.all(20),
+                muted: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'BALANCE',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.7,
+                        color: Color(0xFF6F675F),
+                      ),
+                    ),
+                    Text(
+                      '\$${app.balance.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.0,
+                        color: Color(0xFF201A17),
+                      ),
+                    ),
+                    const Text(
+                      'Paper account',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6F675F)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _oPill(const Color(0xFFD8F0DC), 'P/L today',
+                      '${app.realizedToday() >= 0 ? '+' : '-'}\$${app.realizedToday().abs().toStringAsFixed(2)}'),
+                  const SizedBox(width: 8),
+                  _oPill(const Color(0xFFE9E2FB), 'Open', '${open.length}'),
+                  const SizedBox(width: 8),
+                  _oPill(const Color(0xFFFFE4CE), 'Waiting',
+                      '${app.pendingOrders?.orders.length ?? 0}'),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
             children: [
               Expanded(
                 child: _tabBtn(
@@ -3418,6 +3466,8 @@ class _PositionsTabState extends State<PositionsTab> {
                   () => setState(() => showHistory = true),
                 ),
               ),
+            ],
+          ),
             ],
           ),
         ),
@@ -3494,19 +3544,41 @@ class _PositionsTabState extends State<PositionsTab> {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: on ? cCard : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: on ? cBorder : Colors.transparent),
+        color: on ? const Color(0xFFF2EDE6) : Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: TextStyle(
-          color: on ? Colors.white : cDim,
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
+          color: on ? const Color(0xFF14110F) : cDim,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
         ),
       ),
+    ),
+  );
+
+  Widget _oPill(Color bg, String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label ',
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF201A17)),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF201A17)),
+        ),
+      ],
     ),
   );
 
