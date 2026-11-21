@@ -132,6 +132,8 @@ void main() {
     (t) async {
       final app = PreviewAccount();
       final key = await mount(t, AddTab(app: app));
+      await t.tap(find.text('Buy'));
+      await t.pumpAndSettle();
       await t.enterText(field('Entry'), '4000');
       await t.enterText(field('Exit (optional)'), '4010');
       await t.enterText(field('Quantity (lots)'), '0.02');
@@ -187,7 +189,7 @@ void main() {
       await t.pumpAndSettle();
       expect(find.textContaining('1 legacy record'), findsOneWidget);
       expect(find.text('\$+50.00'), findsNothing);
-      expect(find.text('Performance by setup'), findsOneWidget);
+      expect(find.text('PERFORMANCE BY SETUP'), findsOneWidget);
       await capture(t, key, 'manual-performance');
       expect(t.takeException(), isNull);
     },
