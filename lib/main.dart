@@ -2412,6 +2412,50 @@ class _TradeTabState extends State<TradeTab> {
                   ),
                 ),
                 if (!_showTv)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () => chartKey.currentState?.cycleChartStyle(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.candlestick_chart,
+                            size: 20,
+                            color: cDim,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            // Candle size only (1m / 5m / 1h / 4h / 1D). The
+                            // old history-range chips were removed at the
+                            // user's request.
+                            for (final o in const [
+                              ('1min', '1m'),
+                              ('5min', '5m'),
+                              ('1h', '1h'),
+                              ('4h', '4h'),
+                              ('1day', '1D'),
+                            ])
+                              _intervalChip(o.$1, o.$2),
+                          ],
+                        ),
+                      ),
+                      InkWell(
+                        onTap: _openChartFullscreen,
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(Icons.fullscreen, size: 20, color: cDim),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_showTv)
                   CandleChartPanel(
                     key: chartKey,
                   onAlertPrice: confirmChartAlert,
@@ -2550,50 +2594,6 @@ class _TradeTabState extends State<TradeTab> {
                       ),
                     ),
                   ),
-                if (!_showTv)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 2),
-                  child: Row(
-                    children: [
-                      InkWell(
-                        onTap: () => chartKey.currentState?.cycleChartStyle(),
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(
-                            Icons.candlestick_chart,
-                            size: 20,
-                            color: cDim,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            // Candle size only (1m / 5m / 1h / 4h / 1D). The
-                            // old history-range chips were removed at the
-                            // user's request.
-                            for (final o in const [
-                              ('1min', '1m'),
-                              ('5min', '5m'),
-                              ('1h', '1h'),
-                              ('4h', '4h'),
-                              ('1day', '1D'),
-                            ])
-                              _intervalChip(o.$1, o.$2),
-                          ],
-                        ),
-                      ),
-                      InkWell(
-                        onTap: _openChartFullscreen,
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(Icons.fullscreen, size: 20, color: cDim),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 if (_pickingReplayStart)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
@@ -3437,7 +3437,9 @@ class _PositionsTabState extends State<PositionsTab> {
                 muted: false,
               ),
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   _oPill(const Color(0xFFD8F0DC), 'P/L today',
                       '${app.realizedToday() >= 0 ? '+' : '-'}\$${app.realizedToday().abs().toStringAsFixed(2)}'),
@@ -4499,10 +4501,7 @@ class _AddTabState extends State<AddTab> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        const Text(
-          'Pending paper order',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+        zo.oSect('Pending paper order'),
         const SizedBox(height: 6),
         const Text(
           'Open a paper trade when gold reaches your entry price. Sona must be open with internet.',
@@ -4534,10 +4533,7 @@ class _AddTabState extends State<AddTab> {
           style: TextStyle(color: cDim, fontSize: 12),
         ),
         const SizedBox(height: 8),
-        Text(
-          editingId.isEmpty ? 'Log a manual trade' : 'Edit trade',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+        zo.oSect(editingId.isEmpty ? 'New journal entry' : 'Edit entry'),
         const SizedBox(height: 10),
         card(
           Column(
@@ -4790,10 +4786,7 @@ class _AddTabState extends State<AddTab> {
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Logged trades',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+        zo.oSect('Logged trades'),
         const SizedBox(height: 8),
         if (app.trades.isEmpty)
           const Padding(
@@ -5774,21 +5767,71 @@ class _AiTabState extends State<AiTab> {
       padding: const EdgeInsets.all(16),
       children: [
         if (widget.onExplainChart != null) ...[
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.lightbulb_outline),
-              title: const Text('Explain chart / position'),
-              subtitle: const Text(
-                'Explain the current Trade chart snapshot. Read-only; asks before sending data to Groq.',
-              ),
+          zo.oPastel(
+            InkWell(
               onTap: widget.onExplainChart,
+              borderRadius: BorderRadius.circular(26),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1D5A96),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.lightbulb_outline,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Explain chart / position',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: Color(0xFF201A17),
+                          ),
+                        ),
+                        Text(
+                          'Explain the current Trade chart snapshot. Read-only; asks before sending data to Groq.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF584F44),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Color(0xFF584F44),
+                    size: 18,
+                  ),
+                ],
+              ),
             ),
+            color: zo.O.sky,
+            muted: false,
+            radius: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           const SizedBox(height: 14),
         ],
 
         const Card(
-          color: cCard,
+          color: zo.O.panel,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
           child: Padding(
             padding: EdgeInsets.all(14),
             child: TechnicalSummaryCard(),
@@ -5797,7 +5840,12 @@ class _AiTabState extends State<AiTab> {
         const SizedBox(height: 14),
 
         Card(
-          color: cCard,
+          color: zo.O.panel,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -5826,7 +5874,12 @@ class _AiTabState extends State<AiTab> {
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF201A17),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                    ),
                     onPressed: _advising || !st.keyConfigured
                         ? null
                         : _getAdvice,
@@ -5928,7 +5981,12 @@ class _AiTabState extends State<AiTab> {
         ),
         const SizedBox(height: 14),
         Card(
-          color: cCard,
+          color: zo.O.panel,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -6095,7 +6153,12 @@ class _AiTabState extends State<AiTab> {
                 const SizedBox(height: 4),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF201A17),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                    ),
                     onPressed: _thinking || !st.enabled
                         ? null
                         : () async {
@@ -6128,10 +6191,7 @@ class _AiTabState extends State<AiTab> {
           ),
         ),
         const SizedBox(height: 14),
-        const Text(
-          'AI log',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-        ),
+        zo.oSect('AI log'),
         const SizedBox(height: 6),
         if (_log.isEmpty)
           const Text(
