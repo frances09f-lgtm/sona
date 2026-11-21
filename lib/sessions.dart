@@ -80,13 +80,13 @@ class SessionsStrip extends StatelessWidget {
         : openNames.isEmpty
             ? 'Between sessions'
             : 'Open now: ${openNames.join(', ')}';
-    const cDim = Color(0xFF8A93A5);
-    const cGreen = Color(0xFF2ECC71);
+    const cDim = Color(0xFFB4ABA0);
+    const cGreen = Color(0xFF3DDBA4);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF171A21),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF211D19),
+        borderRadius: BorderRadius.circular(26),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
