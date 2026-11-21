@@ -52,16 +52,18 @@ import 'bridge.dart';
 import 'friday_orders.dart';
 import 'notifications.dart';
 import 'usage_reporter.dart';
+import 'orion.dart' as zo;
 
 const String sbUrl = 'https://ncaialkmxhbtarmhoiei.supabase.co';
 const String sbKey = 'sb_publishable_oNw5xcfdpesEihrdmFXfgQ_HKgsVYAi';
 
-const cBg = Color(0xFF0F1115);
-const cCard = Color(0xFF171A21);
-const cBorder = Color(0xFF232834);
-const cDim = Color(0xFF8A93A5);
-const cGreen = Color(0xFF2ECC71);
-const cRed = Color(0xFFFF5A5F);
+// Orion palette (approved preview): warm dark surfaces, pastel accents.
+const cBg = Color(0xFF14110F);
+const cCard = Color(0xFF211D19);
+const cBorder = Color(0xFF2C2723);
+const cDim = Color(0xFFB4ABA0);
+const cGreen = Color(0xFF1E8F68);
+const cRed = Color(0xFFD6336C);
 
 /// fmt with thousands grouping (4,058.14) for order-sheet prices.
 String fmtG(num? n) {
@@ -1278,15 +1280,21 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(
+            titleSpacing: 20,
             title: const Text(
               'Sona',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFF2EDE6),
+                letterSpacing: -0.5,
+              ),
             ),
             actions: [
-              IconButton(
-                tooltip: 'Settings',
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () async {
+              zo.ORoundBtn(
+                icon: Icons.settings_outlined,
+                size: 40,
+                onTap: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => SonaSettingsScreen(app: app),
@@ -1295,33 +1303,34 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                   if (mounted) setState(() {});
                 },
               ),
-              IconButton(
-                tooltip: 'Paper account',
-                icon: Icon(
-                  app.unlocked
-                      ? Icons.account_circle
-                      : Icons.account_circle_outlined,
-                ),
-                onPressed: () => Navigator.of(
+              const SizedBox(width: 8),
+              zo.ORoundBtn(
+                icon: app.unlocked
+                    ? Icons.account_circle
+                    : Icons.account_circle_outlined,
+                size: 40,
+                onTap: () => Navigator.of(
                   context,
                 ).push(MaterialPageRoute(builder: (_) => LockScreen(app: app))),
               ),
-              IconButton(
-                tooltip: 'Notification history',
-                icon: Badge(
-                  isLabelVisible: app.notifUnread > 0,
-                  label: Text('${app.notifUnread}'),
-                  child: const Icon(Icons.notifications_none),
+              const SizedBox(width: 8),
+              Badge(
+                isLabelVisible: app.notifUnread > 0,
+                label: Text('${app.notifUnread}'),
+                child: zo.ORoundBtn(
+                  icon: Icons.notifications_none,
+                  size: 40,
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationHistoryScreen(),
+                      ),
+                    );
+                    app.refreshNotifUnread();
+                  },
                 ),
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationHistoryScreen(),
-                    ),
-                  );
-                  app.refreshNotifUnread();
-                },
               ),
+              const SizedBox(width: 16),
             ],
           ),
           body: Column(
@@ -1364,41 +1373,39 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
               ),
             ],
           ),
-          bottomNavigationBar: NavigationBar(
-            backgroundColor: cCard,
-            selectedIndex: tab,
-            onDestinationSelected: (i) {
-              setState(() => tab = i);
-              if (i == 0 || i == 1 || i == 3) app.paperRefresh();
-              if (i == 2) app.refreshTrades();
-            },
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.show_chart),
-                label: 'Trade',
-              ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: app.positions
-                      .where((t) => t['status'] == 'open')
-                      .isNotEmpty,
-                  label: Text(
-                    '${app.positions.where((t) => t['status'] == 'open').length}',
-                  ),
-                  child: const Icon(Icons.work_outline),
+          // Orion floating dock: dark pill centered above the system bar.
+          bottomNavigationBar: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+              child: Center(
+                child: zo.ODock(
+                  index: tab,
+                  onChanged: (i) {
+                    setState(() => tab = i);
+                    if (i == 0 || i == 1 || i == 3) app.paperRefresh();
+                    if (i == 2) app.refreshTrades();
+                  },
+                  tabs: const [
+                    (Icons.show_chart, 'Trade'),
+                    (Icons.work_outline, 'Portfolio'),
+                    (Icons.add, 'Add'),
+                    (Icons.bar_chart, 'Stats'),
+                    (Icons.smart_toy_outlined, 'AI'),
+                  ],
+                  badgeIcon: (i, icon) {
+                    if (i != 1) return icon;
+                    final open = app.positions
+                        .where((t) => t['status'] == 'open')
+                        .length;
+                    return Badge(
+                      isLabelVisible: open > 0,
+                      label: Text('$open'),
+                      child: icon,
+                    );
+                  },
                 ),
-                label: 'Portfolio',
               ),
-              const NavigationDestination(icon: Icon(Icons.add), label: 'Add'),
-              const NavigationDestination(
-                icon: Icon(Icons.bar_chart),
-                label: 'Stats',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.smart_toy_outlined),
-                label: 'AI',
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -1714,7 +1721,7 @@ Widget card(Widget child, {EdgeInsets? padding}) => Container(
   padding: padding ?? const EdgeInsets.all(14),
   decoration: BoxDecoration(
     color: cCard,
-    borderRadius: BorderRadius.circular(14),
+    borderRadius: BorderRadius.circular(26),
     border: Border.all(color: cBorder),
   ),
   child: child,
@@ -1843,21 +1850,18 @@ class _TradeTabState extends State<TradeTab> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2962FF) : const Color(0xFF1B2330),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color:
-                selected ? const Color(0xFF2962FF) : const Color(0xFF2A3442),
-          ),
+          color: selected ? const Color(0xFFF2EDE6) : const Color(0xFF2A2521),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFF2C2723)),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: selected ? Colors.white : const Color(0xFF9AA4B2),
+            color: selected ? const Color(0xFF201A17) : const Color(0xFFB4ABA0),
           ),
         ),
       ),
@@ -2001,17 +2005,20 @@ class _TradeTabState extends State<TradeTab> {
       }),
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2962FF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
+          color: selected ? const Color(0xFF2A2521) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: selected
+              ? Border.all(color: const Color(0xFF2C2723))
+              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : cDim,
+            color: selected ? const Color(0xFFF2EDE6) : cDim,
           ),
         ),
       ),
@@ -2295,27 +2302,26 @@ class _TradeTabState extends State<TradeTab> {
   Widget build(BuildContext context) {
     final fresh = app.priceFresh;
     return ColoredBox(
-      color: const Color(0xFF10182A),
+      color: cBg,
       child: Column(
         children: [
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(14),
               children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-                  child: Row(
+                zo.oPastel(
+                  Row(
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 46,
+                        height: 46,
                         decoration: const BoxDecoration(
                           color: Color(0xFFF5C242),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.stacked_bar_chart,
-                          color: Color(0xFF10182A),
+                          color: Color(0xFF201A17),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -2327,30 +2333,64 @@ class _TradeTabState extends State<TradeTab> {
                               'GOLD',
                               style: TextStyle(
                                 fontSize: 22,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF201A17),
+                                letterSpacing: -0.4,
                               ),
                             ),
-                            Text(
+                            const Text(
                               'XAU/USD · Paper trading',
-                              style: TextStyle(color: cDim, fontSize: 12),
+                              style: TextStyle(
+                                color: Color(0xFF584F44),
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
-                        // Dim when the quote is stale so the header never
-                        // reads as a live price (user report Nov 15 2026:
-                        // chart vs header disagreement on a closed market).
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: app.priceFresh ? null : cDim,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
+                            // Dim when the quote is stale so the header never
+                            // reads as a live price (user report Nov 15 2026:
+                            // chart vs header disagreement on a closed market).
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: app.priceFresh
+                                  ? const Color(0xFF201A17)
+                                  : const Color(0xFF584F44),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFD8F0DC),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              app.priceFresh ? 'LIVE' : 'STALE',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF201A17),
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  color: const Color(0xFFF7F0C8),
+                  muted: false,
+                  padding: const EdgeInsets.all(16),
                 ),
+                const SizedBox(height: 12),
                 if (_tvSupported)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
@@ -2460,8 +2500,10 @@ class _TradeTabState extends State<TradeTab> {
                       340.0,
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Stack(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Container(
+                        color: Colors.black,
+                        child: Stack(
                         children: [
                           const TvChartView(),
                           // Fullscreen entry, placed per the approved v3
@@ -2504,6 +2546,7 @@ class _TradeTabState extends State<TradeTab> {
                             ),
                           ),
                         ],
+                        ),
                       ),
                     ),
                   ),
@@ -2880,10 +2923,9 @@ class _TradeTabState extends State<TradeTab> {
           ),
           Container(
             key: const ValueKey('trade-actions-frame'),
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
             decoration: const BoxDecoration(
-              color: Color(0xFF10182A),
-              border: Border(top: BorderSide(color: cBorder)),
+              color: Color(0xFF14110F),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2898,33 +2940,33 @@ class _TradeTabState extends State<TradeTab> {
                         children: [
                           Expanded(
                             child: Material(
-                              color: const Color(0xFFDE1557),
+                              color: const Color(0xFFD6336C),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(26),
                               ),
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('sell'),
                                 child: SizedBox(
-                                  height: 52,
-                                  child: Column(
+                                  height: 60,
+                                  child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(
-                                        'SELL',
+                                      const Text(
+                                        'SELL  ',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 13,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.2,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
                                       Text(
                                         app.bid == null ? '--' : fmt(app.bid),
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
                                     ],
@@ -2933,36 +2975,36 @@ class _TradeTabState extends State<TradeTab> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Material(
-                              color: const Color(0xFF2BBB97),
+                              color: const Color(0xFF1E8F68),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(26),
                               ),
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('buy'),
                                 child: SizedBox(
-                                  height: 52,
-                                  child: Column(
+                                  height: 60,
+                                  child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(
-                                        'BUY',
+                                      const Text(
+                                        'BUY  ',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 13,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.2,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
                                       Text(
                                         app.ask == null ? '--' : fmt(app.ask),
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
                                     ],
@@ -2976,18 +3018,21 @@ class _TradeTabState extends State<TradeTab> {
                       IgnorePointer(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 5,
+                            horizontal: 12,
+                            vertical: 7,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE0ECEA),
-                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFF211D19),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                                color: const Color(0xFF2C2723), width: 1.5),
                           ),
                           child: Text(
                             app.spread == null ? '--' : fmt(app.spread),
                             style: const TextStyle(
-                              color: Color(0xFF10182A),
-                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFF2EDE6),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -6971,3 +7016,4 @@ Future<void> fridayOrderMain() async {
     } catch (_) {}
   }
 }
+
