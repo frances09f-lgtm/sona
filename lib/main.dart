@@ -61,7 +61,6 @@ const String sbKey = 'sb_publishable_oNw5xcfdpesEihrdmFXfgQ_HKgsVYAi';
 const cBg = Color(0xFF14110F);
 const cCard = Color(0xFF211D19);
 const cBorder = Color(0xFF2C2723);
-const cDim = Color(0xFFB4ABA0);
 const cGreen = Color(0xFF1E8F68);
 const cRed = Color(0xFFD6336C);
 
@@ -104,7 +103,7 @@ String lotsStr(num qtyOz) {
 }
 
 Color cls(num? n) =>
-    n == null ? cDim : (n > 0 ? cGreen : (n < 0 ? cRed : cDim));
+    n == null ? zo.O.soft : (n > 0 ? cGreen : (n < 0 ? cRed : zo.O.soft));
 
 /// $ outcome if this position exits at [level]: (level - entry) * dir * qty.
 /// Used to show "+$5" at TP / "-$2" at SL (user request), live in dialogs
@@ -1159,18 +1158,23 @@ class AppState extends ChangeNotifier {
 ThemeData buildAppTheme() => ThemeData(
   brightness: Brightness.dark,
   fontFamily: 'Roboto',
-  scaffoldBackgroundColor: cBg,
-  colorScheme: const ColorScheme.dark(
-    surface: cCard,
+  textTheme: ThemeData.dark()
+      .textTheme
+      .apply(bodyColor: zo.O.ink, displayColor: zo.O.ink),
+  scaffoldBackgroundColor: zo.O.bg,
+  colorScheme: ColorScheme.dark(
+    surface: zo.O.panel,
     primary: cGreen,
     error: cRed,
-    onSurface: Colors.white,
+    onSurface: zo.O.ink,
   ),
-  appBarTheme: const AppBarTheme(backgroundColor: cBg, elevation: 0),
-  cardColor: cCard,
+  appBarTheme: AppBarTheme(backgroundColor: zo.O.bg, foregroundColor: zo.O.ink, elevation: 0),
+  cardColor: zo.O.panel,
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
-    fillColor: const Color(0xFF2A2521),
+    fillColor: zo.O.panel2,
+    hintStyle: TextStyle(color: zo.O.soft),
+    labelStyle: TextStyle(color: zo.O.soft),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
       borderSide: BorderSide.none,
@@ -1205,6 +1209,13 @@ class SonaApp extends StatelessWidget {
       title: 'Sona',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      // Re-theme below the navigator on light/dark toggle so theme-driven
+      // values (input fills, text theme, cards) follow the O palette.
+      builder: (context, child) => ValueListenableBuilder<bool>(
+        valueListenable: zo.O.themeTick,
+        builder: (context, _, __) =>
+            Theme(data: buildAppTheme(), child: child!),
+      ),
       home: const Root(),
     );
   }
@@ -1222,6 +1233,22 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
   late final AppState app = widget.testApp ?? AppState();
   int tab = 0;
   final tradeKey = GlobalKey<_TradeTabState>();
+
+  static const _kThemeLightKey = 'ui_theme_light';
+
+  void _toggleTheme() {
+    final v = !zo.O.light;
+    setState(() => zo.O.applyLight(v));
+    SharedPreferences.getInstance().then(
+      (p) => p.setBool(_kThemeLightKey, v),
+    );
+  }
+
+  Future<void> _loadTheme() async {
+    final p = await SharedPreferences.getInstance();
+    final v = p.getBool(_kThemeLightKey) ?? false;
+    if (v != zo.O.light && mounted) setState(() => zo.O.applyLight(v));
+  }
 
   // Friday paper orders: Friday parks one confirmed order in the bridge
   // provider and opens Sona; Sona runs it through its own openPaper /
@@ -1247,6 +1274,7 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadTheme();
     if (widget.testApp == null) {
       app.init();
       _fridayChannel.setMethodCallHandler((call) async {
@@ -1283,14 +1311,16 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
       animation: app,
       builder: (context, _) {
         return Scaffold(
+          backgroundColor: zo.O.bg,
           appBar: AppBar(
+            backgroundColor: zo.O.bg,
             titleSpacing: 20,
-            title: const Text(
+            title: Text(
               'Sona',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFFF2EDE6),
+                color: zo.O.ink,
                 letterSpacing: -0.5,
               ),
             ),
@@ -1333,6 +1363,14 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                     app.refreshNotifUnread();
                   },
                 ),
+              ),
+              const SizedBox(width: 8),
+              zo.ORoundBtn(
+                icon: zo.O.light
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                size: 40,
+                onTap: _toggleTheme,
               ),
               const SizedBox(width: 16),
             ],
@@ -1537,19 +1575,19 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
     appBar: AppBar(title: const Text('Settings')),
     body: ListView(
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Text(
             'Chart',
             style: TextStyle(
-              color: cDim,
+              color: zo.O.soft,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.candlestick_chart_outlined),
           title: const Text('Candle interval'),
           subtitle: Text(
@@ -1558,7 +1596,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(false),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.date_range_outlined),
           title: const Text('History range'),
           subtitle: Text(
@@ -1567,7 +1605,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(true),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Practice replay'),
           subtitle: const Text(
@@ -1577,7 +1615,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const PracticeScreen())),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.troubleshoot_outlined),
           title: const Text('Chart diagnostics'),
           subtitle: const Text(
@@ -1590,7 +1628,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.psychology_outlined),
           title: const Text('Strategies'),
           subtitle: const Text(
@@ -1603,7 +1641,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Stop loss & take profit'),
           subtitle: Text(
@@ -1641,14 +1679,14 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
         ),
         const Divider(),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Check for updates'),
           subtitle: const Text('Download and install the latest Sona release'),
           onTap: () => checkUpdateManually(context),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.key_outlined),
           title: const Text('API settings'),
           subtitle: const Text('Twelve Data candles and Groq AI keys'),
@@ -1656,7 +1694,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const ApiKeysScreen())),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Learn paper trading'),
           subtitle: const Text('Oz, spread, TP/SL and estimated margin'),
@@ -1665,7 +1703,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
                   .push(MaterialPageRoute(builder: (_) => const LearnScreen())),
         ),
         ListTile(
-          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
+          trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.account_circle_outlined),
           title: const Text('Paper account'),
           onTap: () => Navigator.of(context).push(
@@ -1701,14 +1739,14 @@ class _LockScreenState extends State<LockScreen> {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Connect existing paper account',
-                style: TextStyle(color: cDim),
+                style: TextStyle(color: zo.O.soft),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Account PIN is for server access only. You can use quotes and API settings without connecting.',
-                style: TextStyle(color: cDim, fontSize: 12),
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -1764,7 +1802,7 @@ Widget card(Widget child, {EdgeInsets? padding}) => Container(
   margin: const EdgeInsets.only(bottom: 12),
   padding: padding ?? const EdgeInsets.all(14),
   decoration: BoxDecoration(
-    color: cCard,
+    color: zo.O.panel,
     borderRadius: BorderRadius.circular(26),
     border: Border.all(color: cBorder),
   ),
@@ -1901,7 +1939,7 @@ class _TradeTabState extends State<TradeTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF2EDE6) : Colors.transparent,
+          color: selected ? zo.O.ink : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
@@ -1910,9 +1948,7 @@ class _TradeTabState extends State<TradeTab> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: selected
-                ? const Color(0xFF14110F)
-                : const Color(0xFFB4ABA0),
+            color: selected ? zo.O.bg : zo.O.soft,
           ),
         ),
       ),
@@ -2034,9 +2070,9 @@ class _TradeTabState extends State<TradeTab> {
             ),
             InkWell(
               onTap: _exitReplay,
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.all(4),
-                child: Icon(Icons.close, size: 18, color: cDim),
+                child: Icon(Icons.close, size: 18, color: zo.O.soft),
               ),
             ),
           ],
@@ -2053,7 +2089,7 @@ class _TradeTabState extends State<TradeTab> {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   _replayPlaying ? Icons.pause : Icons.play_arrow,
-                  color: r.atEnd ? cDim : Colors.white,
+                  color: r.atEnd ? zo.O.soft : Colors.white,
                 ),
               ),
             ),
@@ -2064,7 +2100,7 @@ class _TradeTabState extends State<TradeTab> {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   Icons.skip_next,
-                  color: r.atEnd ? cDim : Colors.white,
+                  color: r.atEnd ? zo.O.soft : Colors.white,
                 ),
               ),
             ),
@@ -2303,14 +2339,14 @@ class _TradeTabState extends State<TradeTab> {
             children: [
               Text(
                 'Snapshot: ${data['snapshot_at']}\nLast candle: ${data['last_candle_time']}\nQuote age: ${data['quote_age_seconds'] ?? "unknown"} seconds${data['quote_stale'] == true ? " (stale)" : ""}',
-                style: const TextStyle(color: cDim, fontSize: 12),
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
               ),
               const SizedBox(height: 12),
               SelectableText(result),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Read-only. No trade changed.',
-                style: TextStyle(color: cDim, fontSize: 12),
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
               ),
             ],
           ),
@@ -2331,7 +2367,7 @@ class _TradeTabState extends State<TradeTab> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black,
+      backgroundColor: zo.O.bg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -2393,7 +2429,7 @@ class _TradeTabState extends State<TradeTab> {
   Widget build(BuildContext context) {
     final fresh = app.priceFresh;
     return ColoredBox(
-      color: cBg,
+      color: zo.O.bg,
       child: Column(
         children: [
           Expanded(
@@ -2494,7 +2530,7 @@ class _TradeTabState extends State<TradeTab> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2A2521),
+                        color: zo.O.panel2,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
@@ -2740,10 +2776,10 @@ class _TradeTabState extends State<TradeTab> {
                                       color: const Color(0xD90D1420),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.fullscreen,
                                       size: 20,
-                                      color: cDim,
+                                      color: zo.O.soft,
                                     ),
                                   ),
                                 ),
@@ -2815,7 +2851,7 @@ class _TradeTabState extends State<TradeTab> {
                         ),
                       ),
                 ],
-                const SessionsStrip(),
+                SessionsStrip(),
                 const SizedBox(height: 10),
                 card(
                   Column(
@@ -2859,8 +2895,8 @@ class _TradeTabState extends State<TradeTab> {
                               ),
                               child: Text(
                                 alertAbove ? 'Above' : 'Below',
-                                style: const TextStyle(
-                                  color: cDim,
+                                style: TextStyle(
+                                  color: zo.O.soft,
                                   fontSize: 12,
                                 ),
                               ),
@@ -2892,7 +2928,7 @@ class _TradeTabState extends State<TradeTab> {
                                 size: 14,
                                 color: a.triggered
                                     ? const Color(0xFFF5C242)
-                                    : cDim,
+                                    : zo.O.soft,
                               ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -2901,17 +2937,17 @@ class _TradeTabState extends State<TradeTab> {
                                   style: TextStyle(
                                     color: a.triggered
                                         ? const Color(0xFFF5C242)
-                                        : cDim,
+                                        : zo.O.soft,
                                     fontSize: 12,
                                   ),
                                 ),
                               ),
                               GestureDetector(
                                 onTap: () => app.removeAlert(a.id),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.delete_outline,
                                   size: 16,
-                                  color: cDim,
+                                  color: zo.O.soft,
                                 ),
                               ),
                             ],
@@ -2944,7 +2980,7 @@ class _TradeTabState extends State<TradeTab> {
                         ),
                         GestureDetector(
                           onTap: app.dismissAlertBanner,
-                          child: const Icon(Icons.close, color: cDim, size: 18),
+                          child: Icon(Icons.close, color: zo.O.soft, size: 18),
                         ),
                       ],
                     ),
@@ -2989,14 +3025,14 @@ class _TradeTabState extends State<TradeTab> {
                           ),
                           TextButton.icon(
                             onPressed: () => _editSlippage(context),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.speed,
                               size: 14,
-                              color: cDim,
+                              color: zo.O.soft,
                             ),
                             label: Text(
                               'Slippage: ${app.slippage.label}',
-                              style: const TextStyle(color: cDim, fontSize: 12),
+                              style: TextStyle(color: zo.O.soft, fontSize: 12),
                             ),
                           ),
                           TextButton.icon(
@@ -3022,7 +3058,7 @@ class _TradeTabState extends State<TradeTab> {
                             child: _balRow(
                               'Trades today',
                               '${app.tradesToday()}${app.maxTradesDay > 0 ? ' / ${app.maxTradesDay}' : ''}',
-                              cDim,
+                              zo.O.soft,
                             ),
                           ),
                           Expanded(
@@ -3062,10 +3098,10 @@ class _TradeTabState extends State<TradeTab> {
                         ),
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Block new trades at limit',
-                              style: TextStyle(fontSize: 12, color: cDim),
+                              style: TextStyle(fontSize: 12, color: zo.O.soft),
                             ),
                           ),
                           Switch(
@@ -3085,8 +3121,8 @@ class _TradeTabState extends State<TradeTab> {
           Container(
             key: const ValueKey('trade-actions-frame'),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF14110F),
+            decoration: BoxDecoration(
+              color: zo.O.bg,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3187,15 +3223,15 @@ class _TradeTabState extends State<TradeTab> {
                             vertical: 7,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF211D19),
+                            color: zo.O.panel,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                                color: const Color(0xFF2C2723), width: 1.5),
+                            border:
+                                Border.all(color: zo.O.line2, width: 1.5),
                           ),
                           child: Text(
                             app.spread == null ? '--' : fmt(app.spread),
-                            style: const TextStyle(
-                              color: Color(0xFFF2EDE6),
+                            style: TextStyle(
+                              color: zo.O.ink,
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                             ),
@@ -3210,7 +3246,7 @@ class _TradeTabState extends State<TradeTab> {
                       ? 'Live quote · tap a side to order'
                       : 'Quote stale or unavailable',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: cDim, fontSize: 10),
+                  style: TextStyle(color: zo.O.soft, fontSize: 10),
                 ),
               ],
             ),
@@ -3229,14 +3265,14 @@ class _TradeTabState extends State<TradeTab> {
       context: context,
       builder: (dCtx) => StatefulBuilder(
         builder: (dCtx, setD) => AlertDialog(
-          backgroundColor: cCard,
+          backgroundColor: zo.O.panel,
           title: const Text('Slippage', style: TextStyle(fontSize: 16)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'Optional paper-trading slippage. Makes your fills slightly worse, like a real broker. Applies to new fills only.',
-                style: TextStyle(color: cDim, fontSize: 12),
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
               ),
               RadioListTile<String>(
                 title: const Text(
@@ -3308,7 +3344,7 @@ class _TradeTabState extends State<TradeTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Daily limits', style: TextStyle(fontSize: 16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3379,7 +3415,7 @@ class _TradeTabState extends State<TradeTab> {
                         : 'Enter size and stop to see risk')
                   : 'Risk ${money(risk, sign: false)} (${pct!.toStringAsFixed(1)}% of balance)',
               style: TextStyle(
-                color: risk == null ? cDim : (pct! > 2 ? cRed : Colors.amber),
+                color: risk == null ? zo.O.soft : (pct! > 2 ? cRed : Colors.amber),
                 fontSize: 12,
               ),
             ),
@@ -3406,7 +3442,7 @@ class _TradeTabState extends State<TradeTab> {
   Widget _balRow(String label, String value, Color color) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(label, style: const TextStyle(color: cDim, fontSize: 13)),
+      Text(label, style: TextStyle(color: zo.O.soft, fontSize: 13)),
       Text(
         value,
         style: TextStyle(
@@ -3435,7 +3471,7 @@ class _TradeTabState extends State<TradeTab> {
           child: Text(
             label,
             style: TextStyle(
-              color: on ? color : cDim,
+              color: on ? color : zo.O.soft,
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),
@@ -3513,7 +3549,7 @@ class _PositionsTabState extends State<PositionsTab> {
         isDense: true,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: cDim, fontSize: 11),
+          labelStyle: TextStyle(color: zo.O.soft, fontSize: 11),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 8,
             vertical: 6,
@@ -3673,9 +3709,9 @@ class _PositionsTabState extends State<PositionsTab> {
             padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
             child: Row(
               children: [
-                const Text(
+                Text(
                   'XAU/USD',
-                  style: TextStyle(color: cDim, fontSize: 12),
+                  style: TextStyle(color: zo.O.soft, fontSize: 12),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -3683,14 +3719,14 @@ class _PositionsTabState extends State<PositionsTab> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: app.priceFresh ? Colors.white : cDim,
+                    color: app.priceFresh ? zo.O.ink : zo.O.soft,
                   ),
                 ),
                 const SizedBox(width: 8),
                 if (app.bid != null && app.ask != null)
                   Text(
                     'Bid ${fmt(app.bid)} · Ask ${fmt(app.ask)}',
-                    style: const TextStyle(color: cDim, fontSize: 11),
+                    style: TextStyle(color: zo.O.soft, fontSize: 11),
                   ),
               ],
             ),
@@ -3716,7 +3752,7 @@ class _PositionsTabState extends State<PositionsTab> {
       child: Text(
         label,
         style: TextStyle(
-          color: on ? const Color(0xFF14110F) : cDim,
+          color: on ? const Color(0xFF14110F) : zo.O.soft,
           fontWeight: FontWeight.w700,
           fontSize: 14,
         ),
@@ -3753,19 +3789,19 @@ class _PositionsTabState extends State<PositionsTab> {
       children: [
         PendingOrdersPanel(app: app),
         if (open.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(24),
             child: Center(
-              child: Text('No open positions', style: TextStyle(color: cDim)),
+              child: Text('No open positions', style: TextStyle(color: zo.O.soft)),
             ),
           )
         else
           ...open.map(_positionCard),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 4),
           child: Text(
             'TP/SL edits stay on this device. Android background checks may be delayed or stopped; always-on server protection is not deployed.',
-            style: TextStyle(color: cDim, fontSize: 11),
+            style: TextStyle(color: zo.O.soft, fontSize: 11),
             textAlign: TextAlign.center,
           ),
         ),
@@ -3843,7 +3879,7 @@ class _PositionsTabState extends State<PositionsTab> {
                 ),
                 Icon(
                   isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: cDim,
+                  color: zo.O.soft,
                 ),
               ],
             ),
@@ -3935,7 +3971,7 @@ class _PositionsTabState extends State<PositionsTab> {
                         ? '${fmt(v)}  ${money(pnlAtLevel(t, v), sign: true)}'
                         : 'Off',
                     style: TextStyle(
-                      color: on ? cls(pnlAtLevel(t, v)) : cDim,
+                      color: on ? cls(pnlAtLevel(t, v)) : zo.O.soft,
                       fontSize: 12,
                     ),
                   ),
@@ -3979,7 +4015,7 @@ class _PositionsTabState extends State<PositionsTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          backgroundColor: cCard,
+          backgroundColor: zo.O.panel,
           title: Text(
             '$label price (\$ per troy ounce)',
             style: const TextStyle(fontSize: 16),
@@ -3994,7 +4030,7 @@ class _PositionsTabState extends State<PositionsTab> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Entry: ${fmt(open)} · Size: ${lotsStr((t['qty'] as num?)?.toDouble() ?? 0)}',
-                      style: const TextStyle(color: cDim, fontSize: 12),
+                      style: TextStyle(color: zo.O.soft, fontSize: 12),
                     ),
                   ),
                 ),
@@ -4097,7 +4133,7 @@ class _PositionsTabState extends State<PositionsTab> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(k, style: const TextStyle(color: cDim, fontSize: 13)),
+        Text(k, style: TextStyle(color: zo.O.soft, fontSize: 13)),
         Flexible(
           child: Text(
             v,
@@ -4124,7 +4160,7 @@ class _PositionsTabState extends State<PositionsTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: Text(
           'Close this ${t['direction'].toString().toUpperCase()} at the live price?',
         ),
@@ -4169,7 +4205,7 @@ class _PositionsTabState extends State<PositionsTab> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Journal note'),
         content: TextField(
           controller: ctrl,
@@ -4212,19 +4248,19 @@ class _PositionsTabState extends State<PositionsTab> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: cDim.withValues(alpha: .45)),
+                        border: Border.all(color: zo.O.soft.withValues(alpha: .45)),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.swap_calls, color: cDim),
+                      child: Icon(Icons.swap_calls, color: zo.O.soft),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Realized P/L · USD',
-                            style: TextStyle(color: cDim, fontSize: 13),
+                            style: TextStyle(color: zo.O.soft, fontSize: 13),
                           ),
                           Text(
                             summary.known == 0 && summary.missing > 0
@@ -4232,7 +4268,7 @@ class _PositionsTabState extends State<PositionsTab> {
                                 : money(summary.total, sign: true),
                             style: TextStyle(
                               color: summary.known == 0
-                                  ? cDim
+                                  ? zo.O.soft
                                   : cls(summary.total),
                               fontSize: 25,
                               fontWeight: FontWeight.w700,
@@ -4246,14 +4282,14 @@ class _PositionsTabState extends State<PositionsTab> {
                 const SizedBox(height: 8),
                 Text(
                   '${hist.length} closed ${hist.length == 1 ? 'trade' : 'trades'} in selected filters${summary.missing > 0 ? ' · Partial: ${summary.missing} missing P/L' : ''}',
-                  style: const TextStyle(color: cDim, fontSize: 12),
+                  style: TextStyle(color: zo.O.soft, fontSize: 12),
                 ),
                 if (hist.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 28),
                     child: Text(
                       'No closed trades match',
-                      style: TextStyle(color: cDim),
+                      style: TextStyle(color: zo.O.soft),
                     ),
                   ),
               ],
@@ -4321,8 +4357,8 @@ class _PositionsTabState extends State<PositionsTab> {
                               Flexible(
                                 child: Text(
                                   '${fmt((t['qty'] as num).toDouble())} Troy Ounce(s)',
-                                  style: const TextStyle(
-                                    color: cDim,
+                                  style: TextStyle(
+                                    color: zo.O.soft,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -4343,7 +4379,7 @@ class _PositionsTabState extends State<PositionsTab> {
                     ),
                     Icon(
                       isExp ? Icons.expand_less : Icons.expand_more,
-                      color: cDim,
+                      color: zo.O.soft,
                     ),
                   ],
                 ),
@@ -4366,8 +4402,8 @@ class _PositionsTabState extends State<PositionsTab> {
                   'Entry ${fmt((t['entry'] as num).toDouble())} → Exit ${t['exit'] == null ? '-' : fmt((t['exit'] as num).toDouble())}'
                   '${t['reason'] != null && t['reason'].toString().isNotEmpty ? ' · ${t['reason']}' : ''}\n'
                   '${d == null ? '' : '${d.day} ${_month(d.month)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'}',
-                  style: const TextStyle(
-                    color: cDim,
+                  style: TextStyle(
+                    color: zo.O.soft,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -4383,7 +4419,7 @@ class _PositionsTabState extends State<PositionsTab> {
                         padding: const EdgeInsets.only(top: 6),
                         child: Row(
                           children: [
-                            const Icon(Icons.edit_note, size: 14, color: cDim),
+                            Icon(Icons.edit_note, size: 14, color: zo.O.soft),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -4391,7 +4427,7 @@ class _PositionsTabState extends State<PositionsTab> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: note.isEmpty ? cDim : Colors.white70,
+                                  color: note.isEmpty ? zo.O.soft : Colors.white70,
                                   fontSize: 11,
                                   fontStyle: note.isEmpty
                                       ? FontStyle.italic
@@ -4526,17 +4562,17 @@ class PendingOrdersPanel extends StatelessWidget {
                     }),
                     Text(
                       '${o.gtc ? "GTC" : "Expires at local midnight"} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
-                      style: const TextStyle(color: cDim, fontSize: 12),
+                      style: TextStyle(color: zo.O.soft, fontSize: 12),
                     ),
                     if (o.status == 'pending')
-                      const Text(
+                      Text(
                         'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
-                        style: TextStyle(color: cDim, fontSize: 11),
+                        style: TextStyle(color: zo.O.soft, fontSize: 11),
                       ),
                     if (o.note != null && o.note!.isNotEmpty)
                       Text(
                         o.note!,
-                        style: const TextStyle(color: cDim, fontSize: 12),
+                        style: TextStyle(color: zo.O.soft, fontSize: 12),
                       ),
                   ],
                 ),
@@ -4658,7 +4694,7 @@ class _AddTabState extends State<AddTab> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black,
+      backgroundColor: zo.O.bg,
       builder: (_) =>
           PaperOrderSheet(app: app, side: side, pendingInitially: true),
     );
@@ -4674,9 +4710,9 @@ class _AddTabState extends State<AddTab> {
       children: [
         zo.oSect('Pending paper order'),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Open a paper trade when gold reaches your entry price. Sona must be open with internet.',
-          style: TextStyle(color: cDim, fontSize: 12),
+          style: TextStyle(color: zo.O.soft, fontSize: 12),
         ),
         const SizedBox(height: 8),
         Row(
@@ -4699,9 +4735,9 @@ class _AddTabState extends State<AddTab> {
         ),
         PendingOrdersPanel(app: app),
         const Divider(height: 24),
-        const Text(
+        Text(
           'Records only. Saving a manual journal entry never places a paper order.',
-          style: TextStyle(color: cDim, fontSize: 12),
+          style: TextStyle(color: zo.O.soft, fontSize: 12),
         ),
         const SizedBox(height: 8),
         zo.oSect(editingId.isEmpty ? 'New journal entry' : 'Edit entry'),
@@ -4806,9 +4842,9 @@ class _AddTabState extends State<AddTab> {
                   ),
                 ],
               ),
-              const Text(
+              Text(
                 'Use actual fill prices. Do not subtract spread twice. Costs cover commission and financing charges.',
-                style: TextStyle(color: cDim, fontSize: 11),
+                style: TextStyle(color: zo.O.soft, fontSize: 11),
               ),
               if (legacySizeUnknown)
                 const Text(
@@ -4880,7 +4916,7 @@ class _AddTabState extends State<AddTab> {
                   side: const BorderSide(color: cBorder),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                icon: const Icon(Icons.schedule, color: cDim, size: 18),
+                icon: Icon(Icons.schedule, color: zo.O.soft, size: 18),
                 label: Text(
                   '${when.day}/${when.month}/${when.year} ${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}',
                   style: const TextStyle(color: Colors.white),
@@ -4945,9 +4981,9 @@ class _AddTabState extends State<AddTab> {
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
                       onPressed: resetForm,
-                      child: const Text(
+                      child: Text(
                         'Cancel',
-                        style: TextStyle(color: cDim),
+                        style: TextStyle(color: zo.O.soft),
                       ),
                     ),
                   ],
@@ -4960,12 +4996,12 @@ class _AddTabState extends State<AddTab> {
         zo.oSect('Logged trades'),
         const SizedBox(height: 8),
         if (app.trades.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(20),
             child: Center(
               child: Text(
                 'No trades logged yet',
-                style: TextStyle(color: cDim),
+                style: TextStyle(color: zo.O.soft),
               ),
             ),
           )
@@ -4983,16 +5019,19 @@ class _AddTabState extends State<AddTab> {
   ) => GestureDetector(
     onTap: tap,
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 11),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: on ? color.withValues(alpha: 0.2) : cBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: on ? color : cBorder, width: on ? 1.5 : 1),
+        color: on ? color : zo.O.panel2,
+        borderRadius: BorderRadius.circular(999),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
-        style: TextStyle(color: on ? color : cDim, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: on ? zo.O.ink : zo.O.soft,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+        ),
       ),
     ),
   );
@@ -5033,7 +5072,7 @@ class _AddTabState extends State<AddTab> {
           const SizedBox(height: 6),
           Text(
             sizeDescription,
-            style: const TextStyle(color: cDim, fontSize: 12),
+            style: TextStyle(color: zo.O.soft, fontSize: 12),
           ),
           if ((t['setup']?.toString() ?? '').isNotEmpty)
             Chip(label: Text(t['setup'].toString())),
@@ -5043,14 +5082,14 @@ class _AddTabState extends State<AddTab> {
             '${t['tp'] != null ? ' · TP ${t['tp']}' : ''}'
             '${t['sl'] != null ? ' · SL ${t['sl']}' : ''}'
             '${d != null ? '\n${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}' : ''}',
-            style: const TextStyle(color: cDim, fontSize: 12, height: 1.4),
+            style: TextStyle(color: zo.O.soft, fontSize: 12, height: 1.4),
           ),
           if (t['note'] != null && t['note'].toString().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 t['note'].toString(),
-                style: const TextStyle(fontSize: 12, color: cDim),
+                style: TextStyle(fontSize: 12, color: zo.O.soft),
               ),
             ),
           Row(
@@ -5058,9 +5097,9 @@ class _AddTabState extends State<AddTab> {
             children: [
               TextButton(
                 onPressed: () => editTrade(t),
-                child: const Text(
+                child: Text(
                   'Edit',
-                  style: TextStyle(color: cDim, fontSize: 12),
+                  style: TextStyle(color: zo.O.soft, fontSize: 12),
                 ),
               ),
               TextButton(
@@ -5158,7 +5197,7 @@ class _AddTabState extends State<AddTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Delete this trade?'),
         actions: [
           TextButton(
@@ -5248,14 +5287,15 @@ class _StatsTabState extends State<StatsTab> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        const Text(
+        Text(
           'Performance',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          style: TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w700, color: zo.O.ink),
         ),
         Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: const Color(0xFF2A2521),
+            color: zo.O.panel2,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
@@ -5267,9 +5307,7 @@ class _StatsTabState extends State<StatsTab> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: source == e.$1
-                            ? const Color(0xFFF2EDE6)
-                            : Colors.transparent,
+                        color: source == e.$1 ? zo.O.ink : Colors.transparent,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       alignment: Alignment.center,
@@ -5278,9 +5316,7 @@ class _StatsTabState extends State<StatsTab> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: source == e.$1
-                              ? const Color(0xFF14110F)
-                              : const Color(0xFFB4ABA0),
+                          color: source == e.$1 ? zo.O.bg : zo.O.soft,
                         ),
                       ),
                     ),
@@ -5306,9 +5342,9 @@ class _StatsTabState extends State<StatsTab> {
                   fontWeight: FontWeight.w700,
                   color: days == n && customRange == null
                       ? const Color(0xFF1E6B3C)
-                      : const Color(0xFFBBBBBB),
+                      : zo.O.soft,
                 ),
-                backgroundColor: const Color(0xFF1C1C1E),
+                backgroundColor: zo.O.panel2,
                 selectedColor: const Color(0xFFD8F0DC),
                 shape: const StadiumBorder(),
                 side: BorderSide.none,
@@ -5323,12 +5359,12 @@ class _StatsTabState extends State<StatsTab> {
                   fontWeight: FontWeight.w700,
                   color: customRange != null
                       ? const Color(0xFF1E6B3C)
-                      : const Color(0xFFBBBBBB),
+                      : zo.O.soft,
                 ),
               ),
               backgroundColor: customRange != null
                   ? const Color(0xFFD8F0DC)
-                  : const Color(0xFF1C1C1E),
+                  : zo.O.panel2,
               shape: const StadiumBorder(),
               side: BorderSide.none,
               onPressed: () async {
@@ -5348,7 +5384,7 @@ class _StatsTabState extends State<StatsTab> {
           source == 'paper'
               ? 'Simulated fills only. Manual journal excluded.'
               : 'Manually logged results only. Simulated fills excluded.',
-          style: const TextStyle(color: cDim, fontSize: 12),
+          style: TextStyle(color: zo.O.soft, fontSize: 12),
         ),
         if (records.any((r) => !r.sizeKnown))
           Text(
@@ -5408,13 +5444,13 @@ class _StatsTabState extends State<StatsTab> {
                 Row(
                   children: [
                     Expanded(
-                      child: _stat('Starting', money(app.starting), cDim),
+                      child: _stat('Starting', money(app.starting), zo.O.soft),
                     ),
                     TextButton(
                       onPressed: () => _editStarting(context),
-                      child: const Text(
+                      child: Text(
                         'Edit',
-                        style: TextStyle(color: cDim, fontSize: 12),
+                        style: TextStyle(color: zo.O.soft, fontSize: 12),
                       ),
                     ),
                   ],
@@ -5433,54 +5469,54 @@ class _StatsTabState extends State<StatsTab> {
               _stat(
                 'Total PnL (closed)',
                 done.isEmpty ? '-' : '\$${fmt(total, sign: true)}',
-                done.isEmpty ? cDim : cls(total),
+                done.isEmpty ? zo.O.soft : cls(total),
               ),
               _stat(
                 'Win rate',
                 done.isEmpty ? '-' : '${(wins / done.length * 100).round()}%',
-                cDim,
+                zo.O.soft,
               ),
-              _stat('Trades', '$count', cDim),
+              _stat('Trades', '$count', zo.O.soft),
               _stat(
                 'Best',
                 done.isEmpty
                     ? '-'
                     : '\$${fmt(done.reduce(math.max), sign: true)}',
-                done.isEmpty ? cDim : cls(done.reduce(math.max)),
+                done.isEmpty ? zo.O.soft : cls(done.reduce(math.max)),
               ),
               _stat(
                 'Worst',
                 done.isEmpty
                     ? '-'
                     : '\$${fmt(done.reduce(math.min), sign: true)}',
-                done.isEmpty ? cDim : cls(done.reduce(math.min)),
+                done.isEmpty ? zo.O.soft : cls(done.reduce(math.min)),
               ),
               _stat(
                 'Avg',
                 done.isEmpty
                     ? '-'
                     : '\$${fmt(total / done.length, sign: true)}',
-                done.isEmpty ? cDim : cls(total),
+                done.isEmpty ? zo.O.soft : cls(total),
               ),
               _stat(
                 'Profit factor',
                 pf == null ? '-' : pf.toStringAsFixed(2),
-                cDim,
+                zo.O.soft,
               ),
               _stat(
                 'Avg win',
                 avgWin == null ? '-' : '\$${fmt(avgWin, sign: true)}',
-                avgWin == null ? cDim : cls(avgWin),
+                avgWin == null ? zo.O.soft : cls(avgWin),
               ),
               _stat(
                 'Avg loss',
                 avgLoss == null ? '-' : '\$${fmt(avgLoss, sign: true)}',
-                avgLoss == null ? cDim : cls(avgLoss),
+                avgLoss == null ? zo.O.soft : cls(avgLoss),
               ),
               _stat(
                 'Max drawdown',
                 done.isEmpty ? '-' : '-\$${fmt(mdd)}',
-                done.isEmpty ? cDim : (mdd > 0 ? cRed : cDim),
+                done.isEmpty ? zo.O.soft : (mdd > 0 ? cRed : zo.O.soft),
               ),
               _stat(
                 'Streak',
@@ -5490,7 +5526,7 @@ class _StatsTabState extends State<StatsTab> {
                     ? '$streak wins'
                     : '${-streak} losses',
                 streak == 0
-                    ? cDim
+                    ? zo.O.soft
                     : streak > 0
                     ? cGreen
                     : cRed,
@@ -5501,7 +5537,7 @@ class _StatsTabState extends State<StatsTab> {
                   unprotected > 0
                       ? 'Uncapped · $unprotected no stop'
                       : '-\$${fmt(risk)}',
-                  unprotected > 0 || risk > 0 ? Colors.amber : cDim,
+                  unprotected > 0 || risk > 0 ? Colors.amber : zo.O.soft,
                 ),
             ],
           ),
@@ -5515,12 +5551,12 @@ class _StatsTabState extends State<StatsTab> {
         const SizedBox(height: 10),
         card(
           records.isEmpty
-              ? const Padding(
+              ? Padding(
                   padding: EdgeInsets.all(30),
                   child: Center(
                     child: Text(
                       'Close a trade to see the chart',
-                      style: TextStyle(color: cDim),
+                      style: TextStyle(color: zo.O.soft),
                     ),
                   ),
                 )
@@ -5553,7 +5589,7 @@ class _StatsTabState extends State<StatsTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Set current balance (USD)'),
         content: TextField(
           controller: ctrl,
@@ -5592,7 +5628,7 @@ class _StatsTabState extends State<StatsTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('New starting balance (\$)'),
         content: TextField(
           controller: ctrl,
@@ -5632,7 +5668,7 @@ class _StatsTabState extends State<StatsTab> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: cDim, fontSize: 13)),
+        Text(label, style: TextStyle(color: zo.O.soft, fontSize: 13)),
         Text(
           value,
           style: TextStyle(
@@ -5649,7 +5685,7 @@ class _StatsTabState extends State<StatsTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Reset the paper account?'),
         content: const Text(
           'This deletes all paper trades and sets the balance back.',
@@ -5672,7 +5708,7 @@ class _StatsTabState extends State<StatsTab> {
     final ok2 = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cCard,
+        backgroundColor: zo.O.panel,
         title: const Text('Starting balance after reset (\$)'),
         content: TextField(
           controller: ctrl,
@@ -5738,7 +5774,7 @@ class EquityPainter extends CustomPainter {
       canvas.drawLine(Offset(pl, yy), Offset(size.width - pr, yy), grid);
       label.text = TextSpan(
         text: fmt(v),
-        style: const TextStyle(color: cDim, fontSize: 11, fontFamily: 'Roboto'),
+        style: TextStyle(color: zo.O.soft, fontSize: 11, fontFamily: 'Roboto'),
       );
       label.layout();
       label.paint(canvas, Offset(4, yy - 6));
@@ -5767,9 +5803,9 @@ class EquityPainter extends CustomPainter {
     for (int i = 1; i < pts.length; i++) {
       canvas.drawCircle(Offset(x(i), y(pts[i])), 3.5, dot);
     }
-    label.text = const TextSpan(
+    label.text = TextSpan(
       text: 'trade #',
-      style: TextStyle(color: cDim, fontSize: 11, fontFamily: 'Roboto'),
+      style: TextStyle(color: zo.O.soft, fontSize: 11, fontFamily: 'Roboto'),
     );
     label.layout();
     label.paint(canvas, Offset(size.width / 2 - 16, size.height - 14));
@@ -6049,7 +6085,7 @@ class _AiTabState extends State<AiTab> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.lightbulb_outline, color: cDim, size: 20),
+                    Icon(Icons.lightbulb_outline, color: zo.O.soft, size: 20),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -6063,9 +6099,9 @@ class _AiTabState extends State<AiTab> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Reads support/resistance and recent structure, then advises buy, sell or wait. Possibilities from the chart data - not financial advice.',
-                  style: TextStyle(color: cDim, fontSize: 12),
+                  style: TextStyle(color: zo.O.soft, fontSize: 12),
                 ),
                 const SizedBox(height: 10),
                 SizedBox(
@@ -6162,15 +6198,15 @@ class _AiTabState extends State<AiTab> {
                   ] else if (_advice!.verdict != 'wait' &&
                       _advice!.confidence != 'high') ...[
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'AI is not sure enough - no trade, read only.',
-                      style: TextStyle(color: cDim, fontSize: 12),
+                      style: TextStyle(color: zo.O.soft, fontSize: 12),
                     ),
                   ],
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Possibilities, not financial advice.',
-                    style: TextStyle(color: cDim, fontSize: 11),
+                    style: TextStyle(color: zo.O.soft, fontSize: 11),
                   ),
                 ],
               ],
@@ -6192,7 +6228,7 @@ class _AiTabState extends State<AiTab> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.smart_toy_outlined, color: cDim, size: 20),
+                    Icon(Icons.smart_toy_outlined, color: zo.O.soft, size: 20),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -6240,7 +6276,7 @@ class _AiTabState extends State<AiTab> {
                   style: TextStyle(
                     color: !st.keyConfigured || st.pausedReason != null
                         ? cRed
-                        : cDim,
+                        : zo.O.soft,
                     fontSize: 12,
                   ),
                 ),
@@ -6273,9 +6309,9 @@ class _AiTabState extends State<AiTab> {
                   ),
                 ),
                 if (st.keyConfigured)
-                  const Text(
+                  Text(
                     'Using your saved Groq key',
-                    style: TextStyle(color: cDim, fontSize: 11),
+                    style: TextStyle(color: zo.O.soft, fontSize: 11),
                   ),
                 if (st.pausedReason != null && st.enabled) ...[
                   const SizedBox(height: 8),
@@ -6291,14 +6327,14 @@ class _AiTabState extends State<AiTab> {
                 const SizedBox(height: 10),
                 Text(
                   'Today: ${st.tradesToday}/${AutoTrade.maxTradesPerDay} trades - loss streak ${st.consecutiveLosses} - last run ${st.lastRunAt == null ? 'never' : _fmt(st.lastRunAt!)}',
-                  style: const TextStyle(color: cDim, fontSize: 12),
+                  style: TextStyle(color: zo.O.soft, fontSize: 12),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       'Size per trade',
-                      style: TextStyle(fontSize: 12, color: cDim),
+                      style: TextStyle(fontSize: 12, color: zo.O.soft),
                     ),
                     const SizedBox(width: 12),
                     DropdownButton<double>(
@@ -6362,7 +6398,7 @@ class _AiTabState extends State<AiTab> {
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Text(
                         'SL/TP: ${(snap.data ?? ProtectionSettings.defaults).describe()} - tap to change',
-                        style: const TextStyle(fontSize: 12, color: cDim),
+                        style: TextStyle(fontSize: 12, color: zo.O.soft),
                       ),
                     ),
                   ),
@@ -6413,9 +6449,9 @@ class _AiTabState extends State<AiTab> {
         zo.oSect('AI log'),
         const SizedBox(height: 6),
         if (_log.isEmpty)
-          const Text(
+          Text(
             'No AI activity yet. Switch auto-trade on.',
-            style: TextStyle(color: cDim, fontSize: 12),
+            style: TextStyle(color: zo.O.soft, fontSize: 12),
           )
         else
           ..._log.map(
@@ -6433,7 +6469,7 @@ class _AiTabState extends State<AiTab> {
                         ? Icons.error_outline
                         : Icons.psychology,
                     size: 14,
-                    color: e.kind == 'error' || e.kind == 'pause' ? cRed : cDim,
+                    color: e.kind == 'error' || e.kind == 'pause' ? cRed : zo.O.soft,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -6441,7 +6477,7 @@ class _AiTabState extends State<AiTab> {
                   ),
                   Text(
                     _fmt(e.at),
-                    style: const TextStyle(color: cDim, fontSize: 10),
+                    style: TextStyle(color: zo.O.soft, fontSize: 10),
                   ),
                 ],
               ),
@@ -6598,7 +6634,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: active ? Colors.white : cDim,
+            color: active ? Colors.white : zo.O.soft,
           ),
         ),
       ),
@@ -6607,7 +6643,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
 
   InputDecoration insetField(String label) => InputDecoration(
     labelText: label,
-    labelStyle: const TextStyle(color: cDim, fontSize: 13),
+    labelStyle: TextStyle(color: zo.O.soft, fontSize: 13),
     filled: true,
     fillColor: const Color(0xFF1D2536),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -6943,7 +6979,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                       width: 52,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: cDim,
+                        color: zo.O.soft,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -6952,11 +6988,11 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                     // title row; Sona must stay unmistakably paper).
                     Text(
                       '$sideLabel GOLD · PAPER',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         letterSpacing: 1.2,
                         fontWeight: FontWeight.w600,
-                        color: cDim,
+                        color: zo.O.soft,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -6984,12 +7020,12 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          border: Border.all(color: cDim),
+                          border: Border.all(color: zo.O.soft),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           ouncesMode ? 'Ounce(s)' : 'Lot(s)',
-                          style: const TextStyle(fontSize: 12, color: cDim),
+                          style: TextStyle(fontSize: 12, color: zo.O.soft),
                         ),
                       ),
                     ),
@@ -7030,7 +7066,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                       ouncesMode
                           ? '1 oz = 0.01 lot · step 1 oz'
                           : '1 lot = 100 oz · step 0.01 = 1 oz',
-                      style: const TextStyle(color: cDim, fontSize: 11),
+                      style: TextStyle(color: zo.O.soft, fontSize: 11),
                     ),
                     if (lastLots != null)
                       Text(
@@ -7043,9 +7079,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           'Required Margin ',
-                          style: TextStyle(color: cDim, fontSize: 13),
+                          style: TextStyle(color: zo.O.soft, fontSize: 13),
                         ),
                         Text(
                           reqMargin == null ? 'unavailable' : money(reqMargin),
@@ -7082,7 +7118,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                     const SizedBox(height: 2),
                     Text(
                       'of est. free paper margin ${freeMargin == null ? "(unavailable)" : money(freeMargin)} · assumed 1:500, not broker margin',
-                      style: const TextStyle(color: cDim, fontSize: 10.5),
+                      style: TextStyle(color: zo.O.soft, fontSize: 10.5),
                     ),
                     if (app.uncertainCloses > 0) ...[
                       const SizedBox(height: 4),
@@ -7117,7 +7153,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                         const SizedBox(height: 6),
                         Text(
                           'Current $sideLabel price: ${fmtG(px)}',
-                          style: const TextStyle(color: cDim, fontSize: 12),
+                          style: TextStyle(color: zo.O.soft, fontSize: 12),
                         ),
                         const Divider(height: 20, color: Color(0xFF39435A)),
                         Row(
@@ -7138,12 +7174,12 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                           gtc
                               ? 'Until cancelled or filled'
                               : 'Expires at local midnight',
-                          style: const TextStyle(color: cDim, fontSize: 11),
+                          style: TextStyle(color: zo.O.soft, fontSize: 11),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           'Fills only while Sona is open, needs internet. Execution is at the next available side quote, not guaranteed at the trigger price.',
-                          style: TextStyle(color: cDim, fontSize: 11),
+                          style: TextStyle(color: zo.O.soft, fontSize: 11),
                         ),
                       ],
                     ),
@@ -7166,9 +7202,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                               color: const Color(0xFF1D2536),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Price levels',
-                              style: TextStyle(fontSize: 11.5, color: cDim),
+                              style: TextStyle(fontSize: 11.5, color: zo.O.soft),
                             ),
                           ),
                         ),
@@ -7249,9 +7285,9 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                             'Gain at target: ${money(preview.gain)} · Reward/risk ${preview.rewardRisk?.toStringAsFixed(2) ?? "—"}',
                             style: const TextStyle(fontSize: 12),
                           ),
-                          const Text(
+                          Text(
                             'Estimates from fill prices. Gaps/slippage may exceed the stop risk. Fees/swap not included.',
-                            style: TextStyle(color: cDim, fontSize: 10.5),
+                            style: TextStyle(color: zo.O.soft, fontSize: 10.5),
                           ),
                         ],
                       ],
@@ -7313,7 +7349,7 @@ class _PaperOrderSheetState extends State<PaperOrderSheet> {
                   ? 'Pending paper order. Fills only while Sona is open, needs internet. No margin reserved; rechecked at fill. TP/SL runs on-device; no always-on server protection.'
                   : 'Market paper order. Spread/slippage apply. TP/SL runs on-device and can be delayed when the app is closed; no always-on server protection. Account refresh at submit.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: cDim, fontSize: 10.5),
+              style: TextStyle(color: zo.O.soft, fontSize: 10.5),
             ),
           ],
         ),
