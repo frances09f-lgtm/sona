@@ -269,17 +269,7 @@ jobs:
             adb pull /sdcard/ui.xml /tmp/ui.xml || true
             python3 /tmp/pick.py /tmp/ui.xml pickat '700,1080,700,1300,-1' /tmp/tapF || true
             if [ -s /tmp/tapF ]; then adb shell input tap $(cat /tmp/tapF); sleep 5; fi
-            for idx in 5 6 7 4 8; do
-              adb shell uiautomator dump /sdcard/ui.xml || true
-              adb pull /sdcard/ui.xml /tmp/ui.xml || true
-              python3 /tmp/pick.py /tmp/ui.xml pickat "0,80,300,2200,$idx" /tmp/tapB || true
-              if [ -s /tmp/tapB ]; then adb shell input tap $(cat /tmp/tapB); sleep 2; fi
-              adb shell input tap 560 1100 || true
-              sleep 3
-              adb shell uiautomator dump /sdcard/ui.xml || true
-              adb pull /sdcard/ui.xml /tmp/ui.xml || true
-              if grep -q 'Price alerts' /tmp/ui.xml; then echo ALERT_SHEET_OPEN; break; fi
-            done
+            for idx in 5 6 7 4 8; do adb shell uiautomator dump /sdcard/ui.xml || true; adb pull /sdcard/ui.xml /tmp/ui.xml || true; python3 /tmp/pick.py /tmp/ui.xml pickat "0,80,300,2200,$idx" /tmp/tapB || true; if [ -s /tmp/tapB ]; then adb shell input tap $(cat /tmp/tapB); sleep 2; fi; adb shell input tap 560 1100 || true; sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true; adb pull /sdcard/ui.xml /tmp/ui.xml || true; if grep -q 'Price alerts' /tmp/ui.xml; then echo ALERT_SHEET_OPEN; break; fi; done
             adb exec-out screencap -p > /tmp/sona-orion-alert.png
             adb shell input keyevent 4 || true
             sleep 2
@@ -320,11 +310,7 @@ jobs:
         with:
           name: phone-captures
           path: |
-            /tmp/sona-orion-trade.png
-            /tmp/sona-orion-portfolio.png
-            /tmp/sona-orion-add.png
-            /tmp/sona-orion-stats.png
-            /tmp/sona-orion-ai.png
+            /tmp/sona-orion-*.png
             /tmp/ui.xml
           if-no-files-found: warn
       - id: gofile_caps
