@@ -2948,12 +2948,12 @@ class _TradeTabState extends State<TradeTab> {
                                 borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('sell'),
                                 child: SizedBox(
-                                  height: 60,
+                                  height: 52,
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       const Text(
-                                        'SELL  ',
+                                        'SELL',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 13,
@@ -2961,6 +2961,7 @@ class _TradeTabState extends State<TradeTab> {
                                           letterSpacing: 1.2,
                                         ),
                                       ),
+                                      const SizedBox(width: 6),
                                       Text(
                                         app.bid == null ? '--' : fmt(app.bid),
                                         style: const TextStyle(
@@ -2986,12 +2987,12 @@ class _TradeTabState extends State<TradeTab> {
                                 borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('buy'),
                                 child: SizedBox(
-                                  height: 60,
+                                  height: 52,
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       const Text(
-                                        'BUY  ',
+                                        'BUY',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 13,
@@ -2999,6 +3000,7 @@ class _TradeTabState extends State<TradeTab> {
                                           letterSpacing: 1.2,
                                         ),
                                       ),
+                                      const SizedBox(width: 6),
                                       Text(
                                         app.ask == null ? '--' : fmt(app.ask),
                                         style: const TextStyle(
