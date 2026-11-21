@@ -126,6 +126,7 @@ Widget oPastel(
   Widget child, {
   Color color = O.mint,
   bool muted = true,
+  bool darkInk = false,
   EdgeInsets padding = const EdgeInsets.all(14),
   double radius = O.rCard,
 }) {
@@ -143,7 +144,15 @@ Widget oPastel(
         borderRadius: O.cardRadius(radius),
         border: Border.all(color: muted ? O.line : O.cardLine),
       ),
-      child: child,
+      child: darkInk
+          ? DefaultTextStyle.merge(
+              style: TextStyle(color: mutedInk),
+              child: IconTheme.merge(
+                data: IconThemeData(color: mutedInk),
+                child: child,
+              ),
+            )
+          : child,
     ),
   );
 }
