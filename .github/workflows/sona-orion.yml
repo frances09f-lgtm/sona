@@ -99,7 +99,7 @@ jobs:
           PYEOF
           cp /tmp/flutter-results.jsonl /tmp/flutter-results-copy.jsonl || true
           echo "TESTS_OK=$OK" >> "$GITHUB_ENV"
-          true
+          [ "$OK" = 1 ]
       - name: Preserve raw test results
         if: always()
         uses: actions/upload-artifact@v4
