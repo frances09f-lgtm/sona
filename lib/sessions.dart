@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'orion.dart' as zo;
+
 /// Spec 33: market session display for Sydney, Tokyo, London, New York.
 ///
 /// Spot gold (XAU/USD) is OTC - there are no official exchange session
@@ -80,12 +82,11 @@ class SessionsStrip extends StatelessWidget {
         : openNames.isEmpty
             ? 'Between sessions'
             : 'Open now: ${openNames.join(', ')}';
-    const cDim = Color(0xFFB4ABA0);
     const cGreen = Color(0xFF3DDBA4);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF211D19),
+        color: zo.O.panel,
         borderRadius: BorderRadius.circular(26),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -99,23 +100,23 @@ class SessionsStrip extends StatelessWidget {
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: s.open ? cGreen : const Color(0xFF3A4152),
+                    color: s.open ? cGreen : zo.O.muted,
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Text(s.name,
                     style: TextStyle(
                         fontSize: 11,
-                        color: s.open ? Colors.white : cDim,
+                        color: s.open ? zo.O.ink : zo.O.soft,
                         fontWeight:
                             s.open ? FontWeight.w600 : FontWeight.normal)),
               ]),
             ),
         ]),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           '$caption${next != null ? ' · Next: ${next.$1} ${next.$2.toString().padLeft(2, '0')}:00 UTC' : ''} · reference hours, approximate',
-          style: const TextStyle(fontSize: 10, color: cDim),
+          style: TextStyle(fontSize: 10, color: zo.O.soft),
         ),
       ]),
     );
