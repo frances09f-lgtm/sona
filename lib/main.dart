@@ -1511,7 +1511,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: Text(
             'Chart shows candle intervals - now: ${_labelFor(false, _intervalCode)}${_mode == 'candles' ? ' (active)' : ''}',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => _pick(false),
         ),
         ListTile(
@@ -1521,7 +1520,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: Text(
             'Chart shows history ranges - now: ${_labelFor(true, _rangeCode)}${_mode == 'range' ? ' (active)' : ''}',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => _pick(true),
         ),
         ListTile(
@@ -1531,7 +1529,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: const Text(
             'Replay real candles fast and call up or down - training only',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const PracticeScreen())),
         ),
@@ -1542,7 +1539,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: const Text(
             'Test-build facts: raw provider bars, quote freshness, build id',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const ChartDiagnosticsScreen(snapshot: null),
@@ -1556,7 +1552,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: const Text(
             'Custom price-action strategies: chart levels and backtests',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => StrategiesScreen(app: widget.app),
@@ -1570,7 +1565,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           subtitle: Text(
             'For AI and Advice trades - now: ${_protection.describe()}',
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () async {
             await Navigator.of(context).push(
               MaterialPageRoute(
@@ -1607,7 +1601,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Check for updates'),
           subtitle: const Text('Download and install the latest Sona release'),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => checkUpdateManually(context),
         ),
         ListTile(
@@ -1615,7 +1608,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           leading: const Icon(Icons.key_outlined),
           title: const Text('API settings'),
           subtitle: const Text('Twelve Data candles and Groq AI keys'),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const ApiKeysScreen())),
         ),
@@ -1624,7 +1616,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           leading: const Icon(Icons.school_outlined),
           title: const Text('Learn paper trading'),
           subtitle: const Text('Oz, spread, TP/SL and estimated margin'),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () =>
               Navigator.of(context)
                   .push(MaterialPageRoute(builder: (_) => const LearnScreen())),
@@ -1633,7 +1624,6 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.account_circle_outlined),
           title: const Text('Paper account'),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => LockScreen(app: widget.app)),
           ),
@@ -2323,15 +2313,20 @@ class _TradeTabState extends State<TradeTab> {
                   Row(
                     children: [
                       Container(
-                        width: 46,
-                        height: 46,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF5C242),
-                          shape: BoxShape.circle,
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF201A17),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(
-                          Icons.stacked_bar_chart,
-                          color: Color(0xFF201A17),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Au',
+                          style: TextStyle(
+                            color: Color(0xFFF7D154),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -2466,7 +2461,12 @@ class _TradeTabState extends State<TradeTab> {
                   ),
                 ),
                 if (!_showTv)
-                  CandleChartPanel(
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: Container(
+                      color: Colors.black,
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                      child: CandleChartPanel(
                     key: chartKey,
                   onAlertPrice: confirmChartAlert,
                   rangeMode: true,
@@ -2546,6 +2546,8 @@ class _TradeTabState extends State<TradeTab> {
                     );
                   },
                     livePrice: _replay?.price ?? app.chartBasis,
+                      ),
+                    ),
                   ),
                 if (_showTv)
                   SizedBox(
