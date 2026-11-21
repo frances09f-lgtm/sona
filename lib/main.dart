@@ -1572,8 +1572,42 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Settings')),
-    body: ListView(
+    body: SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            child: Row(
+              children: [
+                // Approved-design circular back button; keeps the real route.
+                Material(
+                  color: zo.O.panel2,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(Icons.chevron_left, color: zo.O.ink, size: 24),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  'Settings',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: zo.O.ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -1587,6 +1621,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.candlestick_chart_outlined),
           title: const Text('Candle interval'),
@@ -1596,6 +1642,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(false),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.date_range_outlined),
           title: const Text('History range'),
@@ -1605,6 +1663,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(true),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Practice replay'),
@@ -1615,6 +1685,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const PracticeScreen())),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.troubleshoot_outlined),
           title: const Text('Chart diagnostics'),
@@ -1628,6 +1710,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.psychology_outlined),
           title: const Text('Strategies'),
@@ -1641,6 +1735,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Stop loss & take profit'),
@@ -1658,27 +1764,53 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
             if (mounted) setState(() => _protection = p);
           },
         ),
-        SwitchListTile(
-          secondary: const Icon(Icons.show_chart),
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
+          leading: const Icon(Icons.show_chart),
           title: const Text('Show ask line'),
           subtitle: const Text(
             'Red dashed line at the buy (ask) price; the yellow bid line always shows',
           ),
-          value: _showAsk,
-          onChanged: (v) async {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool(kChartShowAskPref, v);
-            await prefs.setInt(
-              kChartSelectionRevPref,
-              (prefs.getInt(kChartSelectionRevPref) ?? 0) + 1,
-            );
-            if (!mounted) return;
-            setState(() => _showAsk = v);
-            widget.app.refresh();
-          },
+          trailing: zo.OSwitch(
+            value: _showAsk,
+            onChanged: (v) async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(kChartShowAskPref, v);
+              await prefs.setInt(
+                kChartSelectionRevPref,
+                (prefs.getInt(kChartSelectionRevPref) ?? 0) + 1,
+              );
+              if (!mounted) return;
+              setState(() => _showAsk = v);
+              widget.app.refresh();
+            },
+          ),
         ),
         const Divider(),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Check for updates'),
@@ -1686,6 +1818,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => checkUpdateManually(context),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.key_outlined),
           title: const Text('API settings'),
@@ -1694,6 +1838,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const ApiKeysScreen())),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Learn paper trading'),
@@ -1703,6 +1859,18 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
                   .push(MaterialPageRoute(builder: (_) => const LearnScreen())),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 12,
+          titleTextStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.ink),
+          subtitleTextStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'Roboto',
+          ).copyWith(color: zo.O.soft),
           trailing: Icon(Icons.chevron_right, size: 18, color: zo.O.soft),
           leading: const Icon(Icons.account_circle_outlined),
           title: const Text('Paper account'),
@@ -1711,6 +1879,10 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
       ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -1829,45 +2001,120 @@ class _TradeTabState extends State<TradeTab> {
   Future<void> confirmChartAlert(double level) async {
     bool above = app.price == null || level >= app.price!;
     final field = TextEditingController(text: level.toStringAsFixed(2));
-    final yes = await showDialog<bool>(
+    // Approved-design bottom sheet (so-sheet): rounded top, app background.
+    final yes = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: zo.O.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
-          title: const Text('Create price alert?'),
-          content: Column(
+        builder: (ctx, update) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            22 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: field,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'XAU/USD level · USD/oz',
-                ),
-              ),
-              SwitchListTile(
-                title: Text(
-                  above ? 'Notify above this level' : 'Notify below this level',
-                ),
-                value: above,
-                onChanged: (v) => update(() => above = v),
-              ),
               const Text(
+                'Price alerts',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Create price alert? Sona watches the quote and notifies you.',
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              card(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ALERT LEVEL (USD/OZ)',
+                      style: TextStyle(
+                        color: zo.O.soft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.7,
+                      ),
+                    ),
+                    TextField(
+                      controller: field,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      above
+                          ? 'Notify above this level'
+                          : 'Notify below this level',
+                      style: TextStyle(color: zo.O.soft, fontSize: 12),
+                    ),
+                  ),
+                  zo.OSwitch(
+                    value: above,
+                    onChanged: (v) => update(() => above = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
                 'Device-local alert, checked on fresh quotes. Background delivery is best-effort. No trade will be placed.',
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: zo.O.panel2,
+                        foregroundColor: zo.O.ink,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Save alert'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: zo.O.panel2,
+                        foregroundColor: zo.O.ink,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save alert'),
-            ),
-          ],
         ),
       ),
     );
@@ -2434,7 +2681,9 @@ class _TradeTabState extends State<TradeTab> {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(14),
+              // Bottom clearance so the Daily-limits card scrolls fully
+              // clear of the pinned order controls (approved layout).
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 120),
               cacheExtent: 10000,
               children: [
                 zo.oPastel(
@@ -2826,6 +3075,111 @@ class _TradeTabState extends State<TradeTab> {
                       ],
                     ),
                   ),
+                card(
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Daily limits',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _editSlippage(context),
+                            icon: Icon(
+                              Icons.speed,
+                              size: 14,
+                              color: zo.O.soft,
+                            ),
+                            label: Text(
+                              'Slippage: ${app.slippage.label}',
+                              style: TextStyle(color: zo.O.soft, fontSize: 12),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _editDailyLimits(context),
+                            icon: const Icon(
+                              Icons.tune,
+                              size: 14,
+                              color: Color(0xFFF5C242),
+                            ),
+                            label: const Text(
+                              'Set',
+                              style: TextStyle(
+                                color: Color(0xFFF5C242),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _balRow(
+                              'Trades today',
+                              '${app.tradesToday()}${app.maxTradesDay > 0 ? ' / ${app.maxTradesDay}' : ''}',
+                              zo.O.soft,
+                            ),
+                          ),
+                          Expanded(
+                            child: _balRow(
+                              'P/L today',
+                              money(app.realizedToday(), sign: true) +
+                                  (app.maxDailyLoss > 0
+                                      ? ' / -${fmt(app.maxDailyLoss)}'
+                                      : ''),
+                              cls(app.realizedToday()),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (app.limitWarning() != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.warning_amber,
+                                color: Colors.amber,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  app.limitWarning()!,
+                                  style: const TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Block new trades at limit',
+                              style: TextStyle(fontSize: 12, color: zo.O.soft),
+                            ),
+                          ),
+                          zo.OSwitch(
+                            value: app.blockOnLimit,
+                            onChanged: (v) =>
+                                setState(() => app.setDailyLimits(block: v)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 if (app.pendingOrders != null) ...[
                   const SizedBox(height: 12),
                   ...app.pendingOrders!.orders
@@ -3009,112 +3363,6 @@ class _TradeTabState extends State<TradeTab> {
                       ],
                     ),
                   ),
-                card(
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Daily limits',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: () => _editSlippage(context),
-                            icon: Icon(
-                              Icons.speed,
-                              size: 14,
-                              color: zo.O.soft,
-                            ),
-                            label: Text(
-                              'Slippage: ${app.slippage.label}',
-                              style: TextStyle(color: zo.O.soft, fontSize: 12),
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: () => _editDailyLimits(context),
-                            icon: const Icon(
-                              Icons.tune,
-                              size: 14,
-                              color: Color(0xFFF5C242),
-                            ),
-                            label: const Text(
-                              'Set',
-                              style: TextStyle(
-                                color: Color(0xFFF5C242),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _balRow(
-                              'Trades today',
-                              '${app.tradesToday()}${app.maxTradesDay > 0 ? ' / ${app.maxTradesDay}' : ''}',
-                              zo.O.soft,
-                            ),
-                          ),
-                          Expanded(
-                            child: _balRow(
-                              'P/L today',
-                              money(app.realizedToday(), sign: true) +
-                                  (app.maxDailyLoss > 0
-                                      ? ' / -${fmt(app.maxDailyLoss)}'
-                                      : ''),
-                              cls(app.realizedToday()),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (app.limitWarning() != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.warning_amber,
-                                color: Colors.amber,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  app.limitWarning()!,
-                                  style: const TextStyle(
-                                    color: Colors.amber,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Block new trades at limit',
-                              style: TextStyle(fontSize: 12, color: zo.O.soft),
-                            ),
-                          ),
-                          Switch(
-                            value: app.blockOnLimit,
-                            activeTrackColor: cGreen,
-                            onChanged: (v) =>
-                                setState(() => app.setDailyLimits(block: v)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -4511,7 +4759,60 @@ class PendingOrderRemoveButton extends StatelessWidget {
 
 class PendingOrdersPanel extends StatelessWidget {
   final AppState app;
-  const PendingOrdersPanel({super.key, required this.app});
+
+  /// Approved-design lavender card treatment. Default off so the frozen
+  /// Portfolio open-list rendering stays byte-identical.
+  final bool approvedStyle;
+  const PendingOrdersPanel({
+    super.key,
+    required this.app,
+    this.approvedStyle = false,
+  });
+
+  /// Original card body, kept byte-identical for the frozen Portfolio.
+  Widget _pendingOrderBody(PendingPaperOrder o) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${o.side.toUpperCase()} GOLD · ${lotsStr(o.qty)}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (o.status == 'pending' ||
+              o.status == 'cancelled' ||
+              o.status == 'filled' ||
+              o.status == 'expired')
+            PendingOrderRemoveButton(app: app, order: o),
+        ],
+      ),
+      Text(switch (o.status) {
+        'pending' =>
+          'Waiting for ${o.side == "buy" ? "Ask" : "Bid"} at or ${o.above ? "above" : "below"} ${fmtG(o.trigger)}',
+        'filled' => 'Filled',
+        'cancelled' => 'Cancelled',
+        'expired' => 'Expired',
+        'submitting' => 'Submitting - do not place again',
+        _ => 'Needs review - check positions before retrying',
+      }),
+      Text(
+        '${o.gtc ? "GTC" : "Expires at local midnight"} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
+        style: TextStyle(color: zo.O.soft, fontSize: 12),
+      ),
+      if (o.status == 'pending')
+        Text(
+          'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
+          style: TextStyle(color: zo.O.soft, fontSize: 11),
+        ),
+      if (o.note != null && o.note!.isNotEmpty)
+        Text(
+          o.note!,
+          style: TextStyle(color: zo.O.soft, fontSize: 12),
+        ),
+    ],
+  );
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: app,
@@ -4522,35 +4823,63 @@ class PendingOrdersPanel extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 12, bottom: 6),
-            child: Text(
-              'Pending orders',
-              style: TextStyle(fontWeight: FontWeight.w600),
+          if (!approvedStyle)
+            const Padding(
+              padding: EdgeInsets.only(top: 12, bottom: 6),
+              child: Text(
+                'Pending orders',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
           for (final o in orders)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${o.side.toUpperCase()} GOLD · ${lotsStr(o.qty)}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+            if (!approvedStyle)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: _pendingOrderBody(o),
+                ),
+              )
+            else
+              zo.oPastel(
+              color: zo.O.lav,
+              muted: false,
+              darkInk: true,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF5A3FA8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          o.side == 'buy' ? 'B' : 'S',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
                           ),
                         ),
-                        if (o.status == 'pending' ||
-                            o.status == 'cancelled' ||
-                            o.status == 'filled' ||
-                            o.status == 'expired')
-                          PendingOrderRemoveButton(app: app, order: o),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${o.side.toUpperCase()} GOLD · ${lotsStr(o.qty)}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      if (o.status == 'pending' ||
+                          o.status == 'cancelled' ||
+                          o.status == 'filled' ||
+                          o.status == 'expired')
+                        PendingOrderRemoveButton(app: app, order: o),
+                    ],
+                  ),
                     Text(switch (o.status) {
                       'pending' =>
                         'Waiting for ${o.side == "buy" ? "Ask" : "Bid"} at or ${o.above ? "above" : "below"} ${fmtG(o.trigger)}',
@@ -4562,20 +4891,19 @@ class PendingOrdersPanel extends StatelessWidget {
                     }),
                     Text(
                       '${o.gtc ? "GTC" : "Expires at local midnight"} · TP ${fmt(o.tp)} · SL ${fmt(o.sl)}',
-                      style: TextStyle(color: zo.O.soft, fontSize: 12),
+                      style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
                     ),
                     if (o.status == 'pending')
                       Text(
                         'Fills only while Sona is open with a fresh quote and internet. Margin is checked at fill.',
-                        style: TextStyle(color: zo.O.soft, fontSize: 11),
+                        style: TextStyle(color: zo.O.cardSoft, fontSize: 11),
                       ),
                     if (o.note != null && o.note!.isNotEmpty)
                       Text(
                         o.note!,
-                        style: TextStyle(color: zo.O.soft, fontSize: 12),
+                        style: TextStyle(color: zo.O.cardSoft, fontSize: 12),
                       ),
-                  ],
-                ),
+                ],
               ),
             ),
         ],
@@ -4594,6 +4922,7 @@ class AddTab extends StatefulWidget {
 class _AddTabState extends State<AddTab> {
   String dir = 'buy';
   String editingId = '';
+  bool journalOpen = false;
   final instrumentCtrl = TextEditingController(text: 'XAU/USD');
   final entryCtrl = TextEditingController();
   final exitCtrl = TextEditingController();
@@ -4648,6 +4977,7 @@ class _AddTabState extends State<AddTab> {
     setState(() {
       editingId = '';
       dir = 'buy';
+      journalOpen = false;
       instrumentCtrl.text = 'XAU/USD';
       entryCtrl.clear();
       exitCtrl.clear();
@@ -4719,6 +5049,17 @@ class _AddTabState extends State<AddTab> {
           children: [
             Expanded(
               child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: cGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Roboto',
+                  ),
+                  shape: const StadiumBorder(),
+                ),
                 onPressed: () => openPending('buy'),
                 child: const Text('Buy at entry price'),
               ),
@@ -4726,23 +5067,58 @@ class _AddTabState extends State<AddTab> {
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: cRed),
+                style: FilledButton.styleFrom(
+                  backgroundColor: cRed,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Roboto',
+                  ),
+                  shape: const StadiumBorder(),
+                ),
                 onPressed: () => openPending('sell'),
                 child: const Text('Sell at entry price'),
               ),
             ),
           ],
         ),
-        PendingOrdersPanel(app: app),
-        const Divider(height: 24),
-        Text(
-          'Records only. Saving a manual journal entry never places a paper order.',
-          style: TextStyle(color: zo.O.soft, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
+        PendingOrdersPanel(app: app, approvedStyle: true),
+        const SizedBox(height: 12),
         zo.oSect(editingId.isEmpty ? 'New journal entry' : 'Edit entry'),
         const SizedBox(height: 10),
-        card(
+        if (editingId.isEmpty && !journalOpen)
+          Row(
+            children: [
+              for (final e in const [('buy', 'Buy', cGreen), ('sell', 'Sell', cRed)])
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: e.$1 == 'buy' ? 8 : 0),
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: e.$3,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Roboto',
+                        ),
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: () => setState(() {
+                        dir = e.$1;
+                        journalOpen = true;
+                      }),
+                      child: Text(e.$2),
+                    ),
+                  ),
+                ),
+            ],
+          )
+        else
+          card(
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -5007,6 +5383,14 @@ class _AddTabState extends State<AddTab> {
           )
         else
           ...app.trades.map((t) => _tradeTile(t)),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            'Records only. Saving a manual journal entry never places a paper order.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: zo.O.soft, fontSize: 12),
+          ),
+        ),
       ],
     );
   }
@@ -5226,9 +5610,129 @@ class _AddTabState extends State<AddTab> {
   }
 }
 
+/// Small-caps label used on the approved pastel stat cards.
+Widget _statCardLabel(String text) => Padding(
+  padding: const EdgeInsets.only(bottom: 4),
+  child: Text(
+    text,
+    style: const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1.7,
+    ),
+  ),
+);
+
+/// Approved-design curve card. Plots the genuine cumulative closed PnL of
+/// the trades in the current view at their real timestamps (step line, one
+/// point per trade, no interpolation); an honest state when there are too
+/// few trades for a curve.
+Widget _equityCurveCard(List<PerformanceRecord> records, String source) {
+  final sorted = records.toList()..sort((a, b) => a.at.compareTo(b.at));
+  return card(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _statCardLabel('CUMULATIVE CLOSED PNL'),
+        if (sorted.isEmpty)
+          Text(
+            'No closed trades in this view yet.',
+            style: TextStyle(color: zo.O.soft, fontSize: 12),
+          )
+        else if (sorted.length == 1)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 90,
+                width: double.infinity,
+                child: CustomPaint(painter: _PnlStepChart(sorted)),
+              ),
+              Text(
+                'Only 1 closed trade yet. The curve appears once more history exists.',
+                style: TextStyle(color: zo.O.soft, fontSize: 12),
+              ),
+            ],
+          )
+        else
+          SizedBox(
+            height: 90,
+            width: double.infinity,
+            child: CustomPaint(painter: _PnlStepChart(sorted)),
+          ),
+        const SizedBox(height: 6),
+        Text(
+          sorted.isEmpty
+              ? 'Cumulative closed PnL, real trades.'
+              : 'Cumulative closed PnL · ${sorted.length} trade(s) · real timestamps.',
+          style: TextStyle(color: zo.O.soft, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Step chart of cumulative closed PnL at actual trade timestamps. One
+/// marker per trade; the value steps at each trade instead of interpolating
+/// a trend between observations.
+class _PnlStepChart extends CustomPainter {
+  final List<PerformanceRecord> records;
+  _PnlStepChart(this.records);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (records.isEmpty) return;
+    final times = records.map((r) => r.at.millisecondsSinceEpoch).toList();
+    var cum = 0.0;
+    final values = <double>[];
+    for (final r in records) {
+      cum += r.pnl;
+      values.add(cum);
+    }
+    final lo = math.min(0.0, values.reduce(math.min));
+    final hi = math.max(0.0, values.reduce(math.max));
+    final span = (hi - lo).abs() < 1e-9 ? 1.0 : hi - lo;
+    final tSpan = records.length > 1
+        ? math.max(1, times.last - times.first)
+        : 1;
+    double xOf(int i) => records.length == 1
+        ? size.width / 2
+        : size.width * (times[i] - times.first) / tSpan;
+    double yOf(double v) => 6 + (1 - (v - lo) / span) * (size.height - 12);
+
+    final up = values.last >= 0;
+    final col = up ? const Color(0xFF3DDBA4) : const Color(0xFFFF6B81);
+    final line = Paint()
+      ..color = col
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeJoin = StrokeJoin.round;
+
+    if (records.length > 1) {
+      // Step path: flat at the previous cumulative value until each trade's
+      // timestamp, then a vertical step to its value.
+      final path = Path()..moveTo(xOf(0), yOf(0));
+      for (var i = 0; i < records.length; i++) {
+        path.lineTo(xOf(i), yOf(i == 0 ? 0 : values[i - 1]));
+        path.lineTo(xOf(i), yOf(values[i]));
+      }
+      path.lineTo(size.width, yOf(values.last));
+      canvas.drawPath(path, line);
+    }
+    final dot = Paint()..color = col;
+    for (var i = 0; i < records.length; i++) {
+      canvas.drawCircle(Offset(xOf(i), yOf(values[i])), 3, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PnlStepChart old) => old.records != records;
+}
+
 class StatsTab extends StatefulWidget {
   final AppState app;
   const StatsTab({super.key, required this.app});
+
   @override
   State<StatsTab> createState() => _StatsTabState();
 }
@@ -5287,10 +5791,14 @@ class _StatsTabState extends State<StatsTab> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        Text(
-          'Performance',
+        const Text(
+          'PERFORMANCE',
           style: TextStyle(
-              fontSize: 20, fontWeight: FontWeight.w700, color: zo.O.ink),
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.7,
+            color: Color(0xFF1E8F68),
+          ),
         ),
         Container(
           padding: const EdgeInsets.all(3),
@@ -5386,20 +5894,95 @@ class _StatsTabState extends State<StatsTab> {
               : 'Manually logged results only. Simulated fills excluded.',
           style: TextStyle(color: zo.O.soft, fontSize: 12),
         ),
+        // Approved-design pastel stat cards: every value is computed from
+        // the app's real records and signal history - no sample data.
+        const SizedBox(height: 10),
+        _equityCurveCard(records, source),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: zo.oPastel(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _statCardLabel('WIN RATE'),
+                    Text(
+                      done.isEmpty
+                          ? '--'
+                          : '${(100 * wins / done.length).round()}%',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                muted: false,
+                darkInk: true,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: zo.oPastel(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _statCardLabel('TRADES'),
+                    Text(
+                      '${done.length}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                color: zo.O.lav,
+                muted: false,
+                darkInk: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        zo.oPastel(
+          muted: false,
+          darkInk: true,
+          Builder(
+            builder: (context) {
+              final sig = app.signalChipStats;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _statCardLabel('SIGNALS TODAY'),
+                  Text(
+                    sig == null
+                        ? 'No signals scored today yet · resets at midnight IST'
+                        : '${sig.$1} correct · ${sig.$2} wrong · resets at midnight IST',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              );
+            },
+          ),
+          color: zo.O.sky,
+        ),
+        const SizedBox(height: 10),
         if (records.any((r) => !r.sizeKnown))
           Text(
             '${records.where((r) => !r.sizeKnown).length} legacy record(s): size unknown; original reported PnL retained.',
             style: const TextStyle(color: Colors.amber, fontSize: 12),
           ),
         if (source == 'manual')
-          card(
+          zo.oPastel(
+            color: zo.O.peach,
+            muted: false,
+            darkInk: true,
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Performance by setup',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
+                _statCardLabel('PERFORMANCE BY SETUP'),
                 if (records.isEmpty)
                   const Text('No closed journal trades in this period.'),
                 for (final group in performanceBySetup(records).entries)
@@ -6230,16 +6813,15 @@ class _AiTabState extends State<AiTab> {
                   children: [
                     Icon(Icons.smart_toy_outlined, color: zo.O.soft, size: 20),
                     const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'AI auto-trade',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
+                    const Text(
+                      'AI auto-trade',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
                     ),
-                    Switch(
+                    const SizedBox(width: 12),
+                    zo.OSwitch(
                       value: st.enabled,
                       onChanged: (v) async {
                         final prefs = await SharedPreferences.getInstance();
