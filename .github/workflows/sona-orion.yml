@@ -232,7 +232,6 @@ jobs:
             if [ -s /tmp/tapI ]; then adb shell input tap $(cat /tmp/tapI); fi
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-ai.png
-            adb logcat -d -t 400 > /tmp/logcat.txt || true
       - name: Copy phone captures to gofile for review transport
         if: always()
         run: |
@@ -251,7 +250,6 @@ jobs:
             /tmp/sona-orion-stats.png
             /tmp/sona-orion-ai.png
             /tmp/ui.xml
-            /tmp/logcat.txt
           if-no-files-found: warn
       - id: gofile_caps
         name: Copy captures to gofile for inspection
