@@ -113,9 +113,7 @@ jobs:
         run: flutter build apk --release --target-platform android-arm64
       - id: apk_verify_transport
         if: ${{ github.event.inputs.test_only != 'true' }}
-        name: Verify signed APK identity and PRIVATE draft transport
-        env:
-          GH_TOKEN: ${{ github.token }}
+        name: Verify signed APK identity
         run: |
           set -euo pipefail
           APK=build/app/outputs/flutter-apk/app-release.apk
@@ -131,23 +129,18 @@ jobs:
           cp "$APK" /tmp/Sona.apk
           (cd /tmp && sha256sum Sona.apk) > /tmp/Sona.apk.sha256
           cat /tmp/Sona.apk.sha256
-          printf 'Sona 1.2.43+145 TEST. On top of the 1.2.42 TradingView Trade-tab box: (1) floating fullscreen button inside the box, top-right of the plot, opens the existing GOLD - TradingView chart page; (2) widget URL gains enabled_features pinch_scale and show_zoom_and_move_buttons_on_touch (flags verified live-effective on the exact embed; pinch inside Android WebView still needs on-phone verification). No changes to data, signals, orders, or balances. Source: %s\n' "$SOURCE_SHA" > /tmp/Sona-test-source.txt
-          TAG="test-orion-146-${{ github.run_id }}"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$SOURCE_SHA" -f name='Sona 1.2.44 TEST - Orion UI' -F draft=true -f body='Private verified TEST transport only. Not an official app release. Do not publish.' > /tmp/draft-before.json
-          DRAFT=$(jq -er '.id' /tmp/draft-before.json)
-          jq -e '.draft == true and .published_at == null and (.assets|length)==0' /tmp/draft-before.json
-          gh release upload "$TAG" /tmp/Sona.apk /tmp/Sona.apk.sha256 /tmp/Sona-test-source.txt --repo "$GITHUB_REPOSITORY"
-          gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT > /tmp/draft-after.json
-          jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
-          echo "DRAFT_URL=$(jq -r '.html_url' /tmp/draft-after.json)" >> "$GITHUB_ENV"
+          printf 'Sona 1.2.44+146 TEST (Orion UI layout fix). Signed with the existing release identity. No changes to data, signals, orders, or balances. Source: %s\n' "$SOURCE_SHA" > /tmp/Sona-test-source.txt
+          cat /tmp/Sona-test-source.txt
       - name: Upload APK artifact for capture job
         if: ${{ github.event.inputs.test_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sona-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 1
       - id: gofile
         if: ${{ github.event.inputs.test_only != 'true' }}
+        continue-on-error: true
         name: Copy verified APK to gofile for phone delivery
         run: |
           set -eo pipefail
@@ -165,6 +158,7 @@ jobs:
         with:
           name: sona-apk-x64
           path: /tmp/sona-capture-x64.apk
+          retention-days: 1
   capture:
     needs: build
     if: ${{ always() && github.event.inputs.test_only != 'true' && (needs.build.result == 'success' || github.event.inputs.reuse_run_id != '') }}
@@ -328,12 +322,4 @@ jobs:
             [ -s "$f" ] || continue
             curl -sS -F "file=@$f" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE-CAP', d.get('status'), d.get('data',{}).get('downloadPage'))" || true
           done
-      - name: Record capture outcome
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -uo pipefail
-          { echo "capture outcome for run ${{ github.run_id }}"; ls -la /tmp/sona-orion-*.png 2>/dev/null || echo 'no screenshots produced'; } > /tmp/capture-final.txt
-          gh release create "orion-capture-${{ github.run_id }}" --repo "$GITHUB_REPOSITORY" --draft --target main --title "TV fullscreen capture status" --notes-file /tmp/capture-final.txt || true
 
