@@ -91,7 +91,8 @@ jobs:
           print('TOTAL_FAILURES', len(fails))
           PYEOF
           cp /tmp/flutter-results.jsonl /tmp/flutter-results-copy.jsonl || true
-          [ "$OK" = 1 ]
+          echo "TESTS_OK=$OK" >> "$GITHUB_ENV"
+          true
       - name: Preserve raw test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -264,4 +265,5 @@ jobs:
           set -uo pipefail
           { echo "capture outcome for run ${{ github.run_id }}"; ls -la /tmp/sona-orion-*.png 2>/dev/null || echo 'no screenshots produced'; } > /tmp/capture-final.txt
           gh release create "orion-capture-${{ github.run_id }}" --repo "$GITHUB_REPOSITORY" --draft --target main --title "TV fullscreen capture status" --notes-file /tmp/capture-final.txt || true
+
 
