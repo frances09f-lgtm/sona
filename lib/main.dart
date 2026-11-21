@@ -1498,13 +1498,14 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           child: Text(
             'Chart',
             style: TextStyle(
-              color: Color(0xFF8A93A6),
+              color: cDim,
               fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.candlestick_chart_outlined),
           title: const Text('Candle interval'),
           subtitle: Text(
@@ -1514,6 +1515,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(false),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.date_range_outlined),
           title: const Text('History range'),
           subtitle: Text(
@@ -1523,6 +1525,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => _pick(true),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Practice replay'),
           subtitle: const Text(
@@ -1533,6 +1536,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const PracticeScreen())),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.troubleshoot_outlined),
           title: const Text('Chart diagnostics'),
           subtitle: const Text(
@@ -1546,6 +1550,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.psychology_outlined),
           title: const Text('Strategies'),
           subtitle: const Text(
@@ -1559,6 +1564,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           ),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Stop loss & take profit'),
           subtitle: Text(
@@ -1597,6 +1603,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
         ),
         const Divider(),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.system_update_alt),
           title: const Text('Check for updates'),
           subtitle: const Text('Download and install the latest Sona release'),
@@ -1604,6 +1611,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
           onTap: () => checkUpdateManually(context),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.key_outlined),
           title: const Text('API settings'),
           subtitle: const Text('Twelve Data candles and Groq AI keys'),
@@ -1612,6 +1620,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
               .push(MaterialPageRoute(builder: (_) => const ApiKeysScreen())),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.school_outlined),
           title: const Text('Learn paper trading'),
           subtitle: const Text('Oz, spread, TP/SL and estimated margin'),
@@ -1621,6 +1630,7 @@ class _SonaSettingsScreenState extends State<SonaSettingsScreen> {
                   .push(MaterialPageRoute(builder: (_) => const LearnScreen())),
         ),
         ListTile(
+          trailing: const Icon(Icons.chevron_right, size: 18, color: cDim),
           leading: const Icon(Icons.account_circle_outlined),
           title: const Text('Paper account'),
           trailing: const Icon(Icons.chevron_right),
@@ -5825,7 +5835,7 @@ class _AiTabState extends State<AiTab> {
           const SizedBox(height: 14),
         ],
 
-        const Card(
+        Card(
           color: zo.O.panel,
           elevation: 0,
           margin: EdgeInsets.zero,
