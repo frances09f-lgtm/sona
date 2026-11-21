@@ -10,6 +10,10 @@ on:
         description: 'Run tests only; skip APK build, transport and capture (fast feedback)'
         required: false
         default: 'false'
+      checkout_ref:
+        description: 'Branch/ref to check out and test (default ui-orion; use a base branch for regression bisect)'
+        required: false
+        default: 'ui-orion'
 jobs:
   build:
     if: ${{ github.event.inputs.reuse_run_id == '' }}
@@ -22,8 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ui-orion
+          ref: ${{ github.event.inputs.checkout_ref || 'ui-orion' }}
       - name: Verify base carries the Orion UI source
+        if: ${{ github.event.inputs.checkout_ref == '' || github.event.inputs.checkout_ref == 'ui-orion' }}
         run: |
           grep -F "version: 1.2.44+146" pubspec.yaml
           grep -F "import 'orion.dart'" lib/main.dart
@@ -51,9 +56,11 @@ jobs:
       - id: dependencies
         run: flutter pub get
       - name: Regenerate goldens (intentional Orion restyle)
+        if: ${{ github.event.inputs.checkout_ref == '' || github.event.inputs.checkout_ref == 'ui-orion' }}
         continue-on-error: true
         run: flutter test --update-goldens 2>&1 | tail -n 5
       - name: Persist regenerated goldens
+        if: ${{ github.event.inputs.checkout_ref == '' || github.event.inputs.checkout_ref == 'ui-orion' }}
         continue-on-error: true
         run: |
           git config user.email "actions@github.com"
