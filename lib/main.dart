@@ -2895,6 +2895,18 @@ class _TradeTabState extends State<TradeTab> {
                   onAlertPrice: confirmChartAlert,
                   rangeMode: true,
                   chromeless: true,
+                  // Approved Orion reference: the preview's chart box is
+                  // ~230px on an 840px phone, but the app's Trade page
+                  // stacks extra real rows the preview lacks (limits stats
+                  // row, header chrome), so the default 0.26 fraction
+                  // pushed the daily-limits card under the pinned order
+                  // bar (measured on 1080x2400 captures: card needs 254px
+                  // from y=1730, bar starts at y=1909). 0.21 clamped to
+                  // [190, 230] keeps the full card above the bar on a
+                  // 914dp viewport; shorter phones keep a usable chart and
+                  // the list scrolls. Fullscreen keeps the expanded chart.
+                  inlineHeight: (MediaQuery.of(context).size.height * 0.21)
+                      .clamp(190.0, 230.0),
                   loader:
                       (_candles == null && widget.candleLoaderOverride == null)
                       ? null
