@@ -132,7 +132,7 @@ void main() {
     (t) async {
       final app = PreviewAccount();
       final key = await mount(t, AddTab(app: app));
-      await t.tap(find.text('Buy'));
+      await t.tap(find.text('Log buy'));
       await t.pumpAndSettle();
       await t.enterText(field('Entry'), '4000');
       await t.enterText(field('Exit (optional)'), '4010');
