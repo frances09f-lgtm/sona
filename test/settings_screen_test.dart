@@ -33,6 +33,8 @@ void main() {
     );
     await t.pump();
     await t.pump(const Duration(milliseconds: 250));
+    final takeExc = t.takeException();
+    debugPrint('TAKE_EXC ' + (takeExc == null ? 'null' : takeExc.toString()));
     expect(find.text('API settings'), findsNothing);
     final sell = t.getRect(find.text('SELL'));
     final buy = t.getRect(find.text('BUY'));
