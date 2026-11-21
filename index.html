@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sona · UI preview (Orion style)</title>
+<style>
+  :root{
+    --bg:#0e0f15; --surface:#171923; --surface2:#1f2231; --surface3:#262a3d;
+    --outline:#2c3044; --on:#eceafd; --on-dim:#9a97b8;
+    --primary:#7478f8; --primary-dim:#3d3f8f; --on-primary:#ffffff;
+    --sec-c:#23282a; --sec:#a3e635;
+    --gold:#f5c242; --green:#35d07f; --red:#ff5a6e;
+    --radius-xl:32px; --radius-l:24px; --radius-m:18px;
+  }
+  [data-theme="dusk"]{ --bg:#131020; --surface:#1c1830; --surface2:#241f3d; --surface3:#2c2650; --outline:#38315e; --on:#f0ecff; --on-dim:#a89fd0; }
+  [data-theme="oled"]{ --bg:#000; --surface:#0b0b10; --surface2:#14141d; --surface3:#1c1c28; --outline:#242430; }
+  [data-theme="light"]{ --bg:#f2f0fa; --surface:#ffffff; --surface2:#ece9fb; --surface3:#ddd8f7; --outline:#d5cff2; --on:#1d1a33; --on-dim:#5f5b80; --primary:#5659e8; --gold:#c89004; --green:#0b8a54; --red:#c4394d; }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:#08080d;font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--on)}
+  .stage{min-height:100%;display:flex;align-items:center;justify-content:center;padding:28px 12px}
+  .phone{width:min(420px,100%);height:min(880px,96vh);background:var(--bg);border-radius:44px;border:8px solid #14141c;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.6);transition:background .5s}
+  @media(max-width:480px){ .stage{padding:0} .phone{width:100%;height:100vh;border:none;border-radius:0} }
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 16px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  .head{display:flex;align-items:center;gap:12px;padding:26px 18px 14px}
+  .logo{width:44px;height:44px;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--gold));display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 16px rgba(116,120,248,.35)}
+  .logo svg{width:24px;height:24px}
+  .head h1{font-size:26px;font-weight:800;letter-spacing:-.5px}
+  .head p{font-size:12px;color:var(--on-dim);font-weight:500;margin-top:1px}
+  .hbtns{margin-left:auto;display:flex;gap:8px}
+  .ibtn{width:40px;height:40px;border-radius:999px;background:var(--surface2);border:1px solid var(--outline);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .35s cubic-bezier(.34,1.56,.64,1),background .3s;position:relative}
+  .ibtn:active{transform:scale(.88)}
+  .ibtn svg{width:19px;height:19px;stroke:var(--on);fill:none;stroke-width:1.8}
+  .badge{position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+  .themes{display:flex;gap:6px;padding:2px 18px 14px;overflow-x:auto;scrollbar-width:none}
+  .themes::-webkit-scrollbar{display:none}
+  .tchip{padding:7px 14px;border-radius:999px;background:var(--surface2);border:1px solid var(--outline);font-size:12px;font-weight:600;color:var(--on-dim);cursor:pointer;white-space:nowrap;transition:all .3s}
+  .tchip.on{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 3px 12px rgba(116,120,248,.4)}
+
+  .card{background:var(--surface);border-radius:var(--radius-xl);padding:18px;margin-bottom:12px;transition:background .5s}
+  .card-sm{border-radius:var(--radius-l);padding:15px}
+  .row{display:flex;align-items:center;gap:10px}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--on-dim)}
+  .chip{padding:5px 11px;border-radius:999px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+  .chip.gold{background:rgba(245,194,66,.15);color:var(--gold)}
+  .chip.green{background:rgba(53,208,127,.14);color:var(--green)}
+  .chip.red{background:rgba(255,90,110,.14);color:var(--red)}
+  .chip.violet{background:rgba(116,120,248,.16);color:var(--primary)}
+  .chip.plain{background:var(--surface2);color:var(--on-dim)}
+
+  .hero{position:relative;overflow:hidden;background:linear-gradient(140deg,var(--primary-dim) 0%,var(--surface) 70%);border:1px solid var(--outline)}
+  .hero::before,.hero::after{content:'';position:absolute;border-radius:50%;filter:blur(2px)}
+  .hero::before{width:150px;height:150px;right:-50px;top:-60px;background:radial-gradient(circle,rgba(116,120,248,.5),transparent 70%)}
+  .hero::after{width:100px;height:100px;right:60px;bottom:-40px;background:radial-gradient(circle,rgba(245,194,66,.28),transparent 70%)}
+  .star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;opacity:.5}
+  .hero .price{font-size:38px;font-weight:800;letter-spacing:-1px;margin:8px 0 2px;font-variant-numeric:tabular-nums}
+  .hero .sub{font-size:12px;color:var(--on-dim)}
+
+  .tf{display:flex;gap:6px}
+  .tf span{padding:6px 13px;border-radius:999px;font-size:12px;font-weight:700;color:var(--on-dim);cursor:pointer;transition:all .3s}
+  .tf span.on{background:var(--surface3);color:var(--on)}
+  .chartbox{margin-top:12px;position:relative}
+  .chartbox svg{width:100%;height:170px;display:block}
+
+  .seg{display:flex;background:var(--surface2);border-radius:999px;padding:4px;position:relative}
+  .seg button{flex:1;padding:10px;border:none;background:transparent;border-radius:999px;font-size:14px;font-weight:800;color:var(--on-dim);cursor:pointer;z-index:1;transition:color .3s}
+  .seg .thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:var(--green);transition:transform .45s cubic-bezier(.34,1.56,.64,1),background .3s}
+  .seg.sell .thumb{transform:translateX(100%);background:var(--red)}
+  .seg.buy button:first-child,.seg.sell button:last-child{color:#fff}
+  .field{background:var(--surface2);border:1px solid var(--outline);border-radius:var(--radius-m);padding:10px 14px;display:flex;align-items:center;gap:8px}
+  .field input{background:none;border:none;outline:none;color:var(--on);font-size:16px;font-weight:700;width:100%;font-family:inherit}
+  .field .u{font-size:11px;color:var(--on-dim);font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stepper{display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--outline);border-radius:var(--radius-m);padding:8px 10px}
+  .stepper button{width:30px;height:30px;border-radius:999px;border:none;background:var(--surface3);color:var(--on);font-size:18px;cursor:pointer;font-weight:700}
+  .stepper b{flex:1;text-align:center;font-size:17px}
+  .bigbtn{width:100%;padding:16px;border:none;border-radius:999px;font-size:16px;font-weight:800;color:#fff;cursor:pointer;letter-spacing:.4px;transition:transform .3s cubic-bezier(.34,1.56,.64,1),filter .3s}
+  .bigbtn:active{transform:scale(.96)}
+  .bigbtn.buy{background:var(--green)}
+  .bigbtn.sell{background:var(--red)}
+  .riskline{font-size:12px;color:var(--on-dim);text-align:center}
+  .riskline b{color:var(--on)}
+
+  .bar{height:8px;border-radius:999px;background:var(--surface3);overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--gold),var(--primary))}
+
+  .pos{background:var(--surface2);border-radius:var(--radius-l);padding:14px;margin-top:10px}
+  .pos .side{font-size:11px;font-weight:800;letter-spacing:.06em}
+  .pos h4{font-size:16px;font-weight:800;margin-top:2px}
+  .pos .meta{font-size:11.5px;color:var(--on-dim);margin-top:4px}
+  .pchip{min-width:76px;text-align:center;padding:7px 10px;border-radius:999px;font-size:13px;font-weight:800}
+  .pc-green{background:rgba(53,208,127,.15);color:var(--green)}
+  .pc-red{background:rgba(255,90,110,.15);color:var(--red)}
+  .xbtn{width:30px;height:30px;border-radius:999px;background:var(--surface3);border:none;color:var(--on-dim);cursor:pointer;font-size:15px}
+  .mini{display:flex;justify-content:space-between;padding:9px 2px;font-size:13px;border-bottom:1px solid var(--outline)}
+  .mini:last-child{border-bottom:none}
+  .mini b{font-variant-numeric:tabular-nums}
+
+  .input{background:var(--surface2);border:1px solid var(--outline);border-radius:var(--radius-m);padding:12px 14px;margin-top:9px}
+  .input label{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--on-dim)}
+  .input input,.input textarea{width:100%;background:none;border:none;outline:none;color:var(--on);font-size:15px;font-weight:600;margin-top:3px;font-family:inherit;resize:none}
+  .save{margin-top:14px;background:var(--primary);box-shadow:0 6px 20px rgba(116,120,248,.4)}
+
+  .balance{font-size:34px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
+  .stat{background:var(--surface2);border-radius:var(--radius-l);padding:13px}
+  .stat b{display:block;font-size:19px;font-weight:800;margin-top:3px}
+  .hbar{height:9px;border-radius:999px;background:var(--surface3);margin-top:7px;overflow:hidden}
+  .hbar i{display:block;height:100%;border-radius:999px}
+
+  .gauge{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .gauge .ring{width:64px;height:64px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;background:conic-gradient(var(--green) 0 68%,var(--surface3) 68% 100%);position:relative}
+  .gauge .ring::after{content:'';position:absolute;inset:7px;border-radius:50%;background:var(--surface2)}
+  .gauge .ring b{position:relative;z-index:1}
+  .aitext{font-size:13.5px;line-height:1.55;color:var(--on-dim)}
+  .aitext b{color:var(--on)}
+  .askrow{display:flex;gap:8px;margin-top:12px}
+  .askrow .field{flex:1}
+  .gob{padding:0 18px;border:none;border-radius:999px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;cursor:pointer}
+  .ailog{border-left:3px solid var(--primary);padding:8px 12px;background:var(--surface2);border-radius:0 14px 14px 0;margin-top:9px;font-size:12.5px;color:var(--on-dim)}
+  .ailog b{color:var(--on)}
+
+  .dock{position:absolute;left:12px;right:12px;bottom:14px;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(14px);border:1px solid var(--outline);border-radius:999px;padding:8px;display:flex;z-index:5;transition:background .5s}
+  .dock button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;cursor:pointer;padding:7px 0;border-radius:999px;color:var(--on-dim);transition:background .35s cubic-bezier(.34,1.56,.64,1)}
+  .dock button.on{background:var(--primary);color:#fff;box-shadow:0 6px 18px rgba(116,120,248,.45)}
+  .dock svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9}
+  .dock span{font-size:10px;font-weight:700}
+
+  .tab{display:none}
+  .tab.on{display:block;animation:pop .45s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  .mt10{margin-top:10px}.mt6{margin-top:6px}
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="phone" id="phone">
+
+  <div class="head">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z" fill="#fff"/></svg></div>
+    <div><h1>Sona</h1><p>Gold paper trading · journal</p></div>
+    <div class="hbtns">
+      <div class="ibtn" title="Notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg><i class="badge">2</i></div>
+      <div class="ibtn" title="Account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
+    </div>
+  </div>
+
+  <div class="themes" id="themes">
+    <span class="tchip on" data-t="dark">Dark</span>
+    <span class="tchip" data-t="dusk">Dusk</span>
+    <span class="tchip" data-t="oled">OLED</span>
+    <span class="tchip" data-t="light">Light</span>
+  </div>
+
+  <div class="scroll">
+
+    <div class="tab on" id="t-trade">
+      <div class="card hero">
+        <span class="star" style="top:18px;left:70%"></span><span class="star" style="top:46px;left:84%"></span><span class="star" style="top:12px;left:55%"></span><span class="star" style="top:60px;left:64%"></span>
+        <div class="row">
+          <span class="lbl">Gold · XAU/USD</span>
+          <span class="chip gold">OANDA</span>
+          <span class="chip green" style="margin-left:auto">Open · 1s</span>
+        </div>
+        <div class="price">3,725.42</div>
+        <div class="sub">+0.77 (+0.02%) · H 3,728.68 · L 3,724.92</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="lbl">Chart</span>
+          <div class="tf" style="margin-left:auto">
+            <span>1m</span><span class="on">5m</span><span>15m</span><span>1h</span>
+          </div>
+        </div>
+        <div class="chartbox"><svg id="candles" viewBox="0 0 340 170" preserveAspectRatio="none"></svg></div>
+        <div class="row mt10" style="justify-content:space-between">
+          <span class="riskline" style="text-align:left">Explain chart <b>with AI</b></span>
+          <span class="chip violet">Explain ›</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="seg buy" id="seg">
+          <div class="thumb"></div>
+          <button onclick="setSide('buy')">BUY</button>
+          <button onclick="setSide('sell')">SELL</button>
+        </div>
+        <div class="grid2 mt10">
+          <div class="stepper">
+            <button onclick="step(-1)">−</button><b id="qty">1.00</b><button onclick="step(1)">+</button>
+          </div>
+          <div class="field"><span class="u">ENTRY</span><input value="3,725.42"></div>
+        </div>
+        <div class="grid2 mt6">
+          <div class="field"><span class="u">SL</span><input value="3,719.40"></div>
+          <div class="field"><span class="u">TP</span><input value="3,737.90"></div>
+        </div>
+        <p class="riskline mt10">Risk <b>$62.00 · 0.6%</b> of balance · R:R <b>2.1</b></p>
+        <button class="bigbtn buy mt10" id="dobtn">BUY 1.00 LOT · PAPER</button>
+      </div>
+
+      <div class="card card-sm">
+        <div class="row"><span class="lbl">Daily guardrails</span><span class="chip plain" style="margin-left:auto">On</span></div>
+        <div class="row mt10" style="justify-content:space-between;font-size:13px"><span>Trades today</span><b>3 / 10</b></div>
+        <div class="bar"><i style="width:30%"></i></div>
+        <div class="row mt10" style="justify-content:space-between;font-size:13px"><span>Max daily loss</span><b>$150 · used $40</b></div>
+        <div class="bar"><i style="width:27%"></i></div>
+      </div>
+    </div>
+
+    <div class="tab" id="t-port">
+      <div class="card card-sm row" style="justify-content:space-between">
+        <div><span class="lbl">Open P/L</span><div class="balance" style="font-size:26px;color:var(--green)">+$126.40</div></div>
+        <div style="text-align:right"><span class="lbl">Open risk at stops</span><div class="balance" style="font-size:26px">−$124</div></div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Open positions</span><span class="chip violet" style="margin-left:auto">2 open</span></div>
+        <div class="pos">
+          <div class="row" style="justify-content:space-between">
+            <div><span class="side" style="color:var(--green)">BUY</span><h4>1.00 lot @ 3,712.80</h4><div class="meta">SL 3,705.20 · TP 3,728.00 · opened 01:42</div></div>
+            <div style="text-align:right"><div class="pchip pc-green">+$126.40</div><button class="xbtn mt6" style="width:100%">Close</button></div>
+          </div>
+        </div>
+        <div class="pos">
+          <div class="row" style="justify-content:space-between">
+            <div><span class="side" style="color:var(--red)">SELL</span><h4>0.50 lot @ 3,740.10</h4><div class="meta">SL 3,746.90 · TP 3,727.50 · opened 23:58</div></div>
+            <div style="text-align:right"><div class="pchip pc-red">−$8.80</div><button class="xbtn mt6" style="width:100%">Close</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="lbl">Closed today</span>
+        <div class="mini mt10"><span>BUY 0.5 @ 3,709.2</span><b style="color:var(--green)">+$204.00</b></div>
+        <div class="mini"><span>SELL 1.0 @ 3,731.5</span><b style="color:var(--green)">+$68.00</b></div>
+        <div class="mini"><span>BUY 0.2 @ 3,738.0</span><b style="color:var(--red)">−$40.00</b></div>
+      </div>
+    </div>
+
+    <div class="tab" id="t-add">
+      <div class="card">
+        <div class="row"><span class="lbl">Log a manual trade</span></div>
+        <div class="input"><label>Instrument</label><input value="GOLD · XAU/USD"></div>
+        <div class="seg buy mt10" id="seg2">
+          <div class="thumb"></div>
+          <button onclick="setSide2('buy')">Buy</button>
+          <button onclick="setSide2('sell')">Sell</button>
+        </div>
+        <div class="grid2" style="margin-top:9px">
+          <div class="input"><label>Entry</label><input value="3725.40"></div>
+          <div class="input"><label>Exit (optional)</label><input placeholder="—"></div>
+        </div>
+        <div class="input"><label>Quantity (lots · 1 lot = 100 oz)</label><input value="1.00"></div>
+        <div class="grid2" style="margin-top:9px">
+          <div class="input"><label>SL (optional)</label><input value="3719.40"></div>
+          <div class="input"><label>TP (optional)</label><input value="3737.90"></div>
+        </div>
+        <div class="input"><label>Net P/L USD (auto)</label><input value="—" placeholder="auto once exited"></div>
+        <div class="input"><label>Note (optional)</label><textarea rows="2" placeholder="Add a journal note…"></textarea></div>
+        <button class="bigbtn save">Save trade</button>
+      </div>
+      <div class="card">
+        <div class="row"><span class="lbl">Logged trades</span><span class="chip plain" style="margin-left:auto">3 this week</span></div>
+        <div class="mini mt10"><span>Fri · SELL 1.0 @ 3,731.5</span><b style="color:var(--green)">+$68.00</b></div>
+        <div class="mini"><span>Thu · BUY 0.5 @ 3,709.2</span><b style="color:var(--green)">+$204.00</b></div>
+        <div class="mini"><span>Wed · BUY 0.2 @ 3,738.0</span><b style="color:var(--red)">−$40.00</b></div>
+      </div>
+    </div>
+
+    <div class="tab" id="t-stats">
+      <div class="card card-sm">
+        <div class="row" style="justify-content:space-between">
+          <div><span class="lbl">Paper balance</span><div class="balance">$10,462.00</div></div>
+          <span class="chip violet" style="cursor:pointer">Edit balance</span>
+        </div>
+        <p class="riskline mt6" style="text-align:left">Balance updated · +$462 all time</p>
+      </div>
+      <div class="card">
+        <div class="row"><span class="lbl">Cumulative P/L</span>
+          <span class="chip green" style="margin-left:auto">Simulated</span><span class="chip violet">Manual</span>
+        </div>
+        <div class="chartbox" style="height:120px"><svg id="pnl" viewBox="0 0 340 120" preserveAspectRatio="none"></svg></div>
+      </div>
+      <div class="card">
+        <span class="lbl">Performance</span>
+        <div class="statgrid mt10">
+          <div class="stat"><span class="lbl">Win rate</span><b>58%</b></div>
+          <div class="stat"><span class="lbl">Streak</span><b style="color:var(--green)">3 wins</b></div>
+          <div class="stat"><span class="lbl">Avg win</span><b style="color:var(--green)">+$86</b></div>
+          <div class="stat"><span class="lbl">Avg loss</span><b style="color:var(--red)">−$52</b></div>
+          <div class="stat"><span class="lbl">Max drawdown</span><b style="color:var(--red)">−$310</b></div>
+          <div class="stat"><span class="lbl">Best trade</span><b style="color:var(--green)">+$204</b></div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl">Performance by setup</span>
+        <div class="mt10" style="font-size:13px">Breakout</div><div class="hbar"><i style="width:74%;background:var(--green)"></i></div>
+        <div class="mt6" style="font-size:13px">Range retest</div><div class="hbar"><i style="width:52%;background:var(--gold)"></i></div>
+        <div class="mt6" style="font-size:13px">News fade</div><div class="hbar"><i style="width:31%;background:var(--red)"></i></div>
+      </div>
+    </div>
+
+    <div class="tab" id="t-ai">
+      <div class="card">
+        <div class="row"><span class="lbl">AI chart advice</span><span class="chip gold" style="margin-left:auto">Groq · connected</span></div>
+        <div class="gauge">
+          <div class="ring"><b>68%</b></div>
+          <div>
+            <div style="font-size:15px;font-weight:800;color:var(--green)">AI sure — BUY</div>
+            <div class="riskline" style="text-align:left">on the 5m chart, right now</div>
+          </div>
+        </div>
+        <p class="aitext mt10">Price is holding the <b>3,719 support shelf</b> after three rejections below. Momentum curling up while the session low holds. Suggested ticket: <b>buy 0.5 lot</b>, stop under the shelf, target the 3,737 pocket.</p>
+        <div class="row mt10" style="gap:8px">
+          <button class="bigbtn buy" style="padding:12px;font-size:14px">Take the trade</button>
+          <button class="bigbtn" style="padding:12px;font-size:14px;background:var(--surface3)">Explain</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="askrow">
+          <div class="field"><span class="u">ASK</span><input placeholder="Ask about the chart…"></div>
+          <button class="gob">Get advice</button>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl">AI log</span>
+        <div class="ailog mt10"><b>02:05 · auto-trade declined</b><br>Confidence 41% &lt; your 55% floor. No order placed.</div>
+        <div class="ailog"><b>01:40 · advice given</b><br>BUY 68% — took it as 0.5 lot, live in Portfolio.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="dock" id="dock">
+    <button class="on" data-t="trade"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg><span>Trade</span></button>
+    <button data-t="port"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg><span>Portfolio</span></button>
+    <button data-t="add"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Add</span></button>
+    <button data-t="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Stats</span></button>
+    <button data-t="ai"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="4"/><circle cx="9" cy="13" r="1.4"/><circle cx="15" cy="13" r="1.4"/><path d="M12 4v3"/></svg><span>AI</span></button>
+  </div>
+</div>
+</div>
+
+<script>
+function setSide(s){document.getElementById('seg').className='seg '+s;
+  var b=document.getElementById('dobtn');b.className='bigbtn '+s+' mt10';b.textContent=(s==='buy'?'BUY ':'SELL ')+document.getElementById('qty').textContent+' LOT · PAPER';}
+function setSide2(s){document.getElementById('seg2').className='seg '+s;}
+function step(d){var q=document.getElementById('qty');var v=Math.max(0.1,Math.round((parseFloat(q.textContent)+d*0.5)*10)/10);q.textContent=v.toFixed(2);setSide(document.getElementById('seg').classList.contains('sell')?'sell':'buy');}
+var tabs=['trade','port','add','stats','ai'];
+document.getElementById('dock').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('#dock button').forEach(function(x){x.classList.toggle('on',x===b)});
+  tabs.forEach(function(t){document.getElementById('t-'+t).classList.toggle('on',t===b.dataset.t)});});
+document.getElementById('themes').addEventListener('click',function(e){var c=e.target.closest('.tchip');if(!c)return;
+  document.querySelectorAll('.tchip').forEach(function(x){x.classList.toggle('on',x===c)});
+  document.getElementById('phone').dataset.theme=c.dataset.t;});
+(function(){var svg=document.getElementById('candles');var seed=7;function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
+  var n=46,w=340,h=170,mid=h/2,price=100;var out='';
+  for(var i=0;i<n;i++){var drift=Math.sin(i/6)*3+(rnd()-0.5)*7;var o=price;price+=drift;var c=price;var hi=Math.max(o,c)+rnd()*6+1,lo=Math.min(o,c)-rnd()*6-1;
+  var x=i*(w/n)+2;var up=c<o;
+  var yo=h-(o-60)*2.2,yc=h-(c-60)*2.2,yh=h-(hi-60)*2.2,yl=h-(lo-60)*2.2;
+  var col=up?'#35d07f':'#ff5a6e';var bw=Math.max(2.5,w/n*0.55);
+  out+='<line x1="'+(x+bw/2)+'" y1="'+yh+'" x2="'+(x+bw/2)+'" y2="'+yl+'" stroke="'+col+'" stroke-width="1"/>';
+  out+='<rect x="'+x+'" y="'+Math.min(yo,yc)+'" width="'+bw+'" height="'+Math.max(1.5,Math.abs(yc-yo))+'" rx="1" fill="'+col+'"/>';}
+  svg.innerHTML=out;})();
+(function(){var svg=document.getElementById('pnl');var pts=[0,8,4,14,10,22,18,20,30,26,38,46,42,56,62,58,70,84];
+  var d='M0,'+(110-pts[0]);for(var i=1;i<pts.length;i++){d+=' L'+(i*(340/(pts.length-1)))+','+(110-pts[i]);}
+  svg.innerHTML='<path d="'+d+' L340,110 L0,110 Z" fill="rgba(116,120,248,.18)"/><path d="'+d+'" fill="none" stroke="#7478f8" stroke-width="2.5" stroke-linecap="round"/>';})();
+</script>
+</body>
+</html>
