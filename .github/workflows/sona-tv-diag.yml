@@ -33,7 +33,7 @@ jobs:
       - name: Mark manifest debuggable for WebView CDP (diagnostic only)
         run: |
           set -euo pipefail
-          sed -i 's/<application /<application android:debuggable="true" /' android/app/src/main/AndroidManifest.xml
+          sed -i '0,/<application/s//<application android:debuggable="true"/' android/app/src/main/AndroidManifest.xml
           grep -n 'android:debuggable="true"' android/app/src/main/AndroidManifest.xml
       - id: dependencies
         run: flutter pub get
