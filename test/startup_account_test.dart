@@ -30,8 +30,6 @@ void main() {
         ),
       );
       await t.pump(const Duration(milliseconds: 500));
-      final takeExc = t.takeException();
-      debugPrint('TAKE_EXC ' + (takeExc == null ? 'null' : takeExc.toString()));
       expect(find.text('Enter your PIN'), findsNothing);
       expect(find.text('SELL'), findsOneWidget);
       expect(
@@ -51,28 +49,9 @@ void main() {
         await File('/tmp/oro-no-startup-pin.png')
             .writeAsBytes(d!.buffer.asUint8List());
       });
-      // TEMP-DIAG: capture why the Connect tap misses (revert after diagnosis).
-      final diagEl = find.text('Connect').evaluate().single;
-      final diagChain = <String>[];
-      diagEl.visitAncestorElements((a) {
-        diagChain.add(a.widget.toStringShort());
-        return true;
-      });
-      debugPrint('CONNECT_ANCESTORS ' + diagChain.join(' <- '));
-      final diagCenter = t.getCenter(find.text('Connect'));
-      debugPrint('CONNECT_CENTER ' + diagCenter.toString());
-      final diagRoot =
-          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final diagHit = BoxHitTestResult();
-      diagRoot.hitTest(diagHit, position: diagCenter);
-      debugPrint('CONNECT_HIT ' +
-          diagHit.path.map((e) => e.target.runtimeType.toString()).join(' > '));
-      debugDumpApp();
-      await t.tap(find.text('Connect'), warnIfMissed: false);
+      await t.tap(find.text('Connect'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 500));
-      debugPrint('CONNECT_AFTER_TAP sheet=' +
-          find.text('Connect existing paper account').evaluate().length.toString());
       expect(find.text('Connect existing paper account'), findsOneWidget);
     },
   );
