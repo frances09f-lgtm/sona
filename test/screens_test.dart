@@ -292,6 +292,13 @@ void main() {
       await t.pump(const Duration(milliseconds: 300));
       await t.tap(find.bySemanticsLabel('Tab AI'));
       await t.pumpAndSettle();
+      // TEMP-DIAG (revert after diagnosis)
+      debugPrint('AI_PROBE spinner=' +
+          find.byType(CircularProgressIndicator).evaluate().length.toString() +
+          ' explain=' +
+          find.text('Explain chart / position').evaluate().length.toString() +
+          ' autotrade=' +
+          find.textContaining('AutoTrade').evaluate().length.toString());
       await t.ensureVisible(find.text('Explain chart / position'));
       await t.tap(find.text('Explain chart / position'));
       await t.pumpAndSettle();
