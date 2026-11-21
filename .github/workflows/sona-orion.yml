@@ -312,10 +312,7 @@ jobs:
           path: |
             /tmp/sona-orion-*.png
             /tmp/ui.xml
-              /tmp/logcat.txt
-              /tmp/crashes.txt
-              /tmp/procs.txt
-          if-no-files-found: warn
+                if-no-files-found: warn
       - id: gofile_caps
         name: Copy captures to gofile for inspection
         if: always()
