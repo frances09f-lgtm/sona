@@ -82,7 +82,7 @@ void main() {
     await t.pump();
     expect(find.text('Today'), findsOneWidget);
     expect(find.text('Realized P/L · USD'), findsOneWidget);
-    expect(find.text('+\$5.61'), findsOneWidget);
+    expect(find.text('+\$5.61'), findsNWidgets(2));
     expect(find.text('GOLD'), findsNWidgets(4));
     expect(find.text('1.00 Troy Ounce(s)'), findsNWidgets(4));
     expect(find.text('-\$1.00'), findsOneWidget);
