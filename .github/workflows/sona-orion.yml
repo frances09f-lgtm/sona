@@ -6,6 +6,10 @@ on:
         description: 'Skip build job; reuse sona-apk-x64 artifact from this previous run id (capture-only iteration)'
         required: false
         default: ''
+      test_only:
+        description: 'Run tests only; skip APK build, transport and capture (fast feedback)'
+        required: false
+        default: 'false'
 jobs:
   build:
     if: ${{ github.event.inputs.reuse_run_id == '' }}
@@ -96,15 +100,19 @@ jobs:
           path: /tmp/flutter-results-copy.jsonl
           if-no-files-found: warn
       - name: Record tested source
+        if: ${{ github.event.inputs.test_only != 'true' }}
         run: |
           echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - id: gradle_setup
+        if: ${{ github.event.inputs.test_only != 'true' }}
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
       - id: apk_build
+        if: ${{ github.event.inputs.test_only != 'true' }}
         run: flutter build apk --release --target-platform android-arm64
       - id: apk_verify_transport
+        if: ${{ github.event.inputs.test_only != 'true' }}
         name: Verify signed APK identity and PRIVATE draft transport
         env:
           GH_TOKEN: ${{ github.token }}
@@ -133,29 +141,33 @@ jobs:
           jq -e '.draft == true and .published_at == null and (.assets|length)==3' /tmp/draft-after.json
           echo "DRAFT_URL=$(jq -r '.html_url' /tmp/draft-after.json)" >> "$GITHUB_ENV"
       - name: Upload APK artifact for capture job
+        if: ${{ github.event.inputs.test_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sona-apk
           path: build/app/outputs/flutter-apk/app-release.apk
       - id: gofile
+        if: ${{ github.event.inputs.test_only != 'true' }}
         name: Copy verified APK to gofile for phone delivery
         run: |
           set -eo pipefail
           curl -sS -F "file=@/tmp/Sona.apk" https://upload.gofile.io/uploadfile | python3 -c "import sys,json; d=json.load(sys.stdin); print('GOFILE', d.get('status'), d.get('data',{}).get('downloadPage'), d.get('data',{}).get('name'))"
       - name: Build emulator-compatible x64 APK for capture (same source, same signing)
+        if: ${{ github.event.inputs.test_only != 'true' }}
         run: |
           set -euo pipefail
           flutter build apk --release --target-platform android-x64
           cp build/app/outputs/flutter-apk/app-release.apk /tmp/sona-capture-x64.apk
           ls -la /tmp/sona-capture-x64.apk
       - name: Upload x64 capture APK artifact
+        if: ${{ github.event.inputs.test_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sona-apk-x64
           path: /tmp/sona-capture-x64.apk
   capture:
     needs: build
-    if: ${{ always() && (needs.build.result == 'success' || github.event.inputs.reuse_run_id != '') }}
+    if: ${{ always() && github.event.inputs.test_only != 'true' && (needs.build.result == 'success' || github.event.inputs.reuse_run_id != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
