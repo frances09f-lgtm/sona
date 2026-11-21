@@ -218,10 +218,11 @@ class OSeg<T> extends StatelessWidget {
         border: Border.all(color: O.line),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           for (final (v, label) in options)
-            GestureDetector(
+            Expanded(
+              child: GestureDetector(
               onTap: () => onChanged(v),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 140),
@@ -229,17 +230,19 @@ class OSeg<T> extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                 decoration: BoxDecoration(
-                  color: v == value ? O.panel : Colors.transparent,
+                  color: v == value ? O.ink : Colors.transparent,
                   borderRadius: O.cardRadius(O.rRound),
                 ),
                 child: Text(
                   label,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: fontSize,
                     fontWeight: FontWeight.w600,
-                    color: v == value ? O.ink : O.soft,
+                    color: v == value ? O.bg : O.soft,
                   ),
                 ),
+              ),
               ),
             ),
         ],
@@ -361,23 +364,22 @@ class OSwitch extends StatelessWidget {
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
-        width: 42,
-        height: 24,
-        padding: const EdgeInsets.all(2),
+        width: 56,
+        height: 32,
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: value ? O.mint : O.panel2,
-          borderRadius: O.cardRadius(O.rRound),
-          border: Border.all(color: value ? Colors.transparent : O.line),
+          color: value ? const Color(0xFF1D5A96) : const Color(0x80FFFFFF),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 140),
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: value ? O.cardInk : O.soft,
-              borderRadius: O.cardRadius(O.rRound),
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
             ),
           ),
         ),
