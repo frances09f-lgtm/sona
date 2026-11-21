@@ -63,21 +63,27 @@ jobs:
           set -o pipefail
           flutter test --machine > /tmp/flutter-results.jsonl && OK=1 || OK=0
           python3 - <<'PYEOF'
-          import json
-          names, fails, errs = {}, [], []
+          import json, collections
+          names, fails, prints = {}, [], collections.defaultdict(list)
           for line in open('/tmp/flutter-results.jsonl'):
               try: ev = json.loads(line)
               except Exception: continue
               if not isinstance(ev, dict): continue
+              ty = ev.get('type')
               tev = ev.get('test')
-              if ev.get('type') == 'testStart' and isinstance(tev, dict) and 'id' in tev:
+              if ty == 'testStart' and isinstance(tev, dict) and 'id' in tev:
                   names[tev['id']] = tev.get('name', '')
-              if ev.get('type') == 'testDone' and ev.get('result') != 'success' and not ev.get('skipped'):
-                  fails.append((ev.get('testID'), ev.get('result')))
-              if ev.get('type') == 'error' and len(errs) < 5:
-                  errs.append(str(ev.get('error'))[:400])
-          for tid, res in fails[:40]: print('FAILED_TEST', res, names.get(tid, tid))
-          for e in errs: print('TEST_ERROR', e[:380])
+              elif ty == 'testDone' and ev.get('result') != 'success' and not ev.get('skipped'):
+                  fails.append(ev.get('testID'))
+              elif ty == 'print':
+                  prints[ev.get('testID')].append(str(ev.get('message','')))
+          KEYS = ('EXCEPTION','Expected','Actual','Which','Bad state','No method','found no widgets','findsOneWidget','findsWidgets','pumpAndSettle timed out','overflowed','null')
+          for tid in fails[:15]:
+              print('FAILED_TEST', names.get(tid, tid))
+              msgs = prints.get(tid, [])
+              exc = [m for m in msgs if any(k in m for k in KEYS)]
+              for m in (exc[:14] if exc else msgs[-8:]):
+                  print('  LOG', m.replace(chr(10),' | ')[:400])
           print('TOTAL_FAILURES', len(fails))
           PYEOF
           cp /tmp/flutter-results.jsonl /tmp/flutter-results-copy.jsonl || true
