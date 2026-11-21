@@ -2308,6 +2308,7 @@ class _TradeTabState extends State<TradeTab> {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(14),
+              cacheExtent: 10000,
               children: [
                 zo.oPastel(
                   Row(
@@ -5777,6 +5778,7 @@ class _AiTabState extends State<AiTab> {
     const gold = Color(0xFFF5C242);
     return ListView(
       padding: const EdgeInsets.all(16),
+      cacheExtent: 10000,
       children: [
         if (widget.onExplainChart != null) ...[
           zo.oPastel(
