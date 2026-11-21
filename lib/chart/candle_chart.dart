@@ -1482,9 +1482,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
     if (widget.chromeless) {
       if (widget.expand) return _body();
       return SizedBox(
-        // Approved Orion reference: the in-page chart box is about a third
-        // of the viewport so the daily-limits card below stays visible.
-        height: math.max(MediaQuery.of(context).size.height * 0.30, 260.0) +
+        // Approved Orion reference: the chart box is ~230px on an 840px
+        // phone (27%); 0.26 keeps the daily-limits card fully visible above
+        // the pinned order bar on taller viewports (measured on 914dp).
+        height: math.max(MediaQuery.of(context).size.height * 0.26, 230.0) +
             _rsiHeight +
             _macdHeight,
         child: _body(),
