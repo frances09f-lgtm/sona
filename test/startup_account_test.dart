@@ -61,7 +61,7 @@ void main() {
       debugPrint('CONNECT_CENTER ' + diagCenter.toString());
       final diagRoot =
           key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final diagHit = HitTestResult();
+      final diagHit = BoxHitTestResult();
       diagRoot.hitTest(diagHit, position: diagCenter);
       debugPrint('CONNECT_HIT ' +
           diagHit.path.map((e) => e.target.runtimeType.toString()).join(' > '));
