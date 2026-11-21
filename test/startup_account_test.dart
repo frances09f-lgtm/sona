@@ -30,6 +30,8 @@ void main() {
         ),
       );
       await t.pump(const Duration(milliseconds: 500));
+      final takeExc = t.takeException();
+      debugPrint('TAKE_EXC ' + (takeExc == null ? 'null' : takeExc.toString()));
       expect(find.text('Enter your PIN'), findsNothing);
       expect(find.text('SELL'), findsOneWidget);
       expect(
