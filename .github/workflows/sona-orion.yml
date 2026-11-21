@@ -202,38 +202,38 @@ jobs:
             sleep 45
             adb exec-out screencap -p > /tmp/sona-orion-trade.png
             echo aW1wb3J0IHJlLCBzeXMKdHJ5OgogICAgeCA9IG9wZW4oc3lzLmFyZ3ZbMV0sIGVuY29kaW5nPSd1dGYtOCcsIGVycm9ycz0naWdub3JlJykucmVhZCgpCmV4Y2VwdCBFeGNlcHRpb246CiAgICBzeXMuZXhpdCgpCmkgPSB4LnJmaW5kKCc8L2hpZXJhcmNoeT4nKQppZiBpID4gMDoKICAgIHggPSB4WzppXQpwYXQgPSBzeXMuYXJndlsyXSBpZiBsZW4oc3lzLmFyZ3YpID4gMiBlbHNlIHInKD9pKXRyZW5kLj9saW5lJwpvdXQgPSBzeXMuYXJndlszXSBpZiBsZW4oc3lzLmFyZ3YpID4gMyBlbHNlICcvdG1wL3RhcGNvb3JkcycKbm9kZXMgPSByZS5maW5kYWxsKHInPG5vZGVbXj5dKj4nLCB4KQpmb3IgbiBpbiBub2RlczoKICAgIGQgPSByZS5zZWFyY2gocidjb250ZW50LWRlc2M9IihbXiJdKikiJywgbikKICAgIGIgPSByZS5zZWFyY2gocidib3VuZHM9IlxbKFxkKyksKFxkKylcXVxbKFxkKyksKFxkKylcXSInLCBuKQogICAgaWYgZCBhbmQgYiBhbmQgZC5ncm91cCgxKToKICAgICAgICBwcmludCgnTk9ERScsIHJlcHIoZC5ncm91cCgxKSksIGIuZ3JvdXAoMCkpCnBpY2sgPSBOb25lCmZvciBuIGluIG5vZGVzOgogICAgZCA9IHJlLnNlYXJjaChyJ2NvbnRlbnQtZGVzYz0iKFteIl0qKSInLCBuKQogICAgYiA9IHJlLnNlYXJjaChyJ2JvdW5kcz0iXFsoXGQrKSwoXGQrKVxdXFsoXGQrKSwoXGQrKVxdIicsIG4pCiAgICBpZiBkIGFuZCBiIGFuZCByZS5zZWFyY2gocGF0LCBkLmdyb3VwKDEpKToKICAgICAgICBhLCBiYiwgYywgZSA9IChpbnQoZykgZm9yIGcgaW4gYi5ncm91cHMoKSkKICAgICAgICBwaWNrID0gZid7KGErYykvLzJ9IHsoYmIrZSkvLzJ9JwogICAgICAgIHByaW50KCdQSUNLJywgcmVwcihkLmdyb3VwKDEpKSwgcGljaykKICAgICAgICBicmVhawppZiBwaWNrOgogICAgb3BlbihvdXQsICd3Jykud3JpdGUocGljaykK | base64 -d > /tmp/nodes.py
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/nodes.py /tmp/ui.xml '(?i)Tab Portfolio' /tmp/tapP || true
             if [ -s /tmp/tapP ]; then adb shell input tap $(cat /tmp/tapP); fi
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-portfolio.png
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/nodes.py /tmp/ui.xml '(?i)Tab Add' /tmp/tapA || true
             if [ -s /tmp/tapA ]; then adb shell input tap $(cat /tmp/tapA); fi
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-add.png
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/nodes.py /tmp/ui.xml '(?i)Tab Stats' /tmp/tapS || true
             if [ -s /tmp/tapS ]; then adb shell input tap $(cat /tmp/tapS); fi
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-stats.png
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/nodes.py /tmp/ui.xml '(?i)Tab AI' /tmp/tapI || true
             if [ -s /tmp/tapI ]; then adb shell input tap $(cat /tmp/tapI); fi
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-ai.png
             echo aW1wb3J0IHJlLCBzeXMKeCA9IG9wZW4oc3lzLmFyZ3ZbMV0sIGVuY29kaW5nPSd1dGYtOCcsIGVycm9ycz0naWdub3JlJykucmVhZCgpCmkgPSB4LnJmaW5kKCc8L2hpZXJhcmNoeT4nKQppZiBpID4gMDogeCA9IHhbOmldCm1vZGUgPSBzeXMuYXJndlsyXQpwYXQgPSBzeXMuYXJndlszXSBpZiBsZW4oc3lzLmFyZ3YpID4gMyBlbHNlICcnCm91dCA9IHN5cy5hcmd2WzRdIGlmIGxlbihzeXMuYXJndikgPiA0IGVsc2UgJy90bXAvdGFwY29vcmRzJwpub2RlcyA9IHJlLmZpbmRhbGwocic8bm9kZVtePl0qPicsIHgpCmRlZiBhdHRycyhuKToKICAgIGQgPSByZS5zZWFyY2gocidjb250ZW50LWRlc2M9IihbXiJdKikiJywgbikKICAgIHQgPSByZS5zZWFyY2gocid0ZXh0PSIoW14iXSopIicsIG4pCiAgICBiID0gcmUuc2VhcmNoKHInYm91bmRzPSJcWyhcZCspLChcZCspXF1cWyhcZCspLChcZCspXF0iJywgbikKICAgIGMgPSByZS5zZWFyY2gocidjbGlja2FibGU9InRydWUiJywgbikKICAgIGsgPSByZS5zZWFyY2gocidjbGFzcz0iKFteIl0qKSInLCBuKQogICAgaWYgbm90IGI6IHJldHVybiBOb25lCiAgICBhLGJiLGNjLGUgPSAoaW50KGcpIGZvciBnIGluIGIuZ3JvdXBzKCkpCiAgICByZXR1cm4gZGljdChkZXNjPWQuZ3JvdXAoMSkgaWYgZCBlbHNlICcnLCB0ZXh0PXQuZ3JvdXAoMSkgaWYgdCBlbHNlICcnLCBiPShhLGJiLGNjLGUpLCBjbGljaz1ib29sKGMpLCBjbHM9ay5ncm91cCgxKSBpZiBrIGVsc2UgJycpCm5zID0gW2EgZm9yIGEgaW4gKGF0dHJzKG4pIGZvciBuIGluIG5vZGVzKSBpZiBhXQppZiBtb2RlID09ICdtYXRjaCc6CiAgICBmb3IgYSBpbiBuczoKICAgICAgICBsYWJlbCA9IGFbJ2Rlc2MnXSBvciBhWyd0ZXh0J10KICAgICAgICBpZiBsYWJlbCBhbmQgcmUuc2VhcmNoKHBhdCwgbGFiZWwpOgogICAgICAgICAgICB4MSx5MSx4Mix5MiA9IGFbJ2InXQogICAgICAgICAgICBvcGVuKG91dCwndycpLndyaXRlKCclZCAlZCcgJSAoKHgxK3gyKS8vMiwoeTEreTIpLy8yKSkKICAgICAgICAgICAgcHJpbnQoJ1BJQ0snLCByZXByKGxhYmVsKSkKICAgICAgICAgICAgYnJlYWsKZWxpZiBtb2RlID09ICdjbGlja2FibGVzJzoKICAgIGZvciBhIGluIG5zOgogICAgICAgIGlmIGFbJ2NsaWNrJ106CiAgICAgICAgICAgIHByaW50KCdDTElDSycsIGFbJ2InXSwgcmVwcihhWydkZXNjJ11bOjQwXSksIHJlcHIoYVsndGV4dCddWzo0MF0pKQplbGlmIG1vZGUgPT0gJ3BpY2thdCc6CiAgICB4bWluLHhtYXgseW1pbix5bWF4LGlkeCA9IChpbnQodikgZm9yIHYgaW4gcGF0LnNwbGl0KCcsJykpCiAgICBjYW5kID0gW2EgZm9yIGEgaW4gbnMgaWYgYVsnY2xpY2snXSBhbmQgYVsnYiddWzBdPj14bWluIGFuZCBhWydiJ11bMl08PXhtYXggYW5kIGFbJ2InXVsxXT49eW1pbiBhbmQgYVsnYiddWzNdPD15bWF4XQogICAgY2FuZC5zb3J0KGtleT1sYW1iZGEgYTooYVsnYiddWzFdLGFbJ2InXVswXSkpCiAgICBmb3IgYSBpbiBjYW5kOiBwcmludCgnQ0FORCcsIGFbJ2InXSwgcmVwcihhWydkZXNjJ11bOjMwXSksIHJlcHIoYVsndGV4dCddWzozMF0pKQogICAgaWYgaWR4IDwgMDogaWR4ID0gbGVuKGNhbmQpK2lkeAogICAgaWYgMCA8PSBpZHggPCBsZW4oY2FuZCk6CiAgICAgICAgeDEseTEseDIseTIgPSBjYW5kW2lkeF1bJ2InXQogICAgICAgIG9wZW4ob3V0LCd3Jykud3JpdGUoJyVkICVkJyAlICgoeDEreDIpLy8yLCh5MSt5MikvLzIpKQogICAgICAgIHByaW50KCdQSUNLQVQnLCBpZHgpCmVsaWYgbW9kZSA9PSAnZWRpdCc6CiAgICBpZHggPSBpbnQocGF0IG9yICcwJykKICAgIGNhbmQgPSBbYSBmb3IgYSBpbiBucyBpZiAnRWRpdFRleHQnIGluIGFbJ2NscyddXQogICAgY2FuZC5zb3J0KGtleT1sYW1iZGEgYTooYVsnYiddWzFdLGFbJ2InXVswXSkpCiAgICBmb3IgYSBpbiBjYW5kOiBwcmludCgnRURJVCcsIGFbJ2InXSkKICAgIGlmIDAgPD0gaWR4IDwgbGVuKGNhbmQpOgogICAgICAgIHgxLHkxLHgyLHkyID0gY2FuZFtpZHhdWydiJ10KICAgICAgICBvcGVuKG91dCwndycpLndyaXRlKCclZCAlZCcgJSAoKHgxK3gyKS8vMiwoeTEreTIpLy8yKSkKICAgICAgICBwcmludCgnUElDS0VESVQnLCBpZHgpCg== | base64 -d > /tmp/pick.py
             # --- extended captures: inline Sona chart, Settings, alert sheet, populated states ---
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Tab Trade' /tmp/tapT || true
             if [ -s /tmp/tapT ]; then adb shell input tap $(cat /tmp/tapT); sleep 5; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)^Sona chart$' /tmp/tapC || true
             if [ -s /tmp/tapC ] && grep -q 'webkit.WebView' /tmp/ui.xml; then adb shell input tap $(cat /tmp/tapC); sleep 8; fi
             adb exec-out screencap -p > /tmp/sona-orion-trade-inline.png
@@ -243,32 +243,32 @@ jobs:
             adb shell input swipe 540 700 540 1800 400 || true
             sleep 2
             # Settings: gear = leftmost of the round header buttons (no label)
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             adb shell input tap 605 200 || true
             sleep 5
             adb exec-out screencap -p > /tmp/sona-orion-settings.png
             adb shell input keyevent 4 || true
             sleep 3
             # Alert sheet: inline Trade > fullscreen > add_alert > tap chart
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Tab Trade' /tmp/tapT2 || true
             if [ -s /tmp/tapT2 ]; then adb shell input tap $(cat /tmp/tapT2); sleep 5; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)^Sona chart$' /tmp/tapC2 || true
             if [ -s /tmp/tapC2 ] && grep -q 'webkit.WebView' /tmp/ui.xml; then adb shell input tap $(cat /tmp/tapC2); sleep 6; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
-            python3 /tmp/pick.py /tmp/ui.xml pickat '700,1080,700,1300,-1' /tmp/tapF || true
-            if [ -s /tmp/tapF ]; then adb shell input tap $(cat /tmp/tapF); sleep 5; fi
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
+            adb shell input tap 981 967 || true
+            sleep 5
             adb shell input tap 66 1862 || true
             sleep 2
             adb shell input tap 560 1100 || true
             sleep 3
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             grep -q 'Price alerts' /tmp/ui.xml && echo ALERT_SHEET_OPEN || echo ALERT_SHEET_NOT_FOUND
             adb exec-out screencap -p > /tmp/sona-orion-alert.png
             adb shell input keyevent 4 || true
@@ -276,25 +276,25 @@ jobs:
             adb shell monkey -p com.ambi.gold_paper_trading -c android.intent.category.LAUNCHER 1 || true
             sleep 10
             # Populated states via real UI entry (isolated test install)
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Tab Add' /tmp/tapA2 || true
             if [ -s /tmp/tapA2 ]; then adb shell input tap $(cat /tmp/tapA2); sleep 4; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Pending buy order' /tmp/tapPB || true
             if [ -s /tmp/tapPB ]; then adb shell input tap $(cat /tmp/tapPB); sleep 3; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml edit 0 /tmp/tapE || true
             if [ -s /tmp/tapE ]; then adb shell input tap $(cat /tmp/tapE); sleep 1; adb shell input text '3550.00'; sleep 1; fi
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Save pending order' /tmp/tapS2 || true
             if [ -s /tmp/tapS2 ]; then adb shell input tap $(cat /tmp/tapS2); sleep 4; fi
             adb exec-out screencap -p > /tmp/sona-orion-add-populated.png
-            adb shell uiautomator dump /sdcard/ui.xml || true
-            adb pull /sdcard/ui.xml /tmp/ui.xml || true
+            adb shell rm -f /sdcard/ui.xml; adb shell uiautomator dump /sdcard/ui.xml || (sleep 3; adb shell uiautomator dump /sdcard/ui.xml || true)
+            rm -f /tmp/ui.xml; adb pull /sdcard/ui.xml /tmp/ui.xml || (sleep 2; adb pull /sdcard/ui.xml /tmp/ui.xml || true)
             python3 /tmp/pick.py /tmp/ui.xml match '(?i)Tab Portfolio' /tmp/tapP2 || true
             if [ -s /tmp/tapP2 ]; then adb shell input tap $(cat /tmp/tapP2); sleep 4; fi
             adb exec-out screencap -p > /tmp/sona-orion-portfolio-populated.png
