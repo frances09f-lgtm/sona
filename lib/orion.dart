@@ -4,16 +4,51 @@ import 'package:flutter/material.dart';
 
 class O {
   O._();
+
+  /// Notifies the app shell to rebuild the MaterialApp theme on toggle.
+  static final ValueNotifier<bool> themeTick = ValueNotifier(false);
   // Surfaces (dark, default)
-  static const bg = Color(0xFF14110F);
-  static const panel = Color(0xFF211D19);
-  static const panel2 = Color(0xFF2A2521);
-  static const dock = Color(0xFF221E1A);
-  static const ink = Color(0xFFF2EDE6);
-  static const soft = Color(0xFFB4ABA0);
-  static const muted = Color(0xFF9C9287);
-  static const line = Color(0x0FFFFFFF); // rgba(255,255,255,.06)
-  static const line2 = Color(0x12FFFFFF); // rgba(255,255,255,.09)
+  // Theme-switchable palette (approved preview has a working light/dark
+  // toggle; values from the approved style.css). Dark is the default.
+  static bool light = false;
+  static var bg = const Color(0xFF14110F);
+  static var panel = const Color(0xFF211D19);
+  static var panel2 = const Color(0xFF2A2521);
+  static var dock = const Color(0xFF221E1A);
+  static var ink = const Color(0xFFF2EDE6);
+  static var soft = const Color(0xFFB4ABA0);
+  static var muted = const Color(0xFF9C9287);
+  static var line = const Color(0x0FFFFFFF); // rgba(255,255,255,.06)
+  static var line2 = const Color(0x12FFFFFF); // rgba(255,255,255,.09)
+
+  /// Apply the approved light or dark palette. Pastel card colors
+  /// (sun/mint/lav/peach/sky) and card inks are theme-independent in the
+  /// approved CSS, so they stay fixed.
+  static void applyLight(bool v) {
+    light = v;
+    themeTick.value = v;
+    if (v) {
+      bg = const Color(0xFFFAF7F2);
+      panel = const Color(0xFFFFFFFF);
+      panel2 = const Color(0xFFEDE8E0);
+      dock = const Color(0xFFFFFFFF);
+      ink = const Color(0xFF201A17);
+      soft = const Color(0xFF6F675F);
+      muted = const Color(0xFF8A8078);
+      line = const Color(0x14201A17);
+      line2 = const Color(0x1F201A17);
+    } else {
+      bg = const Color(0xFF14110F);
+      panel = const Color(0xFF211D19);
+      panel2 = const Color(0xFF2A2521);
+      dock = const Color(0xFF221E1A);
+      ink = const Color(0xFFF2EDE6);
+      soft = const Color(0xFFB4ABA0);
+      muted = const Color(0xFF9C9287);
+      line = const Color(0x0FFFFFFF);
+      line2 = const Color(0x12FFFFFF);
+    }
+  }
 
   // Pastels (card backgrounds; text on them is cardInk)
   static const sun = Color(0xFFF7F0C8);
@@ -49,10 +84,14 @@ class O {
 TextStyle oText({
   double size = 13,
   FontWeight weight = FontWeight.w500,
-  Color color = O.ink,
+  Color? color,
   double? height,
 }) =>
-    TextStyle(fontSize: size, fontWeight: weight, color: color, height: height);
+    TextStyle(
+        fontSize: size,
+        fontWeight: weight,
+        color: color ?? O.ink,
+        height: height);
 
 // Section label: 11px uppercase letterspaced soft label.
 Widget oSect(String text) => Padding(
@@ -469,9 +508,9 @@ class OSheet extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.84),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: O.panel,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         border: Border(top: BorderSide(color: O.line)),
       ),
       padding: EdgeInsets.only(
