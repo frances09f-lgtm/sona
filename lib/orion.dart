@@ -63,7 +63,7 @@ Widget oSect(String text) => Padding(
           fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.7,
-          color: O.soft,
+          color: Color(0xFF1E8F68),
         ),
       ),
     );
@@ -308,6 +308,7 @@ class _ODockItem extends StatelessWidget {
     return Semantics(
       label: 'Tab $label',
       button: true,
+      onTap: onTap,
       child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
