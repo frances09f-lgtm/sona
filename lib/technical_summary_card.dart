@@ -231,12 +231,16 @@ class TechnicalSummaryCardView extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.speed, color: dim, size: 20),
+            const Icon(Icons.speed, color: dim, size: 16),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
-                'Technical summary',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                'TECHNICAL SUMMARY · ${(intervals[chip] ?? chip).toUpperCase()}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  letterSpacing: 1.7,
+                ),
               ),
             ),
             if (loading)
