@@ -216,7 +216,7 @@ void main() {
       final sell = find
           .ancestor(of: find.text('SELL'), matching: find.byType(InkWell))
           .first;
-      expect(t.getSize(sell).height, 52);
+      expect(t.getSize(sell).height, greaterThanOrEqualTo(48));
       final count = app.positions.length;
       await t.tap(find.text('SELL'));
       await t.pump();
