@@ -290,7 +290,7 @@ void main() {
       );
       await t.pump();
       await t.pump(const Duration(milliseconds: 300));
-      await t.tap(find.text('AI').first);
+      await t.tap(find.bySemanticsLabel('Tab AI'));
       await t.pumpAndSettle();
       await t.ensureVisible(find.text('Explain chart / position'));
       await t.tap(find.text('Explain chart / position'));
