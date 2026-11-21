@@ -299,6 +299,7 @@ void main() {
           find.text('Explain chart / position').evaluate().length.toString() +
           ' autotrade=' +
           find.textContaining('AutoTrade').evaluate().length.toString());
+      debugDumpApp();
       await t.ensureVisible(find.text('Explain chart / position'));
       await t.tap(find.text('Explain chart / position'));
       await t.pumpAndSettle();
