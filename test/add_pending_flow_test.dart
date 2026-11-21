@@ -241,6 +241,8 @@ void main() {
   testWidgets('Add manual journal remains non-executable', (t) async {
     final app = await account();
     await mount(t, AddTab(app: app));
+    await t.tap(find.text('Buy'));
+    await t.pumpAndSettle();
     await t.enterText(field('Entry'), '3900');
     await t.dragUntilVisible(
       find.text('Save trade'),
