@@ -11,7 +11,7 @@ void main() {
       trigger:3990,above:false,gtc:true,createdAt:1,expiresAt:2));
     await app.pendingOrders!.save();
     final addKey = await fixture.mount(t, AddTab(app:app));
-    await t.ensureVisible(find.text('Pending paper order'));
+    await t.ensureVisible(find.text('PENDING PAPER ORDER'));
     await t.pumpAndSettle();
     await fixture.capture(t, addKey, 'remove-add-before');
     final portfolioKey = await fixture.mount(t, PositionsTab(app:app));
