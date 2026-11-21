@@ -2947,26 +2947,26 @@ class _TradeTabState extends State<TradeTab> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('sell'),
-                                child: SizedBox(
-                                  height: 52,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      8, 12, 22, 12),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Text(
                                         'SELL',
                                         style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.2,
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.0,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
                                       Text(
                                         app.bid == null ? '--' : fmt(app.bid),
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 17,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.w800,
                                         ),
                                       ),
@@ -2976,8 +2976,9 @@ class _TradeTabState extends State<TradeTab> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
+                          Transform.translate(
+                            offset: const Offset(-14, 0),
+                            child: Expanded(
                             child: Material(
                               color: const Color(0xFF1E8F68),
                               shape: RoundedRectangleBorder(
@@ -2986,26 +2987,26 @@ class _TradeTabState extends State<TradeTab> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(26),
                                 onTap: () => selectSide('buy'),
-                                child: SizedBox(
-                                  height: 52,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      22, 12, 8, 12),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Text(
                                         'BUY',
                                         style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.2,
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.0,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
                                       Text(
                                         app.ask == null ? '--' : fmt(app.ask),
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 17,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.w800,
                                         ),
                                       ),
@@ -3013,6 +3014,7 @@ class _TradeTabState extends State<TradeTab> {
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ),
                         ],
