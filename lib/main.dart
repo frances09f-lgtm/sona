@@ -2976,9 +2976,9 @@ class _TradeTabState extends State<TradeTab> {
                               ),
                             ),
                           ),
-                          Transform.translate(
+                          Expanded(
+                          child: Transform.translate(
                             offset: const Offset(-14, 0),
-                            child: Expanded(
                             child: Material(
                               color: const Color(0xFF1E8F68),
                               shape: RoundedRectangleBorder(
@@ -3015,7 +3015,7 @@ class _TradeTabState extends State<TradeTab> {
                                 ),
                               ),
                             ),
-                            ),
+                          ),
                           ),
                         ],
                       ),
@@ -3405,10 +3405,7 @@ class _PositionsTabState extends State<PositionsTab> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               zo.oPastel(
-                radius: 32,
-                padding: const EdgeInsets.all(20),
-                muted: false,
-                child: Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
@@ -3435,6 +3432,9 @@ class _PositionsTabState extends State<PositionsTab> {
                     ),
                   ],
                 ),
+                radius: 32,
+                padding: const EdgeInsets.all(20),
+                muted: false,
               ),
               const SizedBox(height: 10),
               Row(
@@ -5088,20 +5088,42 @@ class _StatsTabState extends State<StatsTab> {
           'Performance',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
-        Wrap(
-          spacing: 8,
-          children: [
-            ChoiceChip(
-              label: const Text('Simulated'),
-              selected: source == 'paper',
-              onSelected: (_) => setState(() => source = 'paper'),
-            ),
-            ChoiceChip(
-              label: const Text('Manual journal'),
-              selected: source == 'manual',
-              onSelected: (_) => setState(() => source = 'manual'),
-            ),
-          ],
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2521),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            children: [
+              for (final e in const [('paper', 'Simulated'), ('manual', 'Manual journal')])
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => source = e.$1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: source == e.$1
+                            ? const Color(0xFFF2EDE6)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        e.$2,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: source == e.$1
+                              ? const Color(0xFF14110F)
+                              : const Color(0xFFB4ABA0),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         Wrap(
           spacing: 8,
