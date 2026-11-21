@@ -1377,7 +1377,9 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
           bottomNavigationBar: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
-              child: Center(
+              child: Align(
+                alignment: Alignment.center,
+                heightFactor: 1.0,
                 child: zo.ODock(
                   index: tab,
                   onChanged: (i) {
