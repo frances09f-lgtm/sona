@@ -216,6 +216,8 @@ void main() {
       '1D': '1day',
     };
     for (final e in labels.entries) {
+      await t.ensureVisible(find.byKey(ValueKey('trade-tf-${e.key}')));
+      await t.pumpAndSettle();
       await t.tap(find.byKey(ValueKey('trade-tf-${e.key}')));
       await t.pumpAndSettle();
       final st = t.state<CandleChartPanelState>(find.byType(CandleChartPanel));
