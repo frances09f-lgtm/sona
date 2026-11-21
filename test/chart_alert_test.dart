@@ -44,7 +44,7 @@ void main() {
     );
     await t.tapAt(t.getCenter(chart));
     await t.pumpAndSettle();
-    expect(find.text('Create price alert?'), findsOneWidget);
+    expect(find.text('Price alerts'), findsOneWidget);
     expect(app.alerts, isEmpty);
     await t.runAsync(() async {
       final im =
