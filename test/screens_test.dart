@@ -292,6 +292,8 @@ void main() {
       await t.pump(const Duration(milliseconds: 300));
       await t.tap(find.bySemanticsLabel('Tab AI'));
       await t.pumpAndSettle();
+      final takeExc = t.takeException();
+      debugPrint('TAKE_EXC ' + (takeExc == null ? 'null' : takeExc.toString()));
       // TEMP-DIAG (revert after diagnosis)
       debugPrint('AI_PROBE spinner=' +
           find.byType(CircularProgressIndicator).evaluate().length.toString() +
