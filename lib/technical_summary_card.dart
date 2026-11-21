@@ -261,6 +261,18 @@ class TechnicalSummaryCardView extends StatelessWidget {
                 selected: chip == c,
                 onSelected:
                     onChipSelected == null ? null : (_) => onChipSelected!(c),
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: chip == c
+                      ? const Color(0xFF1E6B3C)
+                      : const Color(0xFFBBBBBB),
+                ),
+                backgroundColor: const Color(0xFF1C1C1E),
+                selectedColor: const Color(0xFFD8F0DC),
+                shape: const StadiumBorder(),
+                side: BorderSide.none,
               ),
               const SizedBox(width: 8),
             ],
