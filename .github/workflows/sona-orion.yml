@@ -99,6 +99,18 @@ jobs:
           name: test-results-raw
           path: /tmp/flutter-results-copy.jsonl
           if-no-files-found: warn
+      - name: Capture fixture UI evidence (fullscreen alert + pending order flows)
+        if: always()
+        run: |
+          set -euo pipefail
+          PENDING_CAPTURE=1 flutter test test/chart_alert_test.dart test/add_pending_flow_test.dart
+      - name: Upload fixture UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-ui-evidence
+          path: /tmp/sona-*.png
+          if-no-files-found: warn
       - name: Record tested source
         if: ${{ github.event.inputs.test_only != 'true' }}
         run: |
