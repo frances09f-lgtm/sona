@@ -245,8 +245,11 @@ void main() {
       // Widened to 300: still only weekend bars.
       final secondWindow = jsonEncode({'status': 'ok', 'values': [
         for (var i = 0; i < 40; i++)
-          bar('2026-11-21 0${i % 10}:0${i % 6}0:00', 3538.0 + i * 0.3,
-              3538.5 + i * 0.3, 3537.8 + i * 0.3, 3538.2 + i * 0.3),
+          bar(
+              '2026-11-21 ${(i % 10).toString().padLeft(2, '0')}:'
+              '${((i % 6) * 10).toString().padLeft(2, '0')}:00',
+              3538.0 + i * 0.3, 3538.5 + i * 0.3, 3537.8 + i * 0.3,
+              3538.2 + i * 0.3),
       ]});
       // Widened to 1200: Friday's real session tail appears.
       final fridayBars = <Map<String, String>>[
