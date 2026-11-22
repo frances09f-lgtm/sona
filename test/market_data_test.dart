@@ -123,10 +123,9 @@ void main() {
       // Friday bars (multi-dollar ranges), then from Friday 22:15 UTC a
       // run of synthetic bars with frozen opens and ~0.2 USD ranges.
       final buf = StringBuffer('{"status":"ok","values":[');
-      Map<String, String> bar(String dt, double o, double h, double l,
-              double c) =>
-          {'datetime': dt, 'open': '$o', 'high': '$h', 'low': '$l',
-           'close': '$c', 'volume': '0'};
+      String bar(String dt, double o, double h, double l, double c) =>
+          '{"datetime":"$dt","open":"$o","high":"$h","low":"$l",'
+          '"close":"$c","volume":"0"}';
       final bars = <String>[
         bar('2026-11-13 21:45:00', 3874.14, 3882.14, 3874.14, 3878.58),
         bar('2026-11-13 22:00:00', 3878.27, 3878.27, 3874.41, 3874.84),
