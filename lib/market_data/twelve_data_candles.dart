@@ -19,6 +19,18 @@ class TwelveDataCandleService implements HistoricalCandleService {
   @override
   String get name => 'twelvedata';
 
+  // Weekend backfill cache. With the market closed the first fetch
+  // comes back empty (all synthetic bars dropped) and the bounded widen
+  // in fetchCandles costs up to 3 extra requests. The chart reloads on
+  // a timer, so without a cache a 5min chart left open on a weekend
+  // would burn ~48 requests/hour against the free tier's 800/day.
+  // The closed market produces no new real bars, so a 15-minute reuse
+  // is safe; after the Sunday reopen the entry expires at most 15
+  // minutes late and the live fold keeps the last candle current
+  // meanwhile. Keyed by interval+limit.
+  static final Map<String, (DateTime, List<Candle>)> _closedBackfillCache =
+      {};
+
   @override
   Future<List<Candle>> fetchCandles(
     Instrument instrument, {
@@ -30,23 +42,38 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException(
           'Add your Twelve Data key in API settings to load candle history.');
     }
-    final first = await _fetchOnce(instrument, interval, limit);
-    if (first.isNotEmpty || !backfillWhenClosed || limit >= 5000) {
-      if (first.isEmpty) {
-        throw MarketDataException('zero usable candles from $name');
+    final cacheKey = '$interval/$limit';
+    if (backfillWhenClosed) {
+      final hit = _closedBackfillCache[cacheKey];
+      if (hit != null &&
+          DateTime.now().difference(hit.$1) < const Duration(minutes: 15)) {
+        return List.of(hit.$2);
       }
-      return first;
     }
-    // The whole window was confirmed-closed placeholder bars (a weekend
-    // 1H/1D fetch). Widen once so the chart keeps the last real session
-    // instead of going blank; AutoTrade and advice keep the default
-    // throw so their closed-market skip is untouched.
-    final widened = await _fetchOnce(
-        instrument, interval, limit < 300 ? 300 : (limit * 4 > 5000 ? 5000 : limit * 4));
-    if (widened.isEmpty) {
+    var candles = await _fetchOnce(instrument, interval, limit);
+    if (candles.isEmpty && backfillWhenClosed) {
+      // The whole window was confirmed-closed synthetic bars (a weekend
+      // fetch). Widen in bounded steps so the chart keeps the last real
+      // session instead of going blank: from at least 300 bars, x4 each
+      // step, capped at the provider's 5000-bar maximum. Worst case 3
+      // extra requests (1min: 120 -> 300 -> 1200 -> 4800, ~83 hours,
+      // reaching Friday's session from anywhere in the weekend); the
+      // cache above keeps timer refreshes from repeating them.
+      // AutoTrade and advice keep the default throw so their
+      // closed-market skip is untouched.
+      var size = limit;
+      while (candles.isEmpty && size < 5000) {
+        size = size < 300 ? 300 : (size * 4 > 5000 ? 5000 : size * 4);
+        candles = await _fetchOnce(instrument, interval, size);
+      }
+      if (candles.isNotEmpty) {
+        _closedBackfillCache[cacheKey] = (DateTime.now(), candles);
+      }
+    }
+    if (candles.isEmpty) {
       throw MarketDataException('zero usable candles from $name');
     }
-    return widened;
+    return candles;
   }
 
   Future<List<Candle>> _fetchOnce(
@@ -123,90 +150,59 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException('zero usable candles from $name');
     }
     out.sort((a, b) => a.time.compareTo(b.time)); // oldest-first
-    // Twelve Data keeps emitting synthetic XAU/USD bars after the metals
-    // market closes (verified Nov 14, 2026: from Friday 22:15 UTC through
-    // the weekend every bar had a frozen open and a ~0.2 USD high-low
-    // wiggle while Swissquote sat at Friday's real close). Rendered raw,
-    // ~90 of these fill the chart window and the auto-scale blows each
-    // 0.2-range placeholder up to full height - the "wall of slivers"
-    // bug. Drop intraday bars that sit inside the known closed window AND
-    // match the flat signature; real bars can never exist in that window,
-    // and the range check keeps the filter glued to the observed
-    // placeholder shape instead of the clock alone.
+    // Twelve Data emits synthetic XAU/USD bars straight through the
+    // weekend close (its own symbol page classifies the exchange as
+    // 24/7): Nov 14-15 a frozen ~0.2 USD stream, Nov 21-22 sparse
+    // real-range indicative bars (user report). No tradable session
+    // exists in the confirmed-closed window, so those bars are dropped
+    // by clock - see dropClosedMarketPlaceholders.
     if (interval.endsWith('min') || interval.endsWith('h')) {
       // Possibly empty: the caller decides whether an all-closed window
-      // is an error (default) or triggers one wider backfill fetch.
+      // is an error (default) or triggers the bounded backfill fetch.
       return dropClosedMarketPlaceholders(out);
     }
     return out;
   }
 }
 
-/// Drops synthetic closed-market placeholder runs from Twelve Data's
-/// XAU/USD intraday feed.
+/// Drops Twelve Data's synthetic closed-market XAU/USD bars BY CLOCK.
 ///
-/// Verified against the live feed (user report Nov 15, 2026): after the
-/// Friday ~22:15 UTC close until the Sunday ~22:30 UTC reopen the feed
-/// keeps emitting 15-minute bars whose open is frozen to within cents of
-/// the previous bar's open and whose high-low range stays around 0.2 USD,
-/// while real 15-minute bars in the same fetch range 20-36 USD. Rendered
-/// raw, ~90 of these fill the chart on a Saturday and the auto-scale blows
-/// each placeholder up to a full-height sliver; the quote row correctly
-/// shows Friday's real close as stale, so chart and header disagree by
-/// dollars.
+/// Why the clock alone is the right test (revised Nov 22, 2026): Twelve
+/// Data's own XAU/USD symbol page classifies the exchange as 24/7
+/// (Australia/Sydney), so the feed emits bars straight through the
+/// weekend and their SHAPE is not a reliable discriminator. Nov 14-15
+/// they were a frozen ~0.2 USD stream (the "wall of slivers" bug); on
+/// Nov 21-22 they arrived as sparse bars with multi-dollar ranges (user
+/// report: the 5m chart showed 3 candles, one blown to full height by
+/// auto-scale) that no frozen/flat signature can ever catch.
 ///
-/// A bar is dropped only when BOTH conditions hold:
-///  1. Confirmed closed: its timestamp falls in the intersection of every
-///     cited closure window for the XAU/USD trading week:
-///       - this app's session table (sessions.dart): Fri 21:00 - Sun 21:00
-///       - CME gold futures (17:00-18:00 ET close/open): Fri 21:00 -
-///         Sun 22:00 UTC during US daylight time (ET = UTC-4), Fri 22:00 -
-///         Sun 23:00 UTC in standard time (ET = UTC-5)
-///       - broker OTC schedules (e.g. Exness): Fri 20:58/21:58 -
-///         Sun 22:05/23:05 UTC by DST half
-///       - Twelve Data's own feed, observed two November 2026 weekends:
-///         synthetic bars from Fri 22:15 UTC, real bars resume Sun
-///         ~22:30 UTC
-///     Closed in ALL of them means: all of Saturday, Friday from 22:00
-///     UTC (the latest cited close), and Sunday before 21:00 UTC (the
-///     earliest cited open). The one-hour DST edges (Fri 21:00-22:00,
-///     Sun 21:00-23:05) are NOT treated as closed: sources disagree
-///     there, so bars at those edges are always kept. The weekday
-///     settlement break is not filtered at all - its cited hours vary
-///     by source and it never produced the corruption.
-///  2. Frozen signature: it belongs to a run of 8+ CONSECUTIVE bars each
-///     with the open frozen within 0.10 USD of the previous open and a
-///     high-low range of at most 1 USD. A quiet weekday stretch never
-///     matches (wrong clock), and real bars at the cited edges never
-///     match (wrong signature): both guards must fire together. The
-///     0.10 chaining tolerance absorbs the few-cent open STEPS the
-///     placeholder stream emits (observed 0.022-0.028 USD): with a
-///     tighter chain a step bar survived alone and rendered as one
-///     full-screen candle (user report Nov 15 2026).
+/// What makes clock-only deletion safe: no TRADABLE XAU/USD session
+/// exists inside the confirmed-closed window, verified at the owning
+/// sources Nov 22, 2026 - CME gold futures trade Sunday 6:00 p.m. to
+/// Friday 5:00 p.m. ET (cmegroup.com GC fact card); Swissquote FX and
+/// precious metals close Friday 23:00 CET and resume Sunday 23:00 CET
+/// (swissquote.com trading-hours notices); both are 22:00 UTC in
+/// November standard time. Bars emitted there are upstream indicative
+/// quotes, not tradable session bars: dropping them loses nothing real,
+/// and the bounded backfill in fetchCandles restores Friday's actual
+/// session so the weekend chart shows real candles with their real
+/// timestamps instead of 3 synthetic stragglers.
 ///
-/// The first bar of a fetch has no predecessor, so it can only be judged
-/// when the run starting right after it reaches 8 bars: if it is frozen
-/// the same way and also confirmed-closed, it is the head of the same
-/// placeholder run (a Saturday 60-bar fetch otherwise returns one
-/// synthetic candle).
+/// The window is the intersection of every cited closure (unchanged
+/// from the Nov 15 version): all of Saturday UTC, Friday from 22:00
+/// UTC (the latest cited close), and Sunday before 21:00 UTC (the
+/// earliest cited open). The DST-ambiguous edges (Fri 21:00-22:00,
+/// Sun 21:00-23:05 UTC) are NEVER dropped: sources disagree there, so
+/// bars at those edges are always kept. Weekday bars are never dropped;
+/// the weekday settlement break is not filtered at all.
 ///
-/// Dropped runs are reported to [CandleDebugSink] with their UTC window
+/// Dropped bars are reported to [CandleDebugSink] with their UTC window
 /// and count, so the raw provider behavior stays diagnosable.
 List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
-  // The placeholder stream's frozen open occasionally STEPS by a few
-  // cents (verified live Nov 15 2026: a 0.022 USD step at Sat 04:15 UTC
-  // broke a 0.02-tolerance chain and left one bar alive, which the chart
-  // blew up into a single full-screen candle). Chain on 0.10 USD instead:
-  // 4x margin over the observed 0.022-0.028 USD steps, still far below a
-  // real drifting market (0.5 USD steps stay alive, covered by test), and
-  // the confirmed-closed clock window below already guarantees no real
-  // bar can sit inside a dropped run.
-  bool frozen(Candle c, Candle prev) =>
-      (c.open - prev.open).abs() <= 0.10 && (c.high - c.low) <= 1.0;
-  // The conservative intersection described above. Clock-based, but it
-  // is the region no cited source - futures, broker OTC, or the
-  // provider's own observed behavior - treats as open, so DST shifts of
-  // any single schedule cannot reach it.
+  // The conservative intersection described above. It is the region no
+  // cited source - futures, broker OTC, or the provider's own observed
+  // behavior - treats as open, so DST shifts of any single schedule
+  // cannot reach it.
   bool closedBar(Candle c) {
     final u = c.time.toUtc();
     if (u.weekday == DateTime.saturday) return true;
@@ -214,36 +210,22 @@ List<Candle> dropClosedMarketPlaceholders(List<Candle> candles) {
     if (u.weekday == DateTime.friday && u.hour >= 22) return true;
     return false;
   }
-  final keep = List<bool>.filled(candles.length, true);
+
   final dropped = <int>[];
-  var runStart = -1;
-  for (var i = 1; i <= candles.length; i++) {
-    final isFrozen = i < candles.length && frozen(candles[i], candles[i - 1]);
-    if (isFrozen && runStart < 0) runStart = i;
-    if (!isFrozen && runStart >= 0) {
-      if (i - runStart >= 8 &&
-          [for (var j = runStart; j < i; j++) candles[j]].every(closedBar)) {
-        if (runStart == 1 &&
-            (candles[0].open - candles[1].open).abs() <= 0.10 &&
-            (candles[0].high - candles[0].low) <= 1.0 &&
-            closedBar(candles[0])) {
-          keep[0] = false;
-          dropped.add(0);
-        }
-        for (var j = runStart; j < i; j++) {
-          keep[j] = false;
-          dropped.add(j);
-        }
-      }
-      runStart = -1;
+  final keep = <Candle>[];
+  for (var i = 0; i < candles.length; i++) {
+    if (closedBar(candles[i])) {
+      dropped.add(i);
+    } else {
+      keep.add(candles[i]);
     }
   }
   if (dropped.isNotEmpty) {
     CandleDebugSink.recordError(
         'TwelveDataCandleService',
-        'dropped ${dropped.length} closed-market placeholder bars '
+        'dropped ${dropped.length} closed-market synthetic bars '
         '${candles[dropped.first].time.toUtc()} .. '
         '${candles[dropped.last].time.toUtc()}');
   }
-  return [for (var i = 0; i < candles.length; i++) if (keep[i]) candles[i]];
+  return keep;
 }
