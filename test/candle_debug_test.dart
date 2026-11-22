@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:sona/market_data/candle_debug.dart';
 import 'package:sona/market_data/twelve_data_candles.dart';
 import 'package:sona/market_data/models.dart';
+import 'package:sona/market_data/swissquote_provider.dart';
 
 void main() {
   tearDown(CandleDebugSink.clear);
