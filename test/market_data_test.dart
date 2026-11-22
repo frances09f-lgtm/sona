@@ -68,6 +68,10 @@ void main() {
   });
 
   group('TwelveDataCandleService', () {
+    // The weekend backfill cache is process-wide; clear it so one test's
+    // widened fetch can never satisfy another test's expectations.
+    setUp(TwelveDataCandleService.clearClosedBackfillCache);
+
     test('parses OHLC candles oldest-first', () async {
       final s = TwelveDataCandleService(
           apiKey: 'testkey', client: fakeClient(200, twelveDataFixture));
@@ -119,9 +123,10 @@ void main() {
       // Friday bars (multi-dollar ranges), then from Friday 22:15 UTC a
       // run of synthetic bars with frozen opens and ~0.2 USD ranges.
       final buf = StringBuffer('{"status":"ok","values":[');
-      String bar(String dt, double o, double h, double l, double c) =>
-          '{"datetime":"$dt","open":"$o","high":"$h","low":"$l",'
-          '"close":"$c","volume":"0"}';
+      Map<String, String> bar(String dt, double o, double h, double l,
+              double c) =>
+          {'datetime': dt, 'open': '$o', 'high': '$h', 'low': '$l',
+           'close': '$c', 'volume': '0'};
       final bars = <String>[
         bar('2026-11-13 21:45:00', 3874.14, 3882.14, 3874.14, 3878.58),
         bar('2026-11-13 22:00:00', 3878.27, 3878.27, 3874.41, 3874.84),
@@ -227,9 +232,10 @@ void main() {
       // ranges through the weekend (the 5m chart showed 3 candles, one
       // auto-scaled to full height). No frozen signature matches them;
       // the clock window is the only reliable discriminator.
-      String bar(String dt, double o, double h, double l, double c) =>
-          '{"datetime":"$dt","open":"$o","high":"$h","low":"$l",'
-          '"close":"$c","volume":"0"}';
+      Map<String, String> bar(String dt, double o, double h, double l,
+              double c) =>
+          {'datetime': dt, 'open': '$o', 'high': '$h', 'low': '$l',
+           'close': '$c', 'volume': '0'};
       // First window (as the 5m chart fetched it Sunday 12:49 IST):
       // nothing but 3 sparse real-range weekend bars.
       final firstWindow = jsonEncode({'status': 'ok', 'values': [
@@ -244,7 +250,7 @@ void main() {
               3538.5 + i * 0.3, 3537.8 + i * 0.3, 3538.2 + i * 0.3),
       ]});
       // Widened to 1200: Friday's real session tail appears.
-      final fridayBars = <String>[
+      final fridayBars = <Map<String, String>>[
         for (var i = 0; i < 100; i++)
           () {
             final t = DateTime.utc(2026, 11, 20, 12, 0)
@@ -252,9 +258,9 @@ void main() {
             final dt =
                 '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
                 '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
-            return '{"datetime":"$dt","open":"${3530 + i * 0.4}",'
-                '"high":"${3531 + i * 0.4}","low":"${3529.5 + i * 0.4}",'
-                '"close":"${3530.5 + i * 0.4}","volume":"0"}';
+            return {'datetime': dt, 'open': '${3530 + i * 0.4}',
+                'high': '${3531 + i * 0.4}', 'low': '${3529.5 + i * 0.4}',
+                'close': '${3530.5 + i * 0.4}', 'volume': '0'};
           }(),
         bar('2026-11-21 23:00:00', 3538.10, 3538.60, 3537.90, 3538.40),
       ];
@@ -418,8 +424,17 @@ void main() {
       // The closed-session guard is load-bearing: a quiet weekday stretch
       // with frozen-looking bars is real market data and must survive
       // even past the run-length bar. Tuesday 03:00 UTC, 20 frozen bars.
+      // Bookends are explicit TUESDAY bars (the bar() helper stamps
+      // Saturday Nov 14, which the clock filter would rightly drop).
       final cs = <Candle>[
-        for (var i = 0; i < 3; i++) bar(i, 3900 + i * 2.0, 15.0),
+        for (var i = 0; i < 3; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 10, 2, 15)
+                  .add(Duration(minutes: 15 * i)),
+              open: 3900 + i * 2.0,
+              high: 3900 + i * 2.0 + 15.0,
+              low: 3900 + i * 2.0,
+              close: 3900 + i * 2.0 + 7.5),
         for (var i = 3; i < 23; i++)
           Candle(
               time: DateTime.utc(2026, 11, 10, 3, 0)
@@ -428,7 +443,12 @@ void main() {
               high: 3874.66,
               low: 3874.43,
               close: 3874.55),
-        bar(23, 3900.0, 15.0),
+        Candle(
+            time: DateTime.utc(2026, 11, 10, 8, 45),
+            open: 3900.0,
+            high: 3915.0,
+            low: 3900.0,
+            close: 3907.5),
       ];
       expect(dropClosedMarketPlaceholders(cs).length, cs.length);
     });
