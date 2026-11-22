@@ -247,13 +247,8 @@ jobs:
         with:
           name: phone-captures
           path: |
-            /tmp/sona-orion-trade.png
-            /tmp/sona-orion-portfolio.png
-            /tmp/sona-orion-add.png
-            /tmp/sona-orion-stats.png
-            /tmp/sona-orion-ai.png
-            /tmp/ui.xml
-            /tmp/logcat.txt
+            /tmp/sona-orion-*.png
+            /tmp/sona-capture-status.txt
           if-no-files-found: warn
       - id: gofile_caps
         name: Copy captures to gofile for inspection
