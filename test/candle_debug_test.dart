@@ -100,12 +100,15 @@ void main() {
       svc.fetchCandles(Instrument.xauUsd),
       throwsA(isA<MarketDataException>()),
     );
-    // Error-path attribution: recordFetch first logs the raw pull under
-    // the provider name, then the closed-market drop is recorded under
-    // the service class, which owns the final source field on a throw.
+    // Sink semantics on the error path: recordFetch first logs the raw
+    // pull under the provider name; the closed-market drop then records
+    // an ERROR, which by design supersedes the fetch snapshot (source
+    // moves to the service class, counts/raw reset, lastError kept,
+    // sanitized). The panel must show the drop, not stale raw bars.
     expect(CandleDebugSink.source, 'TwelveDataCandleService');
-    expect(CandleDebugSink.totalValues, 4);
+    expect(CandleDebugSink.totalValues, 0);
     expect(CandleDebugSink.lastError, contains('closed-market'));
+    expect(CandleDebugSink.lastError, contains('dropped 4'));
   });
 
   test('raw payload fields echoing the key or URLs are redacted', () async {
