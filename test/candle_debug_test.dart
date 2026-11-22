@@ -18,7 +18,7 @@ void main() {
     final values = [
       for (var i = 0; i < 8; i++)
         {
-          'datetime': '2026-10-31 0$i:00:00',
+          'datetime': '2026-10-29 0$i:00:00',
           'open': '3875.3$i',
           'high': '3875.50',
           'low': '3875.28',
@@ -37,9 +37,9 @@ void main() {
     expect(CandleDebugSink.lastError, isNull);
     // Raw entries are pre-parse JSON of the provider's own values.
     expect(CandleDebugSink.rawHead.length, 3);
-    expect(CandleDebugSink.rawHead.first, contains('2026-10-31 00:00:00'));
+    expect(CandleDebugSink.rawHead.first, contains('2026-10-29 00:00:00'));
     expect(CandleDebugSink.rawTail.length, 3);
-    expect(CandleDebugSink.rawTail.last, contains('2026-10-31 07:00:00'));
+    expect(CandleDebugSink.rawTail.last, contains('2026-10-29 07:00:00'));
   });
 
   test('records sanitized errors, never the API key or URLs', () async {
@@ -76,10 +76,38 @@ void main() {
     expect(CandleDebugSink.lastError, contains('429'));
   });
 
+  test('all-weekend payload: fetch throws honestly AND the sink still '
+      'records the raw pull and the drop', () async {
+    // Saturday bars: the clock filter empties the series, fetchCandles
+    // throws (AutoTrade's closed-market skip), but the debug sink keeps
+    // the raw provider evidence and the drop record.
+    final values = [
+      for (var i = 0; i < 4; i++)
+        {
+          'datetime': '2026-10-31 0$i:00:00',
+          'open': '3875.31',
+          'high': '3875.50',
+          'low': '3875.28',
+          'close': '3875.44',
+        },
+    ];
+    final svc = TwelveDataCandleService(
+      apiKey: 'k',
+      client: fakeClient({'status': 'ok', 'values': values}),
+    );
+    await expectLater(
+      svc.fetchCandles(Instrument.xauUsd),
+      throwsA(isA<MarketDataException>()),
+    );
+    expect(CandleDebugSink.source, 'twelvedata');
+    expect(CandleDebugSink.totalValues, 4);
+    expect(CandleDebugSink.lastError, contains('closed-market'));
+  });
+
   test('raw payload fields echoing the key or URLs are redacted', () async {
     final values = [
       {
-        'datetime': '2026-10-31 00:00:00',
+        'datetime': '2026-10-29 00:00:00',
         'open': '3875.31',
         'high': '3875.50',
         'low': '3875.28',
@@ -89,7 +117,7 @@ void main() {
       },
       for (var i = 1; i < 6; i++)
         {
-          'datetime': '2026-10-31 0$i:00:00',
+          'datetime': '2026-10-29 0$i:00:00',
           'open': '3875.31',
           'high': '3875.50',
           'low': '3875.28',
@@ -108,6 +136,6 @@ void main() {
     expect(shown.contains('[url]'), isTrue);
     // Legitimate OHLC fields survive redaction intact.
     expect(shown.contains('3875.31'), isTrue);
-    expect(shown.contains('2026-10-31 00:00:00'), isTrue);
+    expect(shown.contains('2026-10-29 00:00:00'), isTrue);
   });
 }
