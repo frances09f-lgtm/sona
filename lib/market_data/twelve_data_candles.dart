@@ -31,6 +31,11 @@ class TwelveDataCandleService implements HistoricalCandleService {
   static final Map<String, (DateTime, List<Candle>)> _closedBackfillCache =
       {};
 
+  /// Test hook: the cache is process-wide; suites clear it in setUp so
+  /// fixtures cannot bleed across tests. Production callers never need
+  /// this (the 15-minute TTL is the session boundary).
+  static void clearClosedBackfillCache() => _closedBackfillCache.clear();
+
   @override
   Future<List<Candle>> fetchCandles(
     Instrument instrument, {
@@ -42,7 +47,12 @@ class TwelveDataCandleService implements HistoricalCandleService {
       throw MarketDataException(
           'Add your Twelve Data key in API settings to load candle history.');
     }
-    final cacheKey = '$interval/$limit';
+    // Isolation: keyed by instrument, interval, window size AND the
+    // credential in use, so different symbols, timeframes or accounts
+    // can never be served each other's weekend bars. Entries only ever
+    // come from an all-closed (weekend) first fetch and expire after 15
+    // minutes, so a session boundary is bounded by that TTL.
+    final cacheKey = '${instrument.symbol}/$interval/$limit/${apiKey.hashCode}';
     if (backfillWhenClosed) {
       final hit = _closedBackfillCache[cacheKey];
       if (hit != null &&
