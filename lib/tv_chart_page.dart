@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -100,7 +102,24 @@ class TvChartViewState extends State<TvChartView> {
     }
     return Stack(
       children: [
-        Positioned.fill(child: WebViewWidget(controller: _controller)),
+        Positioned.fill(
+          // The embedded host sits inside the Trade tab's ListView. With
+          // no gestureRecognizers the WebView claims only gestures no
+          // ancestor claims, so the ListView wins every vertical drag -
+          // chart vertical pans and selected-drawing moves never reach
+          // the widget. Claim vertical drag eagerly here; page scrolling
+          // still starts outside the chart box. Horizontal drags already
+          // reach the widget (the ListView does not claim them) and pinch
+          // is unverified on a real phone, so neither is added.
+          child: WebViewWidget(
+            controller: _controller,
+            gestureRecognizers: {
+              Factory<VerticalDragGestureRecognizer>(
+                () => VerticalDragGestureRecognizer(),
+              ),
+            },
+          ),
+        ),
         if (_loading)
           const Positioned.fill(
             child: ColoredBox(
