@@ -111,6 +111,26 @@ Widget harness(List<Candle> data, double quote) {
   );
 }
 
+
+/// Privacy guard (runs BEFORE any golden is written, so a failure means
+/// no PNG exists to upload): every widget-layer string in the render
+/// must be plain chart/market text - no identity, account, key, token
+/// or device strings. Canvas-painted axis labels carry only fixture
+/// prices/dates by construction (the loader serves this file's fixture;
+/// the test process holds no keys, accounts or device data).
+void assertFixtureOnlyText() {
+  final forbidden = RegExp(
+      '(@|apikey|api_key|token|bearer|secret|\\+?\\d[\\d ]{8,}\\d|[0-9a-f]{24,})',
+      caseSensitive: false);
+  final identity =
+      RegExp('abhi|ambi|frances|nord|oneplus', caseSensitive: false);
+  for (final el in find.byType(Text).evaluate()) {
+    final t = (el.widget as Text).data ?? '';
+    expect(forbidden.hasMatch(t), isFalse, reason: 'forbidden text: \$t');
+    expect(identity.hasMatch(t), isFalse, reason: 'identity text: \$t');
+  }
+}
+
 void main() {
   final capture = Platform.environment['WEEKEND_SPARSE_CAPTURE'] == '1';
 
@@ -127,6 +147,7 @@ void main() {
     }
     await tester.pumpWidget(harness(window, fetch[fetch.length - 4].close));
     await tester.pumpAndSettle();
+    assertFixtureOnlyText();
     await expectLater(find.byType(CandleChartPanel),
         matchesGoldenFile('goldens/weekend_sparse_before.png'));
   });
@@ -145,6 +166,7 @@ void main() {
     final window = filtered.sublist(math.max(0, filtered.length - 100));
     await tester.pumpWidget(harness(window, filtered.last.close));
     await tester.pumpAndSettle();
+    assertFixtureOnlyText();
     await expectLater(find.byType(CandleChartPanel),
         matchesGoldenFile('goldens/weekend_sparse_after.png'));
   });
