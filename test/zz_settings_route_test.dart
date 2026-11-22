@@ -85,7 +85,7 @@ void main() {
     final service = TwelveDataCandleService(
       apiKey: fakeKey,
       client: MockClient((req) async => http.Response(
-          '{"status":"ok","values":[{"datetime":"2026-10-31 04:30:00","open":"3875.31","high":"3875.50","low":"3875.20","close":"3875.44","note":"$fakeKey"},{"datetime":"2026-10-31 04:45:00","open":"3875.44","high":"3875.60","low":"3875.30","close":"3875.52"}]}',
+          '{"status":"ok","values":[{"datetime":"2026-10-30 04:30:00","open":"3875.31","high":"3875.50","low":"3875.20","close":"3875.44","note":"$fakeKey"},{"datetime":"2026-10-30 04:45:00","open":"3875.44","high":"3875.60","low":"3875.30","close":"3875.52"}]}',
           200)),
     );
     await service.fetchCandles(Instrument.xauUsd);
