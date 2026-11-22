@@ -145,12 +145,14 @@ void main() {
           apiKey: 'k', client: fakeClient(200, buf.toString()));
       final candles =
           await s.fetchCandles(Instrument.xauUsd, interval: '15min');
-      // 3 real Friday bars + the first frozen bar (indistinguishable from
-      // a real bar: its open moved from the previous real bar) + the real
-      // Sunday bar. The other 19 frozen bars are gone.
-      expect(candles.length, 5);
+      // Time-based filter (Nov 22 revision): only the Friday 21:45 UTC
+      // bar (last bar before the 22:00 UTC close) and the real Sunday
+      // reopening bar survive. The 22:00/22:15 Friday bars and every
+      // frozen bar sit inside the confirmed-closed window and drop by
+      // clock, whatever their shape.
+      expect(candles.length, 2);
+      expect(candles.first.time.toUtc(), DateTime.utc(2026, 11, 13, 21, 45));
       expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 15, 22, 30));
-      expect(candles[2].time.toUtc(), DateTime.utc(2026, 11, 13, 22, 15));
     });
 
     test('live payload: the phone\'s exact Nov 15 weekend fetch drops '
@@ -202,27 +204,87 @@ void main() {
           interval: '15min', limit: 120, backfillWhenClosed: true);
       // Widened exactly once, 120 -> 300.
       expect(requestedSizes, ['120', '300']);
-      // Friday's real session (78 bars) plus the three Fri 22:00-22:30 UTC
-      // transition bars whose shape is not the frozen signature - kept,
-      // never deleted on suspicion.
-      expect(candles.length, 81);
+      // Friday's real session only: 78 bars. The three Fri 22:00-22:30
+      // UTC transition bars now drop by clock (post-close synthetic,
+      // Nov 22 revision).
+      expect(candles.length, 78);
       expect(candles.first.time.toUtc(), DateTime.utc(2026, 11, 13, 2, 30));
-      expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 13, 22, 30));
-      // Any survivor inside the confirmed-closed clock window is there
-      // because it is NOT placeholder-shaped (clock alone never deletes):
-      // it moved or has a real range.
-      for (var i = 0; i < candles.length; i++) {
-        final c = candles[i];
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 13, 21, 45));
+      // No survivor sits inside the confirmed-closed clock window.
+      for (final c in candles) {
         final u = c.time.toUtc();
         final inClosed = u.weekday == DateTime.saturday ||
             (u.weekday == DateTime.sunday && u.hour < 21) ||
             (u.weekday == DateTime.friday && u.hour >= 22);
-        if (!inClosed || i == 0) continue;
-        final moved =
-            (c.open - candles[i - 1].open).abs() > 0.10;
-        expect(moved || (c.high - c.low) > 1.0, isTrue,
-            reason: 'placeholder-shaped survivor at $u');
+        expect(inClosed, isFalse, reason: 'closed-window survivor at $u');
       }
+    });
+
+    test('Nov 22 user report: sparse REAL-RANGE weekend bars are dropped '
+        'by clock; the bounded loop backfills Friday\'s session and the '
+        '15-minute cache caps provider requests', () async {
+      // Nov 21-22 2026: Twelve Data emitted sparse bars with multi-dollar
+      // ranges through the weekend (the 5m chart showed 3 candles, one
+      // auto-scaled to full height). No frozen signature matches them;
+      // the clock window is the only reliable discriminator.
+      String bar(String dt, double o, double h, double l, double c) =>
+          '{"datetime":"$dt","open":"$o","high":"$h","low":"$l",'
+          '"close":"$c","volume":"0"}';
+      // First window (as the 5m chart fetched it Sunday 12:49 IST):
+      // nothing but 3 sparse real-range weekend bars.
+      final firstWindow = jsonEncode({'status': 'ok', 'values': [
+        bar('2026-11-21 23:00:00', 3538.10, 3538.60, 3537.90, 3538.40),
+        bar('2026-11-22 00:10:00', 3536.20, 3539.40, 3535.80, 3539.10),
+        bar('2026-11-22 00:15:00', 3539.05, 3539.30, 3538.90, 3539.20),
+      ]});
+      // Widened to 300: still only weekend bars.
+      final secondWindow = jsonEncode({'status': 'ok', 'values': [
+        for (var i = 0; i < 40; i++)
+          bar('2026-11-21 0${i % 10}:0${i % 6}0:00', 3538.0 + i * 0.3,
+              3538.5 + i * 0.3, 3537.8 + i * 0.3, 3538.2 + i * 0.3),
+      ]});
+      // Widened to 1200: Friday's real session tail appears.
+      final fridayBars = <String>[
+        for (var i = 0; i < 100; i++)
+          () {
+            final t = DateTime.utc(2026, 11, 20, 12, 0)
+                .add(Duration(minutes: 5 * i));
+            final dt =
+                '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+            return '{"datetime":"$dt","open":"${3530 + i * 0.4}",'
+                '"high":"${3531 + i * 0.4}","low":"${3529.5 + i * 0.4}",'
+                '"close":"${3530.5 + i * 0.4}","volume":"0"}';
+          }(),
+        bar('2026-11-21 23:00:00', 3538.10, 3538.60, 3537.90, 3538.40),
+      ];
+      final thirdWindow =
+          jsonEncode({'status': 'ok', 'values': fridayBars.reversed.toList()});
+      final responses = <String>[firstWindow, secondWindow, thirdWindow];
+      final requestedSizes = <String>[];
+      var calls = 0;
+      final client = MockClient((req) async {
+        calls++;
+        requestedSizes.add(req.url.queryParameters['outputsize'] ?? '');
+        return http.Response(responses.removeAt(0), 200);
+      });
+      final s = TwelveDataCandleService(apiKey: 'k', client: client);
+      final candles = await s.fetchCandles(Instrument.xauUsd,
+          interval: '5min', limit: 120, backfillWhenClosed: true);
+      // Bounded loop: 120 -> 300 -> 1200, then Friday's session.
+      expect(requestedSizes, ['120', '300', '1200']);
+      // Every synthetic weekend bar is gone; only Friday bars survive.
+      expect(candles.length, 100);
+      expect(candles.last.time.toUtc(), DateTime.utc(2026, 11, 20, 20, 15));
+      for (final c in candles) {
+        expect(c.time.toUtc().weekday, DateTime.friday);
+      }
+      // The 15-minute weekend cache: an immediate reload (chart timer)
+      // reuses the widened result without new provider requests.
+      final again = await s.fetchCandles(Instrument.xauUsd,
+          interval: '5min', limit: 120, backfillWhenClosed: true);
+      expect(again.length, 100);
+      expect(calls, 3);
     });
 
     test('backfill refetch failure throws - no candles are ever '
@@ -307,25 +369,47 @@ void main() {
         low: open,
         close: open + range / 2);
 
-    test('drops a long frozen run anywhere in the series', () {
+    test('drops every bar inside the confirmed-closed window, whatever '
+        'its shape (Nov 22 revision)', () {
+      // Saturday bars, real-shaped (moving opens, 20 USD ranges) and
+      // frozen-shaped alike: no tradable session exists on Saturday, so
+      // the clock drops all of them. Shape no longer matters.
       final cs = <Candle>[
         for (var i = 0; i < 5; i++) bar(i, 3900 + i * 3.0, 20.0),
         for (var i = 5; i < 25; i++) bar(i, 3874.43, 0.23),
         bar(25, 3900.0, 18.0),
       ];
-      // First frozen bar survives: from the preceding real bar its open
-      // moved, so nothing marks it. The other 19 are dropped.
-      final kept = dropClosedMarketPlaceholders(cs);
-      expect(kept.length, 7);
-      expect(kept.last.close, 3909.0);
+      expect(dropClosedMarketPlaceholders(cs), isEmpty);
     });
 
-    test('keeps short quiet stretches - they can be a live market', () {
+    test('keeps quiet weekday stretches - shape is never a reason to '
+        'drop (Nov 22 revision)', () {
+      // Monday 03:00 UTC: frozen-looking bars during real trading hours
+      // are real market data and must survive.
       final cs = <Candle>[
-        for (var i = 0; i < 3; i++) bar(i, 3900 + i * 2.0, 15.0),
-        // 7 frozen bars: below the run-length bar, all kept.
-        for (var i = 3; i < 10; i++) bar(i, 3874.43, 0.23),
-        bar(10, 3900.0, 15.0),
+        for (var i = 0; i < 3; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 9, 3, 0)
+                  .add(Duration(minutes: 15 * i)),
+              open: 3900 + i * 2.0,
+              high: 3900 + i * 2.0 + 15.0,
+              low: 3900 + i * 2.0,
+              close: 3900 + i * 2.0 + 7.5),
+        for (var i = 3; i < 10; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 9, 3, 0)
+                  .add(Duration(minutes: 15 * i)),
+              open: 3874.43,
+              high: 3874.66,
+              low: 3874.43,
+              close: 3874.55),
+        Candle(
+            time: DateTime.utc(2026, 11, 9, 3, 0)
+                .add(const Duration(minutes: 150)),
+            open: 3900.0,
+            high: 3915.0,
+            low: 3900.0,
+            close: 3907.5),
       ];
       expect(dropClosedMarketPlaceholders(cs).length, cs.length);
     });
@@ -355,7 +439,12 @@ void main() {
       // and Twelve Data itself served real bars until 22:00 UTC. A frozen
       // run starting 21:00 UTC must survive - sources disagree, no delete.
       final cs = <Candle>[
-        bar(0, 3900.0, 15.0),
+        Candle(
+            time: DateTime.utc(2026, 11, 13, 20, 45),
+            open: 3900.0,
+            high: 3915.0,
+            low: 3900.0,
+            close: 3907.5),
         for (var i = 1; i < 13; i++)
           Candle(
               time: DateTime.utc(2026, 11, 13, 21, 0)
@@ -365,17 +454,17 @@ void main() {
               low: 3874.43,
               close: 3874.55),
       ];
-      // 12 frozen bars: the first four sit in the ambiguous hour, so the
-      // run is not fully inside the confirmed-closed region.
-      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+      // The ambiguous 21:00-21:45 UTC bars survive (sources disagree
+      // there); bars from 22:00 UTC are post-close synthetic and drop
+      // by clock. Kept: the 20:45 real bar + the four edge bars.
+      expect(dropClosedMarketPlaceholders(cs).length, 5);
     });
 
     test('keeps a frozen run crossing the ambiguous Sunday reopen edge', () {
-      // Sunday 20:00-23:00 UTC: cited reopens disagree (21:00-23:05).
-      // Bars before 21:00 are confirmed-closed, later ones are not, so
-      // the mixed run is kept whole.
+      // Sunday 20:00-22:45 UTC: cited reopens disagree (21:00-23:05).
+      // Bars before 21:00 are confirmed-closed and drop by clock; the
+      // ambiguous edge bars from 21:00 are kept whole.
       final cs = <Candle>[
-        bar(0, 3900.0, 15.0),
         for (var i = 1; i < 13; i++)
           Candle(
               time: DateTime.utc(2026, 11, 15, 20, 0)
@@ -385,7 +474,7 @@ void main() {
               low: 3874.43,
               close: 3874.55),
       ];
-      expect(dropClosedMarketPlaceholders(cs).length, cs.length);
+      expect(dropClosedMarketPlaceholders(cs).length, 8);
     });
 
     test('drops a frozen run fully inside the confirmed weekend '
@@ -401,10 +490,9 @@ void main() {
               low: 3874.43,
               close: 3874.55),
       ];
-      // Saturday 22:00 - Sunday 00:45: all confirmed-closed. The first
-      // frozen bar survives (its open moved from the real predecessor);
-      // the other 11 are dropped.
-      expect(dropClosedMarketPlaceholders(cs).length, 2);
+      // Saturday 22:00 - Sunday 00:45: all confirmed-closed, every bar
+      // drops by clock (Nov 22 revision: shape no longer consulted).
+      expect(dropClosedMarketPlaceholders(cs), isEmpty);
     });
 
     test('drops a frozen run whose open STEPS a few cents mid-run '
@@ -423,18 +511,26 @@ void main() {
               low: 3874.43 + (i >= 6 ? 0.03 : 0),
               close: 3874.55 + (i >= 6 ? 0.03 : 0)),
       ];
-      // The real Friday bar and the FIRST placeholder survive (its open
-      // moved 26 USD from the real bar, so nothing marks it - same rule
-      // as the existing run tests). The step bar and the rest of the run
-      // are gone; the old 0.02 chain kept 3.
-      expect(dropClosedMarketPlaceholders(cs).length, 2);
+      // Nov 22 revision: every bar here sits on Saturday, so the clock
+      // drops all of them; the step-chain reasoning is retired with the
+      // signature filter.
+      expect(dropClosedMarketPlaceholders(cs), isEmpty);
     });
 
-    test('keeps real bars whose opens move, however quiet', () {
-      // 10 flat-ish bars but each open steps 0.5 - a drifting market,
-      // not a frozen feed.
+    test('keeps real bars whose opens move on a WEEKDAY, however quiet',
+        () {
+      // 10 flat-ish bars but each open steps 0.5 - a drifting market.
+      // (Inside the closed window even moving bars now drop by clock:
+      // covered by the Nov 22 test above.)
       final cs = <Candle>[
-        for (var i = 0; i < 10; i++) bar(i, 3874.0 + i * 0.5, 0.8),
+        for (var i = 0; i < 10; i++)
+          Candle(
+              time: DateTime.utc(2026, 11, 10, 6, 0)
+                  .add(Duration(minutes: 15 * i)),
+              open: 3874.0 + i * 0.5,
+              high: 3874.0 + i * 0.5 + 0.8,
+              low: 3874.0 + i * 0.5,
+              close: 3874.0 + i * 0.5 + 0.4),
       ];
       expect(dropClosedMarketPlaceholders(cs).length, cs.length);
     });
