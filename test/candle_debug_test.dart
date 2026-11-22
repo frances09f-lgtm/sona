@@ -100,7 +100,10 @@ void main() {
       svc.fetchCandles(Instrument.xauUsd),
       throwsA(isA<MarketDataException>()),
     );
-    expect(CandleDebugSink.source, 'twelvedata');
+    // Error-path attribution: recordFetch first logs the raw pull under
+    // the provider name, then the closed-market drop is recorded under
+    // the service class, which owns the final source field on a throw.
+    expect(CandleDebugSink.source, 'TwelveDataCandleService');
     expect(CandleDebugSink.totalValues, 4);
     expect(CandleDebugSink.lastError, contains('closed-market'));
   });
