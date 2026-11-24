@@ -9,8 +9,8 @@ import 'package:sona/orion.dart' as zo;
 import 'screens_test.dart' show loadFonts;
 
 /// Visual-capture aid, NOT a release gate: renders the Orion bottom dock at
-/// real phone metrics in three states (Trade selected, mid-slide after 100ms
-/// of the 200ms pill animation, Portfolio selected) so the PNGs can be
+/// real phone metrics in three states (Trade selected, frame series across the 200ms
+/// pill animation (25ms steps), Portfolio selected) so the PNGs can be
 /// pixel-inspected for bar size, pill containment and slide smoothness.
 /// No-op unless DOCK_CAPTURE=1 (mirrors the portfolio-card capture pattern).
 Future<void> _capture(WidgetTester t, GlobalKey key, String name) async {
@@ -71,8 +71,12 @@ void main() {
 
     setS(() => index = 1);
     await t.pump();
-    await t.pump(const Duration(milliseconds: 100));
-    await _capture(t, key, 'dock-slide');
+    // Frame series across the full 200ms transition (25ms steps) so the
+    // motion itself can be inspected, not just one mid-flight instant.
+    for (var f = 1; f <= 8; f++) {
+      await t.pump(const Duration(milliseconds: 25));
+      await _capture(t, key, 'dock-slide-f${f.toString().padLeft(2, '0')}');
+    }
 
     await t.pumpAndSettle();
     await _capture(t, key, 'dock-portfolio');
