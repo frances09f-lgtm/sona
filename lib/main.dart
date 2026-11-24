@@ -4239,6 +4239,7 @@ class _PositionsTabState extends State<PositionsTab> {
               activeThumbColor: Colors.white,
               activeTrackColor: cGreen,
               inactiveThumbColor: const Color(0xFFEDEFF4),
+              inactiveTrackColor: const Color(0xFF3A332C),
               onChanged: (nv) async {
                 if (!nv) {
                   setState(() => app.setLimit(t['id'].toString(), key, null));
