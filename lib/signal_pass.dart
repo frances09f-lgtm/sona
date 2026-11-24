@@ -210,10 +210,26 @@ class SignalPass {
       );
     } catch (_) {
       await note('ai_no_reply', nb + ns, nb, ns);
+      await SignalStatus.recordAi(prefs,
+          path: path,
+          outcome: 'ai_no_reply',
+          candidates: nb + ns,
+          buyCandidates: nb,
+          sellCandidates: ns,
+          groqKeyPresent: keyPresent,
+          nowMs: nowMs);
       return false; // AI unavailable: stay silent, retry after the gap
     }
     if (q == null) {
       await note('ai_no_reply', nb + ns, nb, ns);
+      await SignalStatus.recordAi(prefs,
+          path: path,
+          outcome: 'ai_no_reply',
+          candidates: nb + ns,
+          buyCandidates: nb,
+          sellCandidates: ns,
+          groqKeyPresent: keyPresent,
+          nowMs: nowMs);
       return false;
     }
     // A refresh may have started while this call was in flight: its
@@ -235,6 +251,14 @@ class SignalPass {
       added = true;
     }
     await note(added ? 'asked_ai_added' : 'asked_ai_declined', nb + ns, nb, ns);
+    await SignalStatus.recordAi(prefs,
+        path: path,
+        outcome: added ? 'asked_ai_added' : 'asked_ai_declined',
+        candidates: nb + ns,
+        buyCandidates: nb,
+        sellCandidates: ns,
+        groqKeyPresent: keyPresent,
+        nowMs: nowMs);
     return added;
   }
 }
