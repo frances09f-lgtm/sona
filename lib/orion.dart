@@ -299,7 +299,7 @@ class OSeg<T> extends StatelessWidget {
   }
 }
 
-// Floating dock: dark pill, selected tab gets mint pill with icon + label.
+// Floating dock: dark bar, selected tab's mint pill slides between slots.
 class ODock extends StatelessWidget {
   final int index;
   final ValueChanged<int> onChanged;
@@ -312,83 +312,104 @@ class ODock extends StatelessWidget {
     required this.tabs,
     this.badgeIcon,
   });
+
+  static const double _slotMax = 54;
+  static const double _barHeight = 56;
+  static const double _iconSize = 24;
+  static const TextStyle _labelStyle = TextStyle(
+      fontSize: 13.5, fontWeight: FontWeight.w700, color: O.cardInk);
+
+  double _labelWidth(String s) {
+    final tp = TextPainter(
+      text: TextSpan(text: s, style: _labelStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.width;
+  }
+
+  Widget _dockIcon(int i, Color color) {
+    final ic = Icon(tabs[i].$1, size: _iconSize, color: color);
+    return badgeIcon != null ? badgeIcon!(i, ic) : ic;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final n = tabs.length;
+    final avail = MediaQuery.sizeOf(context).width - 48 - 16;
+    final slot = avail / n > _slotMax ? _slotMax : avail / n;
+    // Pill carries the selected icon + label and slides slot to slot; it is
+    // clamped so it never escapes the bar's inner bounds.
+    final pillW = 16 + _iconSize + 8 + _labelWidth(tabs[index].$2) + 18;
+    var left = slot * index + slot / 2 - pillW / 2;
+    if (left < 0) left = 0;
+    final maxLeft = slot * n - pillW;
+    if (left > maxLeft) left = maxLeft < 0 ? 0 : maxLeft;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: O.dock,
         borderRadius: O.cardRadius(O.rRound),
         border: Border.all(color: O.line2),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < tabs.length; i++)
-            _ODockItem(
-              icon: tabs[i].$1,
-              label: tabs[i].$2,
-              selected: i == index,
-              onTap: () => onChanged(i),
-              iconBuilder:
-                  badgeIcon != null ? (ic) => badgeIcon!(i, ic) : null,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ODockItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget Function(Widget icon)? iconBuilder;
-  const _ODockItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.iconBuilder,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final ic = Icon(icon, size: 19, color: selected ? O.cardInk : O.soft);
-    final wrapped = iconBuilder != null ? iconBuilder!(ic) : ic;
-    return Semantics(
-      label: 'Tab $label',
-      button: true,
-      onTap: onTap,
-      child: GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: EdgeInsets.symmetric(
-            horizontal: selected ? 14 : 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? O.mint : Colors.transparent,
-          borderRadius: O.cardRadius(O.rRound),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+      child: SizedBox(
+        width: slot * n,
+        height: _barHeight,
+        child: Stack(
           children: [
-            wrapped,
-            if (selected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: O.cardInk),
+            Row(
+              children: [
+                for (var i = 0; i < n; i++)
+                  SizedBox(
+                    width: slot,
+                    height: _barHeight,
+                    child: Semantics(
+                      label: 'Tab ${tabs[i].$2}',
+                      button: true,
+                      onTap: () => onChanged(i),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onChanged(i),
+                        child: Center(child: _dockIcon(i, O.soft)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              left: left,
+              width: pillW,
+              top: 6,
+              bottom: 6,
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  decoration: BoxDecoration(
+                    color: O.mint,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _dockIcon(index, O.cardInk),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          tabs[index].$2,
+                          style: _labelStyle,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ],
+            ),
           ],
         ),
-      ),
       ),
     );
   }
