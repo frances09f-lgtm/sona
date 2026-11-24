@@ -18,7 +18,8 @@ import 'screens_test.dart' show demoState, loadFonts, testCandles;
 void main() {
   testWidgets('sona chart with built-in indicators on (capture)', (t) async {
     await loadFonts();
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     final app = demoState();
     app.prefs = await SharedPreferences.getInstance();
     final key = GlobalKey();
