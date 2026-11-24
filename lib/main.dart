@@ -1998,6 +1998,14 @@ class TradeTab extends StatefulWidget {
 @visibleForTesting
 bool? debugTradeTvSupported;
 
+/// Provider licence hold (Nov 24, 2026): the Investing.com widget's
+/// licence for in-app WebView use is unconfirmed (permission email sent
+/// Nov 24, reply pending). While this is false the provider toggle is
+/// hidden and any stored 'investing' choice is inert - the Trade chart
+/// always renders the native Sona chart. Flip to true after licence
+/// clearance; no other change needed.
+const bool kInvestingChartEnabled = false;
+
 class _TradeTabState extends State<TradeTab> {
   Future<void> confirmChartAlert(double level) async {
     bool above = app.price == null || level >= app.price!;
@@ -2175,7 +2183,10 @@ class _TradeTabState extends State<TradeTab> {
   static const String _kTradeChartModeKey = 'trade_chart_mode_v1';
   // The widget box needs the Android WebView. Off-Android (tests,
   // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
-  final bool _tvSupported = debugTradeTvSupported ?? Platform.isAndroid;
+  // kInvestingChartEnabled additionally gates the provider path on
+  // Android while the licence hold stands.
+  final bool _tvSupported =
+      debugTradeTvSupported ?? (Platform.isAndroid && kInvestingChartEnabled);
   String _chartMode = 'sona'; // 'sona' | 'investing'
   bool get _showInvesting => _tvSupported && _chartMode == 'investing';
 
@@ -2228,8 +2239,9 @@ class _TradeTabState extends State<TradeTab> {
     required IconData icon,
     required VoidCallback onTap,
     bool on = false,
+    String? semantic,
   }) {
-    return InkWell(
+    final btn = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
@@ -2245,6 +2257,8 @@ class _TradeTabState extends State<TradeTab> {
         ),
       ),
     );
+    if (semantic == null) return btn;
+    return Semantics(button: true, label: semantic, child: btn);
   }
 
   // ---- Bar replay (practice trading over historical bars) ----
@@ -2663,7 +2677,12 @@ class _TradeTabState extends State<TradeTab> {
       }
       if (mode == 'tv') mode = 'investing'; // TradingView removed
       if (mode != null && mode != _chartMode && mounted) {
-        setState(() => _chartMode = mode!);
+        // A stored 'investing' choice is honoured only while the provider
+        // path is enabled; otherwise the native Sona chart renders.
+        setState(
+          () => _chartMode =
+              (mode == 'investing' && !_tvSupported) ? 'sona' : mode!,
+        );
       }
     });
   }
@@ -2741,6 +2760,7 @@ class _TradeTabState extends State<TradeTab> {
                             children: [
                               _tfIconBtn(
                                 icon: Icons.candlestick_chart,
+                                semantic: 'Chart style',
                                 onTap: () => chartKey.currentState
                                     ?.cycleChartStyle(),
                               ),
