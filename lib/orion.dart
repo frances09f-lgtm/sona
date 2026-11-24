@@ -336,14 +336,18 @@ class ODock extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = tabs.length;
     final avail = MediaQuery.sizeOf(context).width - 48 - 16;
-    final slot = avail / n > _slotMax ? _slotMax : avail / n;
-    // Pill carries the selected icon + label and slides slot to slot; it is
-    // clamped so it never escapes the bar's inner bounds.
     final pillW = 16 + _iconSize + 8 + _labelWidth(tabs[index].$2) + 18;
-    var left = slot * index + slot / 2 - pillW / 2;
-    if (left < 0) left = 0;
-    final maxLeft = slot * n - pillW;
-    if (left > maxLeft) left = maxLeft < 0 ? 0 : maxLeft;
+    var mini = (avail - pillW) / (n - 1);
+    if (mini > _slotMax) mini = _slotMax;
+    if (mini < 28) mini = 28;
+    // Every slot gets an animated position; the selected slot is pill-wide,
+    // the rest shrink, so the pill slides without ever covering an icon.
+    final xs = <double>[];
+    double acc = 0;
+    for (var i = 0; i < n; i++) {
+      xs.add(acc);
+      acc += i == index ? pillW : mini;
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
@@ -352,67 +356,75 @@ class ODock extends StatelessWidget {
         border: Border.all(color: O.line2),
       ),
       child: SizedBox(
-        width: slot * n,
+        width: acc,
         height: _barHeight,
         child: Stack(
           children: [
-            Row(
-              children: [
-                for (var i = 0; i < n; i++)
-                  SizedBox(
-                    width: slot,
-                    height: _barHeight,
-                    child: Semantics(
-                      label: 'Tab ${tabs[i].$2}',
-                      button: true,
+            for (var i = 0; i < n; i++)
+              if (i != index)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  left: xs[i],
+                  width: mini,
+                  top: 0,
+                  bottom: 0,
+                  child: Semantics(
+                    label: 'Tab ${tabs[i].$2}',
+                    button: true,
+                    onTap: () => onChanged(i),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => onChanged(i),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onChanged(i),
-                        child: Center(child: _dockIcon(i, O.soft)),
-                      ),
+                      child: Center(child: _dockIcon(i, O.soft)),
                     ),
                   ),
-              ],
-            ),
+                ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
-              left: left,
+              left: xs[index],
               width: pillW,
               top: 6,
               bottom: 6,
-              child: IgnorePointer(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: O.mint,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _dockIcon(index, O.cardInk),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          tabs[index].$2,
-                          style: _labelStyle,
-                          overflow: TextOverflow.fade,
-                          softWrap: false,
+              child: Semantics(
+                label: 'Tab ${tabs[index].$2}',
+                button: true,
+                onTap: () => onChanged(index),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    decoration: BoxDecoration(
+                      color: O.mint,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _dockIcon(index, O.cardInk),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            tabs[index].$2,
+                            style: _labelStyle,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+
 }
 
 // Thin divider using panel line color.
