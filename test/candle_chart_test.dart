@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sona/chart/candle_chart.dart';
+import 'package:sona/chart/chart_tools.dart';
 import 'package:sona/market_data/models.dart';
 
 Future<void> loadFonts() async {
@@ -350,4 +351,64 @@ void main() {
       expect(hi - lo, closeTo(50.0, 0.01));
     });
   });
+
+  testWidgets(
+    'Deriv style: separate mint/rose skin, classic default unchanged',
+    (tester) async {
+      await loadFonts();
+      final data = fakeCandles(60);
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            backgroundColor: const Color(0xFF0F1115),
+            body: Center(
+              child: SizedBox(
+                width: 380,
+                height: 340,
+                child: CandleChartPanel(
+                  loader: (iv) async => data,
+                  livePrice: data.last.close + 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      CandlePainter painter() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((c) => c.painter)
+          .whereType<CandlePainter>()
+          .first;
+      final state = tester.state<CandleChartPanelState>(
+        find.byType(CandleChartPanel),
+      );
+      // Default unchanged: classic style, classic palette.
+      expect(state.chartStyle, ChartStyle.candles);
+      expect(painter().bullC, CandlePainter.bull);
+      expect(painter().bearC, CandlePainter.bear);
+      // The new style is reachable at the end of the existing cycle.
+      for (var i = 0; i < 3; i++) {
+        state.cycleChartStyle();
+        await tester.pump();
+      }
+      expect(state.chartStyle, ChartStyle.heikinAshi);
+      state.cycleChartStyle();
+      await tester.pump();
+      expect(state.chartStyle, ChartStyle.derivCandles);
+      expect(painter().bullC, CandlePainter.derivBull);
+      expect(painter().bearC, CandlePainter.derivBear);
+      // Exact approved preview colours (Nov 24 design concept).
+      expect(CandlePainter.derivBull, const Color(0xFF55C89B));
+      expect(CandlePainter.derivBear, const Color(0xFFE0748C));
+      // Cycle wraps back to the unchanged classic default.
+      state.cycleChartStyle();
+      await tester.pump();
+      expect(state.chartStyle, ChartStyle.candles);
+      expect(painter().bullC, CandlePainter.bull);
+      // Persisted-name restore contract holds for the new style.
+      expect(ChartStyle.values.byName('derivCandles'), ChartStyle.derivCandles);
+    },
+  );
 }
