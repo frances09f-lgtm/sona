@@ -125,6 +125,16 @@ jobs:
           name: weekend-sparse-fixture-evidence
           path: test/goldens/weekend_sparse_*.png
           if-no-files-found: warn
+      - name: Capture Deriv-style fixture evidence (native chart, fixture data)
+        if: always()
+        run: DERIV_STYLE_CAPTURE=1 flutter test test/zz_deriv_style_capture_test.dart --update-goldens
+      - name: Upload Deriv-style fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deriv-style-fixture-evidence
+          path: test/goldens/deriv_style_fixture*.png
+          if-no-files-found: warn
       - name: Record tested source
         if: ${{ github.event.inputs.test_only != 'true' }}
         run: |
