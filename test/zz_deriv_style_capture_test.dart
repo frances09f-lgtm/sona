@@ -24,8 +24,8 @@ import 'package:sona/market_data/models.dart';
 ///   calls (the exact path the toolbar button takes) selects derivCandles.
 ///
 /// The always-on test below also proves the style SURVIVES the persist /
-/// restore round-trip (layoutSnapshot -> applyPreset, the same snapshot
-/// contract used across app restarts), not only the 4 taps.
+/// SharedPreferences round-trip (the same snapshot the app writes on
+/// style change and loads on the next launch), not only the 4 taps.
 
 Future<void> loadFonts() async {
   final roboto = FontLoader('Roboto')
@@ -138,7 +138,7 @@ void main() {
   });
 
   testWidgets('Deriv style survives the persist/restore round-trip '
-      '(layoutSnapshot -> applyPreset)', (tester) async {
+      '(SharedPreferences snapshot)', (tester) async {
     await loadFonts();
     final data = fixtureSession();
     await tester.pumpWidget(harness(data, data.last.close));
@@ -153,14 +153,13 @@ void main() {
     final snap = state.layoutSnapshot();
     expect(snap['chartStyle'], 'derivCandles');
 
-    // Fresh panel restored from the snapshot, as on the next app launch.
+    // Fresh panel: the REAL restart path. The first panel's style change
+    // was persisted to SharedPreferences; a freshly pumped panel loads that
+    // persisted snapshot during settle and comes up in Deriv style.
     await tester.pumpWidget(harness(data, data.last.close));
     await tester.pumpAndSettle();
     final restored = tester
         .state<CandleChartPanelState>(find.byType(CandleChartPanel));
-    expect(restored.chartStyle, ChartStyle.candles); // fresh default
-    restored.applyPreset(snap);
-    await tester.pump();
     expect(restored.chartStyle, ChartStyle.derivCandles);
     final painter = tester
         .widgetList<CustomPaint>(find.byType(CustomPaint))
