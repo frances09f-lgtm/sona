@@ -8,7 +8,12 @@ enum ChartStyle {
   candles('Candles'),
   line('Line'),
   bars('Bars'),
-  heikinAshi('Heikin Ashi');
+  heikinAshi('Heikin Ashi'),
+  // Separate candle colour skin (mint/rose on the existing dark plot),
+  // approved Nov 24 as an added style option. Same candle rendering as
+  // [candles]; only the bull/bear palette differs. Appended last so the
+  // existing cycle order and persisted names are unchanged.
+  derivCandles('Deriv style');
 
   final String label;
   const ChartStyle(this.label);
