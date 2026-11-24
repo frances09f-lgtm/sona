@@ -2675,7 +2675,6 @@ class _TradeTabState extends State<TradeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final fresh = app.priceFresh;
     return ColoredBox(
       color: zo.O.bg,
       child: Column(
@@ -2687,93 +2686,6 @@ class _TradeTabState extends State<TradeTab> {
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 120),
               cacheExtent: 10000,
               children: [
-                zo.oPastel(
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF201A17),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'Au',
-                          style: TextStyle(
-                            color: Color(0xFFF7D154),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'GOLD',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF201A17),
-                                letterSpacing: -0.4,
-                              ),
-                            ),
-                            const Text(
-                              'XAU/USD · Paper trading',
-                              style: TextStyle(
-                                color: Color(0xFF584F44),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            app.priceOk ? '\$${fmt(app.chartBasis)}' : '--',
-                            // Dim when the quote is stale so the header never
-                            // reads as a live price (user report Nov 15 2026:
-                            // chart vs header disagreement on a closed market).
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: app.priceFresh
-                                  ? const Color(0xFF201A17)
-                                  : const Color(0xFF584F44),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFD8F0DC),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              app.priceFresh ? 'LIVE' : 'STALE',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF201A17),
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  color: const Color(0xFFF7F0C8),
-                  muted: false,
-                  padding: const EdgeInsets.all(16),
-                ),
-                const SizedBox(height: 12),
                 if (_tvSupported)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -3859,50 +3771,68 @@ class _PositionsTabState extends State<PositionsTab> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               zo.oPastel(
-                Column(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'BALANCE',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.7,
-                        color: Color(0xFF6F675F),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'BALANCE',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.7,
+                              color: Color(0xFF6F675F),
+                            ),
+                          ),
+                          Text(
+                            '\$${app.balance.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.0,
+                              color: Color(0xFF201A17),
+                            ),
+                          ),
+                          const Text(
+                            'Paper account',
+                            style:
+                                TextStyle(fontSize: 12, color: Color(0xFF6F675F)),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      '\$${app.balance.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1.0,
-                        color: Color(0xFF201A17),
-                      ),
-                    ),
-                    const Text(
-                      'Paper account',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6F675F)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'P/L TODAY',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            color: Color(0xFF6F675F),
+                          ),
+                        ),
+                        Text(
+                          '${app.realizedToday() >= 0 ? '+' : '-'}\$${app.realizedToday().abs().toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: app.realizedToday() >= 0
+                                ? const Color(0xFF1E8F68)
+                                : const Color(0xFFD6336C),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
                 radius: 32,
                 padding: const EdgeInsets.all(20),
                 muted: false,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _oPill(const Color(0xFFD8F0DC), 'P/L today',
-                      '${app.realizedToday() >= 0 ? '+' : '-'}\$${app.realizedToday().abs().toStringAsFixed(2)}'),
-                  const SizedBox(width: 8),
-                  _oPill(const Color(0xFFE9E2FB), 'Open', '${open.length}'),
-                  const SizedBox(width: 8),
-                  _oPill(const Color(0xFFFFE4CE), 'Waiting',
-                      '${app.pendingOrders?.orders.length ?? 0}'),
-                ],
               ),
               const SizedBox(height: 10),
               Row(
@@ -4012,29 +3942,6 @@ class _PositionsTabState extends State<PositionsTab> {
           fontSize: 14,
         ),
       ),
-    ),
-  );
-
-  Widget _oPill(Color bg, String label, String value) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      color: bg,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$label ',
-          style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF201A17)),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF201A17)),
-        ),
-      ],
     ),
   );
 
