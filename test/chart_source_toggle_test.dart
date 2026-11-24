@@ -82,4 +82,25 @@ void main() {
     expect(find.byType(InvestingChartView), findsOneWidget);
     expect(find.byType(CandleChartPanel), findsNothing);
   });
+
+  testWidgets(
+      'licence hold gate: no debug override hides the provider path and '
+      'a stored investing choice is inert', (t) async {
+    // Production-default path (no debugTradeTvSupported override). This is
+    // the exact gate state that ships while the Investing licence reply is
+    // pending: fresh source selection is impossible (no toggle rendered)
+    // and a persisted 'investing' preference cannot revive the box.
+    SharedPreferences.setMockInitialValues(
+        {'trade_chart_mode_v1': 'investing'});
+    debugTradeTvSupported = null;
+    final app = demoState();
+    await pumpTrade(t, app);
+    expect(find.text('Investing'), findsNothing);
+    expect(find.byType(InvestingChartView), findsNothing);
+    expect(find.byType(CandleChartPanel), findsOneWidget);
+  });
+
+  test('licence hold gate constant ships disabled', () {
+    expect(kInvestingChartEnabled, isFalse);
+  });
 }
