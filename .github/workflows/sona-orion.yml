@@ -104,6 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           PENDING_CAPTURE=1 flutter test test/chart_alert_test.dart test/add_pending_flow_test.dart
+          PORTFOLIO_CARD_CAPTURE=1 flutter test test/zz_portfolio_card_capture_test.dart
       - name: Upload fixture UI evidence
         if: always()
         uses: actions/upload-artifact@v4
