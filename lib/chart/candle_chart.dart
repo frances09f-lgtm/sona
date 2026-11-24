@@ -13,7 +13,6 @@ import '../market_data/provider_day_open.dart';
 import 'indicators.dart';
 import '../strategy.dart' as strat;
 import 'chart_tools.dart';
-import '../tv_chart_page.dart';
 import 'session_levels.dart';
 import '../chart_diagnostics.dart';
 import '../practice_screen.dart';
@@ -4469,14 +4468,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                           icon: const Icon(Icons.functions,
                               color: Colors.white70, size: 20),
                           onSelected: (v) async {
-                            if (v == 'tv_chart') {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const TvChartPage(),
-                                ),
-                              );
-                              return;
-                            }
                             if (v == 'refresh_signals') {
                               final cb = widget.onRefreshSignals;
                               if (cb == null) return;
@@ -4503,18 +4494,6 @@ class _FullscreenChartPageState extends State<FullscreenChartPage> {
                             });
                           },
                           itemBuilder: (_) => [
-                            const PopupMenuItem<String>(
-                              value: 'tv_chart',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.tv,
-                                      size: 18, color: Colors.tealAccent),
-                                  SizedBox(width: 8),
-                                  Text('TradingView chart'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuDivider(),
                             if (widget.onRefreshSignals != null) ...[
                               const PopupMenuItem<String>(
                                 value: 'refresh_signals',
