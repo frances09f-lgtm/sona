@@ -35,7 +35,6 @@ import 'market_data/provider_day_open.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
 import 'investing_chart_page.dart';
-import 'tv_chart_page.dart';
 import 'chart/chart_tools.dart' show TickBuffer;
 import 'chart/chart_tools.dart';
 import 'analytics.dart';
@@ -2165,17 +2164,18 @@ class _TradeTabState extends State<TradeTab> {
   final chartKey = GlobalKey<CandleChartPanelState>();
   bool explaining = false;
 
-  // Trade-tab chart source toggle: Sona chart (with signals),
-  // TradingView, or Investing.com. Default shows the TradingView box;
-  // the Sona chart with signals stays one tap away. Choice is persisted.
-  // 'trade_chart_tv' is the legacy two-way bool key, migrated on load.
+  // Trade-tab chart source toggle: Sona chart (with signals) or
+  // Investing.com. Default shows the Investing.com box; the Sona chart
+  // with signals stays one tap away. Choice is persisted.
+  // 'trade_chart_tv' is the legacy two-way bool key, migrated on load;
+  // a stored 'tv' mode maps to 'investing' (TradingView removed at the
+  // user's instruction, Nov 24, 2026).
   static const String _kTradeChartTvKey = 'trade_chart_tv';
   static const String _kTradeChartModeKey = 'trade_chart_mode_v1';
-  // The widget boxes need the Android WebView. Off-Android (tests,
+  // The widget box needs the Android WebView. Off-Android (tests,
   // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
   final bool _tvSupported = debugTradeTvSupported ?? Platform.isAndroid;
-  String _chartMode = 'tv'; // 'sona' | 'tv' | 'investing'
-  bool get _showTv => _tvSupported && _chartMode == 'tv';
+  String _chartMode = 'investing'; // 'sona' | 'investing'
   bool get _showInvesting => _tvSupported && _chartMode == 'investing';
 
   void _setChartMode(String mode) {
@@ -2658,8 +2658,9 @@ class _TradeTabState extends State<TradeTab> {
       var mode = p.getString(_kTradeChartModeKey);
       if (mode == null) {
         final legacy = p.getBool(_kTradeChartTvKey);
-        if (legacy != null) mode = legacy ? 'tv' : 'sona';
+        if (legacy != null) mode = legacy ? 'investing' : 'sona';
       }
+      if (mode == 'tv') mode = 'investing'; // TradingView removed
       if (mode != null && mode != _chartMode && mounted) {
         setState(() => _chartMode = mode!);
       }
@@ -2712,14 +2713,6 @@ class _TradeTabState extends State<TradeTab> {
                               'Sona chart',
                               _chartMode == 'sona',
                               () => _setChartMode('sona'),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: _chartModeChip(
-                              'TradingView',
-                              _chartMode == 'tv',
-                              () => _setChartMode('tv'),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -2920,63 +2913,6 @@ class _TradeTabState extends State<TradeTab> {
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                  ),
-                if (_showTv)
-                  SizedBox(
-                    height: math.max(
-                      MediaQuery.of(context).size.height * 0.55,
-                      340.0,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: Container(
-                        color: Colors.black,
-                        child: Stack(
-                        children: [
-                          const TvChartView(),
-                          // Fullscreen entry, placed per the approved v3
-                          // mockup: floating inside the box at the plot's
-                          // top-right - below the widget toolbar, left of
-                          // the price axis. It is a Flutter overlay on top
-                          // of the WebView, so the widget's own controls
-                          // stay untouched.
-                          Positioned(
-                            top: 44,
-                            right: 60,
-                            child: Tooltip(
-                              message: 'Open full screen',
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => const TvChartPage(),
-                                      ),
-                                    );
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xD90D1420),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      Icons.fullscreen,
-                                      size: 20,
-                                      color: zo.O.soft,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                        ),
                       ),
                     ),
                   ),
