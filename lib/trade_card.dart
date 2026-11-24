@@ -29,11 +29,15 @@ class TradeExplanationCard extends StatelessWidget {
   final TradeExplanation data;
   final bool fresh;
   final bool historical;
+
+  /// Footnote tint: grey reads on dark panels; pastel cards pass a dark ink.
+  final Color footnoteColor;
   const TradeExplanationCard({
     super.key,
     required this.data,
     required this.fresh,
     this.historical = false,
+    this.footnoteColor = Colors.grey,
   });
   String f(double? v) => v == null ? 'Not set' : v.toStringAsFixed(2);
   @override
@@ -77,9 +81,9 @@ class TradeExplanationCard extends StatelessWidget {
               ? 'Spread: invalid quote'
               : 'Spread now: ${f(data.spread)} USD/oz${fresh ? '' : ' (stale quote)'}',
         ),
-        const Text(
+        Text(
           'Distances from entry. Outcomes exclude extra slippage/fees.',
-          style: TextStyle(fontSize: 11, color: Colors.grey),
+          style: TextStyle(fontSize: 11, color: footnoteColor),
         ),
       ],
     ),
