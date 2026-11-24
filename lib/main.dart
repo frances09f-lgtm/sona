@@ -2675,6 +2675,7 @@ class _TradeTabState extends State<TradeTab> {
 
   @override
   Widget build(BuildContext context) {
+    final fresh = app.priceFresh;
     return ColoredBox(
       color: zo.O.bg,
       child: Column(
