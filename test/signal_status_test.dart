@@ -33,6 +33,69 @@ void main() {
     expect(text, contains('next allowed in 9 min'));
   });
 
+  test('AI call result survives a later cooldown or no-candidate check',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    const now = 1700000000000;
+    // The AI call happened and declined both candidates...
+    await SignalStatus.record(prefs,
+        path: 'foreground',
+        outcome: 'asked_ai_declined',
+        candidates: 2,
+        buyCandidates: 1,
+        sellCandidates: 1,
+        groqKeyPresent: true,
+        nowMs: now);
+    await SignalStatus.recordAi(prefs,
+        path: 'foreground',
+        outcome: 'asked_ai_declined',
+        candidates: 2,
+        buyCandidates: 1,
+        sellCandidates: 1,
+        groqKeyPresent: true,
+        nowMs: now);
+    // ...then a later cooldown check overwrites the latest-check record.
+    await SignalStatus.record(prefs,
+        path: 'foreground',
+        outcome: 'gap_wait',
+        candidates: 2,
+        buyCandidates: 1,
+        sellCandidates: 1,
+        groqKeyPresent: true,
+        nowMs: now + 6 * 60000);
+    final text = SignalStatus.describe(prefs,
+            nowMs: now + 7 * 60000, minGap: SignalPass.minQualGap)
+        .join('\n');
+    // Latest check shows the cooldown...
+    expect(text, contains('outcome: gap_wait'));
+    // ...but the AI answer is still visible.
+    expect(text, contains('last AI call result: asked_ai_declined'));
+    expect(text, contains('candidates: 2 (buy 1, sell 1)'));
+    expect(text, contains('Groq key present: yes'));
+  });
+
+  test('no AI call yet shows none recorded', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final text = SignalStatus.describe(prefs,
+            nowMs: DateTime.now().millisecondsSinceEpoch,
+            minGap: SignalPass.minQualGap)
+        .join('\n');
+    expect(text, contains('last AI call result: none recorded'));
+  });
+
+  test('AI record sanitizes unknown outcomes like the check record',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    await SignalStatus.recordAi(prefs,
+        path: 'worker', outcome: 'Bearer abc https://x');
+    final text = SignalStatus.describe(prefs,
+            nowMs: DateTime.now().millisecondsSinceEpoch,
+            minGap: SignalPass.minQualGap)
+        .join('\n');
+    expect(text, contains('last AI call result: other'));
+    expect(text, isNot(contains('Bearer')));
+  });
+
   test('unknown outcome text is stored as other (no free text leaks)',
       () async {
     final prefs = await SharedPreferences.getInstance();
