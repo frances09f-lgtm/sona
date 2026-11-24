@@ -32,7 +32,9 @@ void main() {
   testWidgets('expanded position card contrast, dark and light palettes',
       (t) async {
     if (!capture) return;
-    t.view.physicalSize = const Size(780, 1688);
+    // Tall viewport: the expanded card must fit WITHOUT scrolling so the
+    // TP/SL switch thumbs render inside the RepaintBoundary.
+    t.view.physicalSize = const Size(780, 2700);
     t.view.devicePixelRatio = 2;
     addTearDown(t.view.reset);
     addTearDown(() => zo.O.applyLight(false));
