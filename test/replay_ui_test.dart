@@ -11,7 +11,8 @@ import 'screens_test.dart' show demoState, testCandles, loadFonts;
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     FlutterSecureStorage.setMockInitialValues({});
     await loadFonts();
     SessionsStrip.debugNow = () => DateTime.utc(2026, 10, 7, 14, 0);
