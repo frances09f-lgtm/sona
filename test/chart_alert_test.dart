@@ -15,7 +15,8 @@ void main() {
     t,
   ) async {
     await loadFonts();
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     final app = demoState();
     app.prefs = await SharedPreferences.getInstance();
     final key = GlobalKey();
