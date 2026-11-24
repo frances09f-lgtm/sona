@@ -84,7 +84,8 @@ void main() {
   testWidgets(
     'actual embedded TradeTab retains clipped drawing across all phone timeframes',
     (t) async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
       await loadFonts();
       t.view.physicalSize = const Size(1080, 2400);
       t.view.devicePixelRatio = 2.625;
