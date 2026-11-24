@@ -4134,7 +4134,7 @@ class _PositionsTabState extends State<PositionsTab> {
                 ),
                 Icon(
                   isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: zo.O.soft,
+                  color: zo.O.cardSoft,
                 ),
               ],
             ),
@@ -4158,6 +4158,7 @@ class _PositionsTabState extends State<PositionsTab> {
             ),
             const SizedBox(height: 10),
             TradeExplanationCard(
+              footnoteColor: zo.O.cardSoft,
               data: TradeExplanation(
                 entry: (t['entry'] as num).toDouble(),
                 qty: qty,
@@ -4226,7 +4227,7 @@ class _PositionsTabState extends State<PositionsTab> {
                         ? '${fmt(v)}  ${money(pnlAtLevel(t, v), sign: true)}'
                         : 'Off',
                     style: TextStyle(
-                      color: on ? cls(pnlAtLevel(t, v)) : zo.O.soft,
+                      color: on ? cls(pnlAtLevel(t, v)) : zo.O.cardSoft,
                       fontSize: 12,
                     ),
                   ),
@@ -4390,7 +4391,7 @@ class _PositionsTabState extends State<PositionsTab> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(k, style: TextStyle(color: zo.O.soft, fontSize: 13)),
+        Text(k, style: TextStyle(color: zo.O.cardSoft, fontSize: 13)),
         Flexible(
           child: Text(
             v,
