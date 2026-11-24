@@ -107,6 +107,7 @@ jobs:
           PORTFOLIO_CARD_CAPTURE=1 flutter test test/zz_portfolio_card_capture_test.dart
           DOCK_CAPTURE=1 flutter test test/zz_dock_capture_test.dart
           flutter test test/zz_indicator_preview_capture_test.dart
+          flutter test test/zz_diagnostics_proof_capture_test.dart
       - name: Upload fixture UI evidence
         if: always()
         uses: actions/upload-artifact@v4
