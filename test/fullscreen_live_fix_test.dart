@@ -61,7 +61,8 @@ void main() {
         List<String> asked,
         void Function(double?, (int, int)?, List<SignalZone>?) set,
       })> pumpFullscreen(WidgetTester t) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     t.view.physicalSize = const Size(390 * 3, 844 * 3);
     t.view.devicePixelRatio = 3;
     addTearDown(t.view.reset);
@@ -182,7 +183,8 @@ void main() {
 
   testWidgets('Trade screen candle-size chips switch the real interval',
       (t) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     final app = demoState();
     t.view.physicalSize = const Size(780, 1688);
     t.view.devicePixelRatio = 2;
