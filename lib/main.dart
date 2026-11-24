@@ -34,6 +34,7 @@ import 'market_data/twelve_data_candles.dart';
 import 'market_data/provider_day_open.dart';
 import 'market_data/swissquote_provider.dart';
 import 'chart/candle_chart.dart';
+import 'investing_chart_page.dart';
 import 'tv_chart_page.dart';
 import 'chart/chart_tools.dart' show TickBuffer;
 import 'chart/chart_tools.dart';
@@ -2164,20 +2165,24 @@ class _TradeTabState extends State<TradeTab> {
   final chartKey = GlobalKey<CandleChartPanelState>();
   bool explaining = false;
 
-  // Trade-tab chart source toggle. Default shows the TradingView box;
+  // Trade-tab chart source toggle: Sona chart (with signals),
+  // TradingView, or Investing.com. Default shows the TradingView box;
   // the Sona chart with signals stays one tap away. Choice is persisted.
+  // 'trade_chart_tv' is the legacy two-way bool key, migrated on load.
   static const String _kTradeChartTvKey = 'trade_chart_tv';
-  // The TradingView box needs the Android WebView. Off-Android (tests,
+  static const String _kTradeChartModeKey = 'trade_chart_mode_v1';
+  // The widget boxes need the Android WebView. Off-Android (tests,
   // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
   final bool _tvSupported = debugTradeTvSupported ?? Platform.isAndroid;
-  bool _tradeTvChart = true;
-  bool get _showTv => _tvSupported && _tradeTvChart;
+  String _chartMode = 'tv'; // 'sona' | 'tv' | 'investing'
+  bool get _showTv => _tvSupported && _chartMode == 'tv';
+  bool get _showInvesting => _tvSupported && _chartMode == 'investing';
 
-  void _setTradeChartTv(bool v) {
-    if (v == _tradeTvChart) return;
-    setState(() => _tradeTvChart = v);
+  void _setChartMode(String mode) {
+    if (mode == _chartMode) return;
+    setState(() => _chartMode = mode);
     SharedPreferences.getInstance().then(
-      (p) => p.setBool(_kTradeChartTvKey, v),
+      (p) => p.setString(_kTradeChartModeKey, mode),
     );
   }
 
@@ -2650,9 +2655,13 @@ class _TradeTabState extends State<TradeTab> {
     slCtrl.addListener(_refresh);
     // Restore the Trade-tab chart source choice (default: TradingView).
     SharedPreferences.getInstance().then((p) {
-      final v = p.getBool(_kTradeChartTvKey);
-      if (v != null && v != _tradeTvChart && mounted) {
-        setState(() => _tradeTvChart = v);
+      var mode = p.getString(_kTradeChartModeKey);
+      if (mode == null) {
+        final legacy = p.getBool(_kTradeChartTvKey);
+        if (legacy != null) mode = legacy ? 'tv' : 'sona';
+      }
+      if (mode != null && mode != _chartMode && mounted) {
+        setState(() => _chartMode = mode!);
       }
     });
   }
@@ -2701,23 +2710,31 @@ class _TradeTabState extends State<TradeTab> {
                           Expanded(
                             child: _chartModeChip(
                               'Sona chart',
-                              !_tradeTvChart,
-                              () => _setTradeChartTv(false),
+                              _chartMode == 'sona',
+                              () => _setChartMode('sona'),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: _chartModeChip(
                               'TradingView',
-                              _tradeTvChart,
-                              () => _setTradeChartTv(true),
+                              _chartMode == 'tv',
+                              () => _setChartMode('tv'),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _chartModeChip(
+                              'Investing',
+                              _chartMode == 'investing',
+                              () => _setChartMode('investing'),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                if (!_showTv)
+                if (_chartMode == 'sona')
                   ClipRRect(
                     borderRadius: BorderRadius.circular(28),
                     child: Container(
@@ -2960,6 +2977,23 @@ class _TradeTabState extends State<TradeTab> {
                           ),
                         ],
                         ),
+                      ),
+                    ),
+                  ),
+                if (_showInvesting)
+                  SizedBox(
+                    height: math.max(
+                      MediaQuery.of(context).size.height * 0.55,
+                      340.0,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Container(
+                        // Light card: the widget is light-theme only.
+                        color: Colors.white,
+                        // No maximize/fullscreen entry here by the user's
+                        // explicit instruction (Nov 24, 2026).
+                        child: const InvestingChartView(),
                       ),
                     ),
                   ),
