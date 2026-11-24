@@ -22,6 +22,42 @@ class SignalStatus {
     'no_candles', // worker: no candle data
   };
 
+  /// SharedPreferences key of the last AI-call outcome, kept separately
+  /// from [prefsKey] so a later cooldown or no-candidate check never
+  /// erases what the AI actually answered (user question Nov 24 2026:
+  /// "when did it add signals last time" was unanswerable after a
+  /// gap_wait record overwrote the qualification outcome).
+  static const String aiKey = 'tj_signal_ai_v1';
+
+  /// Records the outcome of an actual AI qualification call. Same fixed
+  /// vocabulary and sanitization as [record]; written only for the
+  /// AI-call outcomes (asked_ai_added, asked_ai_declined, ai_no_reply).
+  static Future<void> recordAi(
+    SharedPreferences prefs, {
+    required String path,
+    required String outcome,
+    int? candidates,
+    int? buyCandidates,
+    int? sellCandidates,
+    bool? groqKeyPresent,
+    int? nowMs,
+  }) async {
+    try {
+      final m = <String, dynamic>{
+        'at': nowMs ?? DateTime.now().millisecondsSinceEpoch,
+        'path': path == 'worker' ? 'worker' : 'foreground',
+        'outcome': outcomes.contains(outcome) ? outcome : 'other',
+        if (candidates != null) 'cand': candidates,
+        if (buyCandidates != null) 'buy': buyCandidates,
+        if (sellCandidates != null) 'sell': sellCandidates,
+        if (groqKeyPresent != null) 'key': groqKeyPresent,
+      };
+      await prefs.setString(aiKey, jsonEncode(m));
+    } catch (_) {
+      // Diagnostics must never affect the signal pass.
+    }
+  }
+
   static Future<void> record(
     SharedPreferences prefs, {
     required String path, // 'foreground' | 'worker'
@@ -88,6 +124,28 @@ class SignalStatus {
           '${DateTime.fromMillisecondsSinceEpoch(last).toLocal()} '
           '(${since ~/ 60000} min ago); '
           '${waitMin > 0 ? 'next allowed in $waitMin min' : 'next call allowed now'}');
+    }
+    final aiRaw = prefs.getString(aiKey);
+    if (aiRaw == null) {
+      out.add('last AI call result: none recorded');
+    } else {
+      try {
+        final m = Map<String, dynamic>.from(jsonDecode(aiRaw) as Map);
+        final at = DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt());
+        final ageMin = (nowMs - at.millisecondsSinceEpoch) ~/ 60000;
+        var line = 'last AI call result: ${m['outcome']} at ${at.toLocal()} '
+            '($ageMin min ago), path ${m['path']}';
+        if (m['cand'] != null) {
+          line += '; candidates: ${m['cand']} (buy ${m['buy'] ?? '-'}, '
+              'sell ${m['sell'] ?? '-'})';
+        }
+        if (m['key'] != null) {
+          line += '; Groq key present: ${m['key'] == true ? 'yes' : 'no'}';
+        }
+        out.add(line);
+      } catch (_) {
+        out.add('last AI call result: unreadable record');
+      }
     }
     return out;
   }
