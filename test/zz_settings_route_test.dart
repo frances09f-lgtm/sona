@@ -106,6 +106,13 @@ void main() {
     expect(find.text('2'), findsWidgets);
     await t.pump();
     await t.pump(const Duration(milliseconds: 300));
+    // The panel is a lazy ListView and the raw-bars section sits below
+    // the fold on the default test surface; scroll it into view.
+    await t.scrollUntilVisible(
+      find.textContaining('3875.31'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.textContaining('3875.31'), findsWidgets);
     expect(find.textContaining(fakeKey), findsNothing);
     expect(find.textContaining('[redacted]'), findsWidgets);
