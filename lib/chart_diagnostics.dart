@@ -10,6 +10,7 @@ import 'chart/chart_tools.dart';
 import 'market_data/candle_debug.dart';
 import 'signal_pass.dart';
 import 'signal_status.dart';
+import 'signal_zones.dart';
 
 /// Test-build diagnostics: shows exactly how the chart's candles arrived -
 /// the provider's raw first/last bars before any app parsing, the quote
@@ -51,9 +52,38 @@ class ChartDiagnosticsScreen extends StatelessWidget {
     try {
       await prefs.reload();
     } catch (_) {}
-    return SignalStatus.describe(prefs,
+    final lines = SignalStatus.describe(prefs,
         nowMs: DateTime.now().millisecondsSinceEpoch,
         minGap: SignalPass.minQualGap);
+    // The full immutable box history is persisted on-device; surface
+    // when a box was last actually drawn (distinct from the last AI
+    // call, which may have declined).
+    try {
+      final mgr = SignalBoxManager();
+      await mgr.load(prefs);
+      if (mgr.boxes.isEmpty) {
+        lines.add('last box added: none on record');
+      } else {
+        final newest = mgr.boxes
+            .reduce((a, b) => a.createdAtMs >= b.createdAtMs ? a : b);
+        final at =
+            DateTime.fromMillisecondsSinceEpoch(newest.createdAtMs);
+        final age = DateTime.now().millisecondsSinceEpoch -
+            newest.createdAtMs;
+        final ageMin = age ~/ 60000;
+        final ageText = ageMin < 120
+            ? '$ageMin min ago'
+            : (ageMin < 2880
+                ? '${ageMin ~/ 60} h ago'
+                : '${ageMin ~/ 1440} d ago');
+        lines.add('last box added: ${at.toLocal()} ($ageText), '
+            '${newest.isBuy ? 'buy' : 'sell'}, '
+            'state ${newest.state.name}');
+      }
+    } catch (_) {
+      lines.add('last box added: unreadable record');
+    }
+    return lines;
   }
 
   /// Quote vs the provider's newest captured close, with both timestamps.
