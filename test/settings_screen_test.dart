@@ -16,7 +16,8 @@ void main() {
     t,
   ) async {
     FlutterSecureStorage.setMockInitialValues({});
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     await loadFonts();
     await t.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => t.binding.setSurfaceSize(null));
@@ -59,7 +60,8 @@ void main() {
   });
   testWidgets('settings exposes same API keys screen', (t) async {
     FlutterSecureStorage.setMockInitialValues({});
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     await loadFonts();
     await t.binding.setSurfaceSize(const Size(412, 915));
     final key = GlobalKey();
