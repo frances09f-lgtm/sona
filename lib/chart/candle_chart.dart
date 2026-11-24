@@ -749,8 +749,10 @@ class CandleChartPanelState extends State<CandleChartPanel>
   /// Public entry for the fullscreen editor's delete button.
   void clearDrawingsConfirmed() => _confirmClearAll();
 
-  /// Cycles candles -> line -> Heikin Ashi (the below-chart style button in
-  /// chromeless mode mirrors the toolbar dropdown).
+  /// Cycles candles -> line -> bars -> Heikin Ashi -> Deriv style (the
+  /// below-chart style button in chromeless mode mirrors the toolbar
+  /// dropdown). Deriv style is the mint/rose candle skin; order is stable
+  /// for the pre-existing styles.
   void cycleChartStyle() {
     setState(() {
       final values = ChartStyle.values;
@@ -2330,8 +2332,16 @@ class CandleChartPanelState extends State<CandleChartPanel>
               prevDayHL: prevLevelsOn ? previousDayHL(candles) : null,
               prevWeekHL: prevLevelsOn ? previousWeekHL(candles) : null,
               priceScale: _priceScale,
-              bullC: widget.xmTheme ? const Color(0xFF069B7E) : CandlePainter.bull,
-              bearC: widget.xmTheme ? const Color(0xFFF13745) : CandlePainter.bear,
+              bullC: widget.xmTheme
+                  ? const Color(0xFF069B7E)
+                  : chartStyle == ChartStyle.derivCandles
+                      ? CandlePainter.derivBull
+                      : CandlePainter.bull,
+              bearC: widget.xmTheme
+                  ? const Color(0xFFF13745)
+                  : chartStyle == ChartStyle.derivCandles
+                      ? CandlePainter.derivBear
+                      : CandlePainter.bear,
               bgColor: widget.xmTheme ? const Color(0xFF0F1829) : Colors.black,
               dotGrid: widget.xmTheme ? const Color(0xFF1F2A40) : const Color(0xFF282C34),
               firstVisible: _fv,
@@ -2923,6 +2933,10 @@ class CandlePainter extends CustomPainter {
 
   static const bull = Color(0xFF26A69A);
   static const bear = Color(0xFFEF5350);
+  // 'Deriv style' skin (approved preview Nov 24): mint/rose candles, exact
+  // colours from the approved design-concept image.
+  static const derivBull = Color(0xFF55C89B);
+  static const derivBear = Color(0xFFE0748C);
   static const grid = Color(0xFF161C26);
   static const axis = Color(0xFF8A93A6);
   static const gold = Color(0xFFF5C242);
