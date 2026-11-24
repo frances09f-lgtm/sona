@@ -2165,8 +2165,9 @@ class _TradeTabState extends State<TradeTab> {
   bool explaining = false;
 
   // Trade-tab chart source toggle: Sona chart (with signals) or
-  // Investing.com. Default shows the Investing.com box; the Sona chart
-  // with signals stays one tap away. Choice is persisted.
+  // Investing.com. Default keeps the native Sona chart (signals stay
+  // the default experience); Investing.com stays one tap away.
+  // Choice is persisted.
   // 'trade_chart_tv' is the legacy two-way bool key, migrated on load;
   // a stored 'tv' mode maps to 'investing' (TradingView removed at the
   // user's instruction, Nov 24, 2026).
@@ -2175,7 +2176,7 @@ class _TradeTabState extends State<TradeTab> {
   // The widget box needs the Android WebView. Off-Android (tests,
   // desktop) the Trade tab keeps the classic Sona chart UI unchanged.
   final bool _tvSupported = debugTradeTvSupported ?? Platform.isAndroid;
-  String _chartMode = 'investing'; // 'sona' | 'investing'
+  String _chartMode = 'sona'; // 'sona' | 'investing'
   bool get _showInvesting => _tvSupported && _chartMode == 'investing';
 
   void _setChartMode(String mode) {
