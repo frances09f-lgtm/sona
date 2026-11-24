@@ -419,6 +419,7 @@ class ODock extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),
