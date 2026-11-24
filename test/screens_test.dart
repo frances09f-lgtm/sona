@@ -145,7 +145,8 @@ Future<void> shoot(
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      {'trade_chart_mode_v1': 'sona'});
     FlutterSecureStorage.setMockInitialValues({});
     await loadFonts();
     // Deterministic session strip for goldens.
